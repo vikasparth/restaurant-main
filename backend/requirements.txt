@@ -1,0 +1,37 @@
+# ============================================================
+# Backend Dependencies — Aap ki Rasoi (FastAPI)
+# Install with: pip install -r requirements.txt
+# ============================================================
+
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+
+# Database (direct asyncpg connection to Supabase Postgres)
+asyncpg==0.30.0
+
+# Data validation
+pydantic==2.10.3
+pydantic-settings==2.7.0
+
+# Auth — Supabase JWT verification
+python-jose[cryptography]==3.3.0
+
+# Rate limiting
+slowapi==0.1.9
+
+# Email notifications (Resend)
+resend==2.27.0
+
+# WhatsApp notifications (Twilio)
+twilio==9.4.3
+
+# HTTP client (used in tests)
+httpx==0.28.1
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.0
+
+# Logging
+python-json-logger==3.2.1
