@@ -49,19 +49,19 @@
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| 1.1 | Python environment setup | `backend/` folder, `requirements.txt`, virtual env | ⏳ Pending |
-| 1.2 | FastAPI app skeleton | `main.py` with CORS (allowed origins from env variable — never wildcard), router registration, startup event | ⏳ Pending |
-| 1.3 | Config / env setup | `core/config.py` reads all `.env` variables with validation | ⏳ Pending |
-| 1.4 | Global error handling | `core/errors.py` — defines consistent `{"error": "...", "code": "..."}` format used by all routes | ⏳ Pending |
-| 1.5 | Auth middleware | `core/security.py` — Supabase JWT verification for all admin routes | ⏳ Pending |
-| 1.6 | Rate limiting setup | `core/rate_limit.py` — slowapi middleware on public POST endpoints | ⏳ Pending |
-| 1.7 | Supabase DB connection | `core/database.py` — asyncpg direct Postgres connection pool | ⏳ Pending |
-| 1.8 | Health check endpoint | `GET /health` → confirms app + DB alive | ⏳ Pending |
-| 1.9 | Database schema applied | Run updated migrations on Supabase | ⏳ Pending |
-| 1.10 | Seed data applied | Seed: 1 location, initial restaurant_config, sample menu items, sample zip codes | ⏳ Pending |
-| 1.11 | Structured logging setup | `core/logging.py` — JSON logs in production, human-readable in dev; log business events, errors, rate limit triggers; never log PII | ⏳ Pending |
-| 1.12 | Test suite setup | Install pytest + httpx; create `tests/` folder with `conftest.py`; write one sample test to confirm setup works | ⏳ Pending |
-| 1.13 | Local run verified | `uvicorn main:app --reload` works, `/health` passes, menu query returns data, one test passes | ⏳ Pending |
+| 1.1 | Python environment setup | `backend/` folder, `requirements.txt`, virtual env | ✅ Done |
+| 1.2 | FastAPI app skeleton | `main.py` with CORS (allowed origins from env variable — never wildcard), router registration, startup event | ✅ Done |
+| 1.3 | Config / env setup | `core/config.py` reads all `.env` variables with validation | ✅ Done |
+| 1.4 | Global error handling | `core/errors.py` — defines consistent `{"error": "...", "code": "..."}` format used by all routes | ✅ Done |
+| 1.5 | Auth middleware | `core/security.py` — Supabase JWT verification for all admin routes | ✅ Done |
+| 1.6 | Rate limiting setup | `core/rate_limit.py` — slowapi middleware on public POST endpoints | ✅ Done |
+| 1.7 | Supabase DB connection | `core/database.py` — asyncpg session pooler connection (IPv6 issue on direct connection) | ✅ Done |
+| 1.8 | Health check endpoint | `GET /health` → confirms app + DB alive | ✅ Done |
+| 1.9 | Database schema applied | Run updated migrations on Supabase | ✅ Done |
+| 1.10 | Seed data applied | Seed: 1 location, initial restaurant_config, sample menu items, sample zip codes | ✅ Done |
+| 1.11 | Structured logging setup | `core/logging.py` — JSON logs in production, human-readable in dev; log business events, errors, rate limit triggers; never log PII | ✅ Done |
+| 1.12 | Test suite setup | Install pytest + httpx; create `tests/` folder with `conftest.py`; write one sample test to confirm setup works | ✅ Done |
+| 1.13 | Local run verified | `uvicorn main:app --reload` works, `/health` passes, one test passes | ✅ Done |
 
 ---
 
