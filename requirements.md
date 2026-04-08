@@ -115,6 +115,7 @@
 | CAT-10 | Catering orders are auto-confirmed on placement | Must-have |
 | CAT-11 | Only the owner can cancel a catering order (via admin panel) | Must-have |
 | CAT-12 | Customers can add special instructions to a catering order (e.g. "vegetarian guests only", "no nuts") | Must-have |
+| CAT-13 | A 40% deposit amount is calculated and shown in the confirmation email and success screen — e.g. "A deposit of $X is required. Our team will contact you within 24 hours to arrange payment." Online payment collection is Phase 2 (Stripe). | Must-have |
 
 ---
 
@@ -183,6 +184,7 @@ All of the following are stored in the database and editable by the owner. Nothi
 | `min_delivery_order` | Minimum order value for delivery | TBD by owner |
 | `min_catering_order` | Minimum catering order value | $100 |
 | `catering_advance_hours` | Hours in advance required for catering | 48 |
+| `catering_deposit_percent` | Deposit percentage shown to customer on catering confirmation | 40 |
 | `max_reservation_party_size` | Maximum guests for online reservation | 20 |
 | `delivery_radius_miles` | Informational only (zip code list is the enforcer) | 15 |
 
@@ -249,7 +251,7 @@ The following are explicitly excluded from Phase 1 and documented for Phase 2:
 
 | Feature | Phase |
 |---|---|
-| Stripe payment integration | Phase 2 |
+| Stripe payment integration (catering deposit collection online) | Phase 2 — currently deposit amount is shown in confirmation email; owner collects manually |
 | Customer order status tracking page | Phase 2 |
 | Real geocoding (exact distance validation) | Phase 2 |
 | Staff logins with role-based permissions | Phase 2 |

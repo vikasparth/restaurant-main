@@ -70,6 +70,11 @@
 > For each feature, build the complete stack before moving to the next:
 > `Pydantic model → Service logic → Router → Frontend service → Wire to UI page → Test`
 
+### Rules for Every Slice
+- **Full test suite runs after every slice** — not just that slice's tests. If any prior test breaks, fix it before moving on. This is the primary guard against integration failures.
+- **Spec must be signed off before any code is written** — see `specs/sliceN_name.md`
+- **Never edit an already-applied migration** — if a slice needs a schema change, add a new migration file named `20260406000003_sliceN_description.sql` (additive only)
+
 ### Collaboration Model for Stage 2
 Stage 2 is a **pair programming partnership** between the owner (new engineer learning to code) and Claude (senior engineer/architect):
 
@@ -149,12 +154,12 @@ Stage 2 is a **pair programming partnership** between the owner (new engineer le
 | # | Task | Description | Status |
 |---|---|---|---|
 | 2.5.1 | Pydantic model | `models/catering.py` — includes `idempotency_key: UUID` | ⏳ Pending |
-| 2.5.2 | Catering service | `services/catering_service.py` — 48h validation, save to Supabase; idempotency check on key | ⏳ Pending |
+| 2.5.2 | Catering service | `services/catering_service.py` — 48h validation, $100 minimum, calculate 40% deposit amount from `restaurant_config.catering_deposit_percent`, save to Supabase; idempotency check on key | ⏳ Pending |
 | 2.5.3 | Catering router | `routers/catering.py` — `POST /api/catering` | ⏳ Pending |
 | 2.5.4 | Frontend service | `src/services/cateringService.ts` | ⏳ Pending |
 | 2.5.5 | Wire to UI | Update `CateringPage.tsx` to POST to API | ⏳ Pending |
 | 2.5.6 | Automated tests | pytest: catering saved, 48h rule enforced, minimum order enforced, idempotency check | ⏳ Pending |
-| 2.5.7 | Manual verification | Full catering flow in browser, reference number shown | ⏳ Pending |
+| 2.5.7 | Manual verification | Full catering flow in browser, reference number + deposit amount shown on success screen | ⏳ Pending |
 
 ---
 

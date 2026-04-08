@@ -110,12 +110,13 @@ restaurant_main_project/
 │   ├── .env.example                # Environment variable template (no secrets)
 │   │
 │   ├── core/
-│   │   ├── config.py               # App settings — reads all .env variables with validation
+│   │   ├── config.py               # App settings — reads all .env variables including DEFAULT_LOCATION_ID
 │   │   ├── database.py             # asyncpg direct Postgres connection pool
 │   │   ├── security.py             # Supabase JWT verification for admin routes
 │   │   ├── errors.py               # Global error response format (set up in Stage 1)
 │   │   ├── rate_limit.py           # slowapi rate limiter setup
-│   │   └── logging.py              # Structured logging — JSON in production, readable in dev; never logs PII
+│   │   ├── logging.py              # Structured logging — JSON in production, readable in dev; never logs PII
+│   │   └── timezone.py             # Timezone utility — converts datetimes to restaurant local time (Pacific)
 │   │
 │   ├── routers/                    # HTTP layer only — no business logic here
 │   │   ├── orders.py
@@ -126,11 +127,13 @@ restaurant_main_project/
 │   │   └── admin.py                # Admin-only routes (analytics, config, status updates)
 │   │
 │   ├── services/                   # All business logic lives here
+│   │   ├── menu_service.py         # Read + CRUD for menu items; exposes validate_menu_items() for orders/catering
 │   │   ├── order_service.py        # Validate hours + scheduled time, save, notify
 │   │   ├── reservation_service.py  # Save, notify, reminder logic
 │   │   ├── catering_service.py     # 48h rule, $100 min, save, notify
-│   │   ├── menu_service.py         # Read + CRUD for menu items + daily specials
 │   │   ├── delivery_service.py     # Zip code validation against delivery_zones table
+│   │   ├── config_service.py       # Shared: fetch restaurant_config for a location — used by orders, reservations, catering, admin
+│   │   ├── reference_service.py    # Shared: generate AKR-YYYYMMDD-XXXX reference numbers — used by orders, reservations, catering
 │   │   ├── analytics_service.py    # Monthly sales, pickup vs delivery, top items
 │   │   ├── email_service.py        # Resend wrapper + email templates
 │   │   └── whatsapp_service.py     # Twilio WhatsApp wrapper
@@ -200,7 +203,7 @@ restaurant_main_project/
 - All tables with location scope carry `location_id` — ready for multi-location
 - Prices snapshotted on `order_items` and `catering_order_items` — past orders unaffected by price changes
 - Reference numbers generated via Postgres sequence — format `AKR-YYYYMMDD-XXXX`, guaranteed unique, no race condition
-- `restaurant_config` stores: timezone, operating hours, delivery fee, min delivery order, min catering order, catering advance hours, max reservation party size — all editable without code changes
+- `restaurant_config` stores: timezone, operating hours, delivery fee, min delivery order, min catering order, catering advance hours, catering deposit percent (default 40), max reservation party size — all editable without code changes
 - `menu_items` includes: `allergens[]`, `is_available`, `catering_available`, `catering_price_per_tray`, `display_order`
 - Images stay as static frontend files (Phase 1) → Supabase Storage in Phase 2 when admin image upload is needed
 
@@ -255,6 +258,7 @@ restaurant_main_project/
 | Scheduled time must be in the future and within operating hours | `order_service.py` | `restaurant_config` |
 | Catering minimum order value ($100) | `catering_service.py` | `restaurant_config` |
 | Catering orders must be 48h in advance | `catering_service.py` | `restaurant_config` |
+| Catering deposit (40%) calculated and returned | `catering_service.py` | `restaurant_config.catering_deposit_percent` — shown in response, email, and success screen; not collected online (Phase 2 — Stripe) |
 | Maximum reservation party size (20) | `reservation_service.py` | `restaurant_config` |
 | All times validated in restaurant's timezone (Pacific) | All services | `restaurant_config.timezone` |
 | No public sign-up | Supabase Auth config | Supabase dashboard |
@@ -284,10 +288,12 @@ restaurant_main_project/
 
 ### Catering order placed:
 1. Validate 48h advance rule + $100 minimum
-2. Save to Supabase, generate reference number
-3. Auto-confirm
-4. Send customer confirmation email (full summary)
-5. Send owner notification: email + WhatsApp
+2. Calculate 40% deposit amount from order total (value from `restaurant_config.catering_deposit_percent`)
+3. Save to Supabase, generate reference number
+4. Auto-confirm
+5. Send customer confirmation email (full summary + deposit amount + "Our team will contact you within 24 hours to arrange payment")
+6. Send owner notification: email + WhatsApp (includes deposit amount due)
+7. Return reference number + deposit amount to frontend — shown on success screen
 
 ### 24-hour reservation reminder:
 - cron-job.org pings `POST /api/reservations/send-reminders` daily at 9am Pacific
@@ -468,3 +474,71 @@ After each slice is deployed, manually verify the full browser flow — place a 
 | `supabase/migrations/` | Rewrite with updated schema (locations, restaurant_config, allergens, reference numbers, special_instructions) |
 | `supabase/config.toml` | Keep — useful for local development |
 | `.env.example` | Rewrite with final Python/FastAPI variables. Remove any PII |
+
+---
+
+## 19. Shared Contracts (Defined Once — Used by All Slices)
+
+These are decisions that every slice must follow. Defined here so each slice spec can reference rather than reinvent.
+
+### Response Convention
+- **Success:** Return the domain payload directly — no envelope wrapper.
+  - `GET /api/menu` → `{"categories": [...]}`
+  - `POST /api/orders` → `{"reference_number": "AKR-...", "status": "confirmed"}`
+- **Error:** Always use the error envelope from `core/errors.py`:
+  - `{"error": "Human-readable message", "code": "MACHINE_READABLE_CODE"}`
+- **Never mix:** a successful response never has an `error` key; an error response never has data keys.
+
+### location_id Strategy
+- Phase 1 is single-location. Every DB query uses `DEFAULT_LOCATION_ID` from environment config.
+- `core/config.py` reads `DEFAULT_LOCATION_ID` from `.env` and exposes it as `settings.default_location_id`.
+- No slice may hardcode a location ID — always read from `settings.default_location_id`.
+- When multi-location is activated (Phase 2), this is the only place to change.
+
+### config_service.py — Shared Config Fetching
+- Slices 3, 4, 5, and 8 all need values from `restaurant_config` (hours, fees, limits, timezone).
+- All must call `get_restaurant_config(db)` from `services/config_service.py` — never write a raw DB query for config in another service.
+- Returns a typed `RestaurantConfig` Pydantic model.
+
+### reference_service.py — Reference Number Generation
+- Slices 3, 4, and 5 all generate reference numbers in format `AKR-YYYYMMDD-XXXX`.
+- All must call `generate_reference_number(db)` from `services/reference_service.py`.
+- Uses the Postgres sequence `public.reference_number_seq` — guaranteed unique, no race condition.
+
+### Idempotency Pattern
+- Slices 3, 4, and 5 all accept `idempotency_key: UUID` in the request body.
+- Pattern is identical for all three:
+  1. Check if `idempotency_key` already exists in the table.
+  2. If yes: return the original saved response — do not create a new record.
+  3. If no: proceed with saving.
+- Each service implements this check itself (the table differs), but the logic is identical.
+
+### core/timezone.py — Timezone Utility
+- All time validation must happen in the restaurant's local timezone (Pacific Time by default).
+- Slices 3, 4, and 5 all validate times — never do raw UTC comparisons.
+- All must use `to_restaurant_time(dt, timezone_str)` from `core/timezone.py`.
+- Timezone string comes from `restaurant_config.timezone` via `config_service.py`.
+
+### menu_service.py — Item Validation Helper
+- When placing an order (Slice 3) or catering order (Slice 5), submitted `menu_item_id` values must be validated.
+- `menu_service.py` exposes `validate_menu_items(db, item_ids: list[str]) -> None` — raises `422` if any ID is invalid or unavailable.
+- Slice 3 and 5 call this before saving — they do not write their own item-lookup queries.
+
+### Status State Machines
+All entities with a `status` column follow these allowed transitions:
+
+| Entity | Initial status | Allowed transitions |
+|---|---|---|
+| Orders | `confirmed` | `confirmed → ready`, `confirmed → cancelled`, `ready → delivered`, `ready → cancelled` |
+| Reservations | `confirmed` | `confirmed → cancelled` |
+| Catering orders | `confirmed` | `confirmed → cancelled`, `confirmed → completed` |
+
+Admin endpoints (Slice 8) enforce these transitions — invalid transitions return `422 INVALID_STATUS_TRANSITION`.
+
+### DB Migration Strategy During Development
+- **Never edit a migration that has already been applied** to any database (local or Supabase).
+- If a slice requires a schema change (new column, new table, new index), add a **new migration file** — additive only.
+- Naming convention: `YYYYMMDDNNNNNN_description.sql` — increment the sequence number.
+  - Example: `20260406000003_slice3_add_scheduled_time_to_orders.sql`
+- Each migration file must be idempotent where possible (use `IF NOT EXISTS`, `IF EXISTS`).
+- Applied migrations are append-only history — treat them like git commits, never rewrite history.

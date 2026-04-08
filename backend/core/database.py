@@ -26,3 +26,9 @@ def get_pool() -> asyncpg.Pool:
     if _pool is None:
         raise RuntimeError("Database pool is not initialised")
     return _pool
+
+
+async def get_db():
+    """FastAPI dependency — provides a single DB connection per request."""
+    async with _pool.acquire() as connection:
+        yield connection
