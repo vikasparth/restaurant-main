@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 import { toast } from "sonner";
 import WhatsAppButton from "@/components/WhatsAppButton";
+import { validateZip } from "@/services/deliveryService";
 
 const timeSlots = [
   "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30",
@@ -19,14 +20,39 @@ const OrderPage = () => {
   const [date, setDate] = useState<Date>();
   const [time, setTime] = useState("");
   const [address, setAddress] = useState("");
+  const [zip, setZip] = useState("");
+  const [zipStatus, setZipStatus] = useState<"idle" | "checking" | "covered" | "not_covered">("idle");
+  const [zipCity, setZipCity] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
   const deliveryFee = mode === "delivery" ? 4.99 : 0;
   const grandTotal = totalPrice + deliveryFee;
 
+  const handleZipBlur = async () => {
+    if (!zip.trim()) return;
+    setZipStatus("checking");
+    try {
+      const result = await validateZip(zip);
+      if (result.is_covered) {
+        setZipStatus("covered");
+        setZipCity(result.city);
+      } else {
+        setZipStatus("not_covered");
+        setZipCity(null);
+      }
+    } catch {
+      setZipStatus("idle");
+      toast.error("Could not validate zip code. Please try again.");
+    }
+  };
+
   const handleOrder = () => {
     if (!date || !time) {
       toast.error("Please select date and time");
+      return;
+    }
+    if (mode === "delivery" && zipStatus !== "covered") {
+      toast.error("Please enter a valid delivery zip code");
       return;
     }
     if (mode === "delivery" && !address.trim()) {
@@ -91,7 +117,7 @@ const OrderPage = () => {
         ) : (
           items.map((ci) => (
             <div key={ci.item.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
-              <img src={ci.item.image} alt={ci.item.name} className="h-12 w-12 rounded-md object-cover" loading="lazy" />
+              <img src={ci.item.image_url} alt={ci.item.name} className="h-12 w-12 rounded-md object-cover" loading="lazy" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-foreground">{ci.item.name}</p>
                 <p className="text-sm text-primary">${(ci.item.price * ci.quantity).toFixed(2)}</p>
@@ -114,16 +140,31 @@ const OrderPage = () => {
         <h2 className="font-serif text-lg font-semibold text-foreground">{mode === "pickup" ? "Pickup" : "Delivery"} Details</h2>
         
         {mode === "delivery" && (
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Delivery Address *</label>
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
-              placeholder="Enter your full address with postcode"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">We deliver within 15 miles of our restaurant</p>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Zip Code *</label>
+              <input
+                type="text"
+                value={zip}
+                onChange={(e) => { setZip(e.target.value); setZipStatus("idle"); }}
+                onBlur={handleZipBlur}
+                className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+                placeholder="Enter your zip code"
+              />
+              {zipStatus === "checking" && <p className="mt-1 text-xs text-muted-foreground">Checking coverage…</p>}
+              {zipStatus === "covered" && <p className="mt-1 text-xs text-green-600">We deliver to {zipCity}!</p>}
+              {zipStatus === "not_covered" && <p className="mt-1 text-xs text-destructive">Sorry, we don't deliver to this zip code.</p>}
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Delivery Address *</label>
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+                placeholder="Enter your full street address"
+              />
+            </div>
           </div>
         )}
 
