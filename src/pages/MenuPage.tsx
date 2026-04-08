@@ -1,15 +1,31 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
-import { menuItems, categories, MenuItem } from "@/data/menu";
+import { fetchMenu } from "@/services/menuService";
+import type { MenuResponse, MenuItem } from "@/types/menu";
 import { useCart } from "@/context/CartContext";
 import FoodItemModal from "@/components/FoodItemModal";
 
 const MenuPage = () => {
+  const [menuData, setMenuData] = useState<MenuResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState("all");
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const { addItem } = useCart();
 
-  const filtered = activeCategory === "all" ? menuItems : menuItems.filter((i) => i.category === activeCategory);
+  useEffect(() => {
+    fetchMenu()
+      .then(setMenuData)
+      .catch(() => setError("Failed to load menu. Please try again later."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const allItems = menuData?.categories.flatMap((c) => c.items) ?? [];
+  const filtered = activeCategory === "all" ? allItems : allItems.filter((i) => i.category === activeCategory);
+  const categoryNames = menuData?.categories.map((c) => c.name) ?? [];
+
+  if (loading) return <div className="container py-12 text-center text-muted-foreground">Loading menu…</div>;
+  if (error) return <div className="container py-12 text-center text-destructive">{error}</div>;
 
   return (
     <div className="container py-12">
@@ -18,17 +34,17 @@ const MenuPage = () => {
 
       {/* Categories */}
       <div className="mt-8 flex flex-wrap justify-center gap-2">
-        {categories.map((cat) => (
+        {["all", ...categoryNames].map((name) => (
           <button
-            key={cat.id}
-            onClick={() => setActiveCategory(cat.id)}
+            key={name}
+            onClick={() => setActiveCategory(name)}
             className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-              activeCategory === cat.id
+              activeCategory === name
                 ? "bg-primary text-primary-foreground"
                 : "bg-secondary text-secondary-foreground hover:bg-primary/10"
             }`}
           >
-            {cat.label}
+            {name === "all" ? "All" : name.charAt(0).toUpperCase() + name.slice(1)}
           </button>
         ))}
       </div>
@@ -43,7 +59,7 @@ const MenuPage = () => {
           >
             <div className="relative overflow-hidden">
               <img
-                src={item.image}
+                src={item.image_url}
                 alt={item.name}
                 className="h-48 w-full object-cover transition-transform group-hover:scale-105"
                 loading="lazy"

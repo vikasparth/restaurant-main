@@ -1,6 +1,6 @@
 import { X, Plus, Minus } from "lucide-react";
 import { useState } from "react";
-import { MenuItem } from "@/data/menu";
+import type { MenuItem } from "@/types/menu";
 import { useCart } from "@/context/CartContext";
 
 interface FoodItemModalProps {
@@ -22,7 +22,7 @@ const FoodItemModal = ({ item, onClose }: FoodItemModalProps) => {
           <button onClick={onClose} className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-background/80 hover:bg-secondary" aria-label="Close">
             <X className="h-4 w-4" />
           </button>
-          <img src={item.image} alt={item.name} className="h-64 w-full object-cover" />
+          <img src={item.image_url} alt={item.name} className="h-64 w-full object-cover" />
           <div className="p-6">
             <div className="flex items-start justify-between">
               <h2 className="font-serif text-2xl font-bold text-foreground">{item.name}</h2>
@@ -30,10 +30,10 @@ const FoodItemModal = ({ item, onClose }: FoodItemModalProps) => {
             </div>
             <p className="mt-2 text-sm text-muted-foreground">{item.description}</p>
             <div className="mt-4">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ingredients</h4>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Allergens</h4>
               <div className="mt-1 flex flex-wrap gap-1.5">
-                {item.ingredients.map((ing) => (
-                  <span key={ing} className="rounded-full bg-secondary px-2.5 py-0.5 text-xs text-secondary-foreground">{ing}</span>
+                {item.allergens.map((allergen) => (
+                  <span key={allergen} className="rounded-full bg-secondary px-2.5 py-0.5 text-xs text-secondary-foreground">{allergen}</span>
                 ))}
               </div>
             </div>
