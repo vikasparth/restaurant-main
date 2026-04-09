@@ -362,12 +362,12 @@ async def test_idempotency_duplicate_key_returns_original(client):
 
 @pytest.mark.anyio
 async def test_db_failure_returns_503(client, monkeypatch):
-    import services.order_service as order_service
+    import routers.orders as orders_router
 
     async def mock_create_order(*args, **kwargs):
         raise Exception("Simulated DB failure")
 
-    monkeypatch.setattr(order_service, "create_order", mock_create_order)
+    monkeypatch.setattr(orders_router, "create_order", mock_create_order)
 
     response = await client.post("/api/orders", json=pickup_payload())
     assert response.status_code == 503
