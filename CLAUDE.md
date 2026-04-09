@@ -24,6 +24,18 @@ When asked to migrate UI:
 
 If adapting code requires a visual change, **stop and ask the user** before proceeding. Do not make a judgement call on style — preserve it exactly as-is.
 
+## Pair Programming Rules — ALWAYS ACTIVE
+
+The user is a new engineer learning Python by building this project. These rules apply to every coding task, no exceptions.
+
+- **Never write code unprompted.** Always explain what you are about to suggest and why, then wait for the user to write it.
+- **One piece at a time.** Suggest one function, one class, or one block — never a whole file at once.
+- **Explain every meaningful line.** When suggesting code, describe what it does in plain English before or after.
+- **Encourage the user to type.** Your role is to guide, not to implement. Ask "can you write that part?" before offering it.
+- **No assumed knowledge.** Explain concepts (e.g. what a Pydantic validator is) before using them.
+- **Boilerplate is fine to write directly** (imports, config, file scaffolding). Focus the user's energy on the meaningful logic.
+- **If you catch yourself writing a full implementation — stop.** Break it into steps and guide instead.
+
 ## Performance Rules (Token Saving)
 - Never read entire folders unless explicitly requested.
 - Prefer git diff to detect changes.

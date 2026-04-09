@@ -1,6 +1,6 @@
 # Execution Plan — Aap ki Rasoi Backend
 **Status: APPROVED — Signed off by Vikas, 2026-04-06**
-**Last updated: 2026-04-06**
+**Last updated: 2026-04-09**
 **Reference:** See `architecture.md` for full design decisions.
 
 ---
@@ -123,13 +123,15 @@ Stage 2 is a **pair programming partnership** between the owner (new engineer le
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| 2.3.1 | Pydantic model | `models/order.py` — OrderCreate (includes `idempotency_key: UUID`), OrderItem, OrderResponse | ⏳ Pending |
-| 2.3.2 | Order service | `services/order_service.py` — validate hours, save order + items; if `idempotency_key` already exists return original response | ⏳ Pending |
-| 2.3.3 | Orders router | `routers/orders.py` — `POST /api/orders` | ⏳ Pending |
-| 2.3.4 | Frontend service | `src/services/orderService.ts` | ⏳ Pending |
-| 2.3.5 | Wire to UI | Update `OrderPage.tsx` to POST to API | ⏳ Pending |
-| 2.3.6 | Automated tests | pytest: order saved correctly, hours enforced, reference number format correct, price snapshotted, idempotency (same key twice = one order, same response returned) | ⏳ Pending |
-| 2.3.7 | Manual verification | Full order flow in browser: place order → see reference number → check Supabase | ⏳ Pending |
+| 2.3.1 | Spec | `specs/slice3_orders.md` — 18 tests defined, business rules captured, signed off | ✅ Done 2026-04-09 |
+| 2.3.2 | Automated tests | `tests/test_orders.py` — 18 tests written, all failing (TDD Step 1) | ✅ Done 2026-04-09 |
+| 2.3.3 | Pydantic model | `models/order.py` — `OrderItemRequest`, `OrderCreateRequest`, `OrderCreateResponse` | ✅ Done 2026-04-09 |
+| 2.3.4 | Order service | `services/order_service.py` — validate hours, zip, min order, items; save order + items; idempotency | ⏳ Pending |
+| 2.3.5 | Orders router | `routers/orders.py` — `POST /api/orders` | ⏳ Pending |
+| 2.3.6 | Run tests | All 18 tests green | ⏳ Pending |
+| 2.3.7 | Frontend service | `src/services/orderService.ts` | ⏳ Pending |
+| 2.3.8 | Wire to UI | Update `OrderPage.tsx` — add name/email/phone, generate idempotency_key, show reference number | ⏳ Pending |
+| 2.3.9 | Manual verification | Full order flow in browser: place order → see reference number → check Supabase | ⏳ Pending |
 
 ---
 
