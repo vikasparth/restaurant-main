@@ -126,12 +126,12 @@ Stage 2 is a **pair programming partnership** between the owner (new engineer le
 | 2.3.1 | Spec | `specs/slice3_orders.md` — 18 tests defined, business rules captured, signed off | ✅ Done 2026-04-09 |
 | 2.3.2 | Automated tests | `tests/test_orders.py` — 18 tests written, all failing (TDD Step 1) | ✅ Done 2026-04-09 |
 | 2.3.3 | Pydantic model | `models/order.py` — `OrderItemRequest`, `OrderCreateRequest`, `OrderCreateResponse` | ✅ Done 2026-04-09 |
-| 2.3.4 | Order service | `services/order_service.py` — validate hours, zip, min order, items; save order + items; idempotency | ⏳ Pending |
-| 2.3.5 | Orders router | `routers/orders.py` — `POST /api/orders` | ⏳ Pending |
-| 2.3.6 | Run tests | All 18 tests green | ⏳ Pending |
-| 2.3.7 | Frontend service | `src/services/orderService.ts` | ⏳ Pending |
-| 2.3.8 | Wire to UI | Update `OrderPage.tsx` — add name/email/phone, generate idempotency_key, show reference number | ⏳ Pending |
-| 2.3.9 | Manual verification | Full order flow in browser: place order → see reference number → check Supabase | ⏳ Pending |
+| 2.3.4 | Order service | `services/order_service.py` — validate hours, zip, min order, items; save order + items; idempotency | ✅ Done 2026-04-09 |
+| 2.3.5 | Orders router | `routers/orders.py` — `POST /api/orders` | ✅ Done 2026-04-09 |
+| 2.3.6 | Run tests | All 18 tests green | ✅ Done 2026-04-09 |
+| 2.3.7 | Frontend service | `src/services/orderService.ts` | ✅ Done 2026-04-09 |
+| 2.3.8 | Wire to UI | Update `OrderPage.tsx` — add name/email/phone, generate idempotency_key, show reference number | ✅ Done 2026-04-09 |
+| 2.3.9 | Manual verification | Full order flow in browser: place order → see reference number → check Supabase | ✅ Done 2026-04-09 |
 
 ---
 

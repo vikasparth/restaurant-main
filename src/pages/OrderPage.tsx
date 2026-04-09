@@ -8,6 +8,8 @@ import { useCart } from "@/context/CartContext";
 import { toast } from "sonner";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import { validateZip } from "@/services/deliveryService";
+import { createOrder } from "@/services/orderService";
+import type { OrderCreateResponse } from "@/types/order";
 
 const timeSlots = [
   "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30",
@@ -23,7 +25,11 @@ const OrderPage = () => {
   const [zip, setZip] = useState("");
   const [zipStatus, setZipStatus] = useState<"idle" | "checking" | "covered" | "not_covered">("idle");
   const [zipCity, setZipCity] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [orderResult, setOrderResult] = useState<OrderCreateResponse | null>(null);
 
   const deliveryFee = mode === "delivery" ? 4.99 : 0;
   const grandTotal = totalPrice + deliveryFee;
@@ -46,7 +52,11 @@ const OrderPage = () => {
     }
   };
 
-  const handleOrder = () => {
+  const handleOrder = async () => {
+    if (!customerName.trim() || !customerEmail.trim() || !customerPhone.trim()) {
+      toast.error("Please fill in your contact details");
+      return;
+    }
     if (!date || !time) {
       toast.error("Please select date and time");
       return;
@@ -63,22 +73,57 @@ const OrderPage = () => {
       toast.error("Your cart is empty");
       return;
     }
-    setSubmitted(true);
-    clearCart();
-    toast.success("Order placed successfully!");
+
+    setSubmitting(true);
+    try {
+      const result = await createOrder({
+        idempotency_key: crypto.randomUUID(),
+        customer_name: customerName.trim(),
+        customer_email: customerEmail.trim(),
+        customer_phone: customerPhone.trim(),
+        order_type: mode,
+        scheduled_date: format(date, "yyyy-MM-dd"),
+        scheduled_time: time,
+        items: items.map((ci) => ({ menu_item_id: ci.item.id, quantity: ci.quantity })),
+        ...(mode === "delivery" && { delivery_address: address.trim(), delivery_zip: zip.trim() }),
+      });
+      setOrderResult(result);
+      clearCart();
+      toast.success("Order placed successfully!");
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "ORDER_FAILED";
+      if (code === "OUTSIDE_HOURS") {
+        toast.error("That time is outside our operating hours. Please choose another time.");
+      } else if (code === "SCHEDULED_TIME_IN_PAST") {
+        toast.error("That time has already passed. Please choose a future time.");
+      } else if (code === "BELOW_MIN_ORDER") {
+        toast.error("Delivery orders require a $25.00 minimum. Please add more items.");
+      } else if (code === "ZIP_NOT_COVERED") {
+        toast.error("We don't deliver to that zip code.");
+      } else {
+        toast.error("Something went wrong. Please try again.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  if (submitted) {
+  if (orderResult) {
     return (
       <div className="container max-w-lg py-20 text-center">
         <div className="rounded-xl border border-border bg-card p-8">
           <h1 className="font-serif text-3xl font-bold text-foreground">Order Confirmed!</h1>
+          <p className="mt-3 text-sm font-mono text-primary tracking-widest">{orderResult.reference_number}</p>
           <p className="mt-4 text-muted-foreground">
-            Your {mode} order has been placed for {date && format(date, "MMMM d, yyyy")} at {time}.
+            Your {orderResult.order_type} order has been placed for {orderResult.scheduled_date} at {orderResult.scheduled_time}.
           </p>
-          {mode === "delivery" && <p className="mt-2 text-sm text-muted-foreground">Delivering to: {address}</p>}
+          <div className="mt-4 space-y-1 text-sm text-muted-foreground">
+            <div className="flex justify-between"><span>Subtotal</span><span>${orderResult.subtotal.toFixed(2)}</span></div>
+            {orderResult.delivery_fee > 0 && <div className="flex justify-between"><span>Delivery fee</span><span>${orderResult.delivery_fee.toFixed(2)}</span></div>}
+            <div className="flex justify-between font-semibold text-foreground border-t border-border pt-1"><span>Total</span><span>${orderResult.total.toFixed(2)}</span></div>
+          </div>
           <WhatsAppButton
-            message={`Hi Aap ki Rasoi! I have a question about my ${mode} order...`}
+            message={`Hi Aap ki Rasoi! I have a question about my order ${orderResult.reference_number}`}
             label="Track or need help? Chat on WhatsApp"
             className="mt-6"
           />
@@ -133,6 +178,43 @@ const OrderPage = () => {
             </div>
           ))
         )}
+      </div>
+
+      {/* Contact Details */}
+      <div className="mt-6 space-y-4">
+        <h2 className="font-serif text-lg font-semibold text-foreground">Your Details</h2>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-foreground">Name *</label>
+          <input
+            type="text"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+            placeholder="Full name"
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Email *</label>
+            <input
+              type="email"
+              value={customerEmail}
+              onChange={(e) => setCustomerEmail(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+              placeholder="you@example.com"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Phone *</label>
+            <input
+              type="tel"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+              placeholder="10-digit number"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Schedule */}
@@ -203,8 +285,12 @@ const OrderPage = () => {
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span>${totalPrice.toFixed(2)}</span></div>
           {mode === "delivery" && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Delivery Fee</span><span>${deliveryFee.toFixed(2)}</span></div>}
           <div className="flex justify-between border-t border-border pt-2 text-lg font-semibold"><span>Total</span><span className="text-primary">${grandTotal.toFixed(2)}</span></div>
-          <button onClick={handleOrder} className="mt-3 w-full rounded-md bg-primary py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors">
-            Place Order
+          <button
+            onClick={handleOrder}
+            disabled={submitting}
+            className="mt-3 w-full rounded-md bg-primary py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors disabled:opacity-50"
+          >
+            {submitting ? "Placing Order…" : "Place Order"}
           </button>
         </div>
       )}
