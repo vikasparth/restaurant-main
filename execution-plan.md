@@ -93,13 +93,13 @@ Stage 2 is a **pair programming partnership** between the owner (new engineer le
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| 2.1.1 | Pydantic model | `models/menu.py` — MenuItem, Category | ⏳ Pending |
-| 2.1.2 | Menu service | `services/menu_service.py` — fetch all active items from Supabase | ⏳ Pending |
-| 2.1.3 | Menu router | `routers/menu.py` — `GET /api/menu` | ⏳ Pending |
-| 2.1.4 | Frontend service | `src/services/menuService.ts` — fetch from API | ⏳ Pending |
-| 2.1.5 | Wire to UI | Update `MenuPage.tsx` + `CartContext` to use API instead of static `menu.ts` | ⏳ Pending |
-| 2.1.6 | Automated tests | pytest: menu returns items, categories correct, unavailable items excluded | ⏳ Pending |
-| 2.1.7 | Manual verification | Menu loads in browser from database | ⏳ Pending |
+| 2.1.1 | Pydantic model | `models/menu.py` — MenuItem, Category | ✅ Done |
+| 2.1.2 | Menu service | `services/menu_service.py` — fetch all active items from Supabase | ✅ Done |
+| 2.1.3 | Menu router | `routers/menu.py` — `GET /api/menu` | ✅ Done |
+| 2.1.4 | Frontend service | `src/services/menuService.ts` — fetch from API | ✅ Done |
+| 2.1.5 | Wire to UI | Update `MenuPage.tsx` + `CartContext` to use API instead of static `menu.ts` | ✅ Done |
+| 2.1.6 | Automated tests | pytest: menu returns items, categories correct, unavailable items excluded | ✅ Done |
+| 2.1.7 | Manual verification | Menu loads in browser from database | ✅ Done |
 
 ---
 
@@ -108,13 +108,13 @@ Stage 2 is a **pair programming partnership** between the owner (new engineer le
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| 2.2.1 | Pydantic model | `models/delivery.py` — DeliveryValidateRequest/Response | ⏳ Pending |
-| 2.2.2 | Delivery service | `services/delivery_service.py` — check zip against `delivery_zones` table | ⏳ Pending |
-| 2.2.3 | Delivery router | `routers/delivery.py` — `POST /api/delivery/validate` | ⏳ Pending |
-| 2.2.4 | Frontend service | `src/services/deliveryService.ts` | ⏳ Pending |
-| 2.2.5 | Wire to UI | Update `OrderPage.tsx` to validate zip before showing delivery option | ⏳ Pending |
-| 2.2.6 | Automated tests | pytest: valid zip accepted, invalid zip rejected, empty zip rejected | ⏳ Pending |
-| 2.2.7 | Manual verification | Valid zip accepted, invalid zip shows friendly error in browser | ⏳ Pending |
+| 2.2.1 | Pydantic model | `models/delivery.py` — DeliveryValidateRequest/Response | ✅ Done |
+| 2.2.2 | Delivery service | `services/delivery_service.py` — check zip against `delivery_zones` table | ✅ Done |
+| 2.2.3 | Delivery router | `routers/delivery.py` — `POST /api/delivery/validate` | ✅ Done |
+| 2.2.4 | Frontend service | `src/services/deliveryService.ts` | ✅ Done |
+| 2.2.5 | Wire to UI | Update `OrderPage.tsx` to validate zip before showing delivery option | ✅ Done |
+| 2.2.6 | Automated tests | pytest: valid zip accepted, invalid zip rejected, empty zip rejected | ✅ Done |
+| 2.2.7 | Manual verification | Valid zip accepted, invalid zip shows friendly error in browser | ✅ Done |
 
 ---
 
@@ -140,13 +140,15 @@ Stage 2 is a **pair programming partnership** between the owner (new engineer le
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| 2.4.1 | Pydantic model | `models/reservation.py` — includes `idempotency_key: UUID` | ⏳ Pending |
-| 2.4.2 | Reservation service | `services/reservation_service.py` — save to Supabase; idempotency check on key | ⏳ Pending |
-| 2.4.3 | Reservations router | `routers/reservations.py` — `POST /api/reservations` | ⏳ Pending |
-| 2.4.4 | Frontend service | `src/services/reservationService.ts` | ⏳ Pending |
-| 2.4.5 | Wire to UI | Update `ReservationPage.tsx` to POST to API | ⏳ Pending |
-| 2.4.6 | Automated tests | pytest: reservation saved, party size limit enforced, reference number generated, idempotency check | ⏳ Pending |
-| 2.4.7 | Manual verification | Reservation saved in Supabase, confirmation shown in browser | ⏳ Pending |
+| 2.4.1 | Spec | `specs/slice4_reservations.md` — 10 tests defined, business rules captured, signed off | ✅ Done 2026-04-10 |
+| 2.4.2 | Automated tests | `tests/test_reservations.py` — 10 tests written, all failing (TDD Step 1) | ✅ Done 2026-04-10 |
+| 2.4.3 | Pydantic model | `models/reservation.py` — `ReservationCreateRequest`, `ReservationCreateResponse` | ✅ Done 2026-04-10 |
+| 2.4.4 | Reservation service | `services/reservation_service.py` — validate time, party size, idempotency, save to DB | ⏳ Pending |
+| 2.4.5 | Reservations router | `routers/reservations.py` — `POST /api/reservations` | ⏳ Pending |
+| 2.4.6 | Run tests | All 10 tests green | ⏳ Pending |
+| 2.4.7 | Frontend service | `src/services/reservationService.ts` | ⏳ Pending |
+| 2.4.8 | Wire to UI | Update `ReservationPage.tsx` — generate idempotency_key, show reference number | ⏳ Pending |
+| 2.4.9 | Manual verification | Reservation saved in Supabase, confirmation shown in browser | ⏳ Pending |
 
 ---
 
