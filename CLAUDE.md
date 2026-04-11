@@ -24,6 +24,15 @@ When asked to migrate UI:
 
 If adapting code requires a visual change, **stop and ask the user** before proceeding. Do not make a judgement call on style — preserve it exactly as-is.
 
+## Slice Rules — ALWAYS ACTIVE
+
+Before starting any new slice:
+1. **Read `specs/DEPENDENCY_MAP.md`** — check which signatures to pull from prior slices.
+2. **Write the spec first** (`specs/sliceN_name.md`) and wait for sign-off before any code.
+3. **Write tests before implementation** (TDD) — all tests must fail first, then be made green.
+4. **Run the full test suite after every slice** — not just the new tests. Fix any regressions before moving on.
+5. **Never edit an already-applied migration** — schema changes go in a new migration file (additive only).
+
 ## Pair Programming Rules — ALWAYS ACTIVE
 
 The user is a new engineer learning Python by building this project. These rules apply to every coding task, no exceptions.

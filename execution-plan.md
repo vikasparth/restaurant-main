@@ -71,20 +71,7 @@
 > `Pydantic model → Service logic → Router → Frontend service → Wire to UI page → Test`
 
 ### Rules for Every Slice
-- **Full test suite runs after every slice** — not just that slice's tests. If any prior test breaks, fix it before moving on. This is the primary guard against integration failures.
-- **Spec must be signed off before any code is written** — see `specs/sliceN_name.md`
-- **Never edit an already-applied migration** — if a slice needs a schema change, add a new migration file named `20260406000003_sliceN_description.sql` (additive only)
-
-### Collaboration Model for Stage 2
-Stage 2 is a **pair programming partnership** between the owner (new engineer learning to code) and Claude (senior engineer/architect):
-
-- **Incremental steps** — one small piece at a time (one function, one endpoint, never a whole file at once)
-- **Claude explains first** — before any code is written, I explain what needs to be done and why
-- **Owner writes where possible** — you are encouraged to write code yourself as a learning exercise
-- **Claude suggests and completes** — I suggest code snippets, explain each line, and fill in what you're not ready for yet
-- **No large code dumps** — we build together step by step so you understand everything that goes in
-- **Questions are encouraged** — ask about anything at any time; learning Python is a goal of this project
-- **Claude writes boilerplate/config** — I handle repetitive setup (imports, config, wiring) so you can focus on learning meaningful logic
+See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 
 ---
 
