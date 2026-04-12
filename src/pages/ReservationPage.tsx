@@ -6,6 +6,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import WhatsAppButton from "@/components/WhatsAppButton";
+import { createReservation } from "@/services/reservationService";
+import type { ReservationCreateResponse } from "@/types/reservation";
 
 const timeSlots = [
   "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30",
@@ -19,31 +21,61 @@ const ReservationPage = () => {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [reservationResult, setReservationResult] = useState<ReservationCreateResponse | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date || !time || !name || !phone) {
       toast.error("Please fill in all required fields");
       return;
     }
-    setSubmitted(true);
-    toast.success("Reservation confirmed!");
+
+    setSubmitting(true);
+    try {
+      const result = await createReservation({
+        idempotency_key: crypto.randomUUID(),
+        customer_name: name.trim(),
+        customer_email: email.trim() || undefined,
+        customer_phone: phone.trim(),
+        party_size: Number(guests),
+        reserved_date: format(date, "yyyy-MM-dd"),
+        reserved_time: time,
+        notes: notes.trim() || undefined,
+      });
+      setReservationResult(result);
+      toast.success("Reservation confirmed!");
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "RESERVATION_FAILED";
+      if (code === "OUTSIDE_HOURS") {
+        toast.error("That time is outside our operating hours. Please choose another time.");
+      } else if (code === "SCHEDULED_TIME_IN_PAST") {
+        toast.error("That time has already passed. Please choose a future time.");
+      } else if (code === "PARTY_SIZE_EXCEEDED") {
+        toast.error("Sorry, we can't accommodate that many guests. Please call us for large parties.");
+      } else {
+        toast.error("Something went wrong. Please try again.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  if (submitted) {
+  if (reservationResult) {
     return (
       <div className="container max-w-lg py-20 text-center">
         <div className="rounded-xl border border-border bg-card p-8">
           <h1 className="font-serif text-3xl font-bold text-foreground">Reservation Confirmed!</h1>
+          <p className="mt-3 text-sm font-mono text-primary tracking-widest">{reservationResult.reference_number}</p>
           <p className="mt-4 text-muted-foreground">
-            We've reserved a table for <span className="font-semibold text-foreground">{guests} guests</span> on{" "}
-            <span className="font-semibold text-foreground">{date && format(date, "MMMM d, yyyy")}</span> at{" "}
-            <span className="font-semibold text-foreground">{time}</span>.
+            We've reserved a table for <span className="font-semibold text-foreground">{reservationResult.party_size} guests</span> on{" "}
+            <span className="font-semibold text-foreground">{reservationResult.reserved_date}</span> at{" "}
+            <span className="font-semibold text-foreground">{reservationResult.reserved_time}</span>.
           </p>
           <p className="mt-2 text-sm text-muted-foreground">A confirmation has been sent to {email || phone}.</p>
           <WhatsAppButton
-            message="Hi Aap ki Rasoi! I have a question about my reservation..."
+            message={`Hi Aap ki Rasoi! I have a question about my reservation ${reservationResult.reference_number}`}
             label="Questions? Chat on WhatsApp"
             className="mt-6"
           />
@@ -116,8 +148,18 @@ const ReservationPage = () => {
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm" placeholder="Your email (optional)" />
         </div>
 
-        <button type="submit" className="w-full rounded-md bg-primary py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors">
-          Confirm Reservation
+        {/* Notes */}
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-foreground">Special Requests</label>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm resize-none" placeholder="e.g. window table, high chair needed (optional)" />
+        </div>
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full rounded-md bg-primary py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors disabled:opacity-50"
+        >
+          {submitting ? "Confirming…" : "Confirm Reservation"}
         </button>
       </form>
 

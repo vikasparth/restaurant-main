@@ -45,3 +45,71 @@ def validate_reservation_time(
         return error_response("Scheduled time is outside operating hours", "OUTSIDE_HOURS", 422)
 
     return None
+
+
+async def create_reservation(db, payload, config: dict) -> JSONResponse:
+    # Step 1 — idempotency check
+    existing = await db.fetchrow(
+        """
+        SELECT reference_number, status, party_size,
+               reserved_date::text, reserved_time
+        FROM   reservations
+        WHERE  idempotency_key = $1
+        """,
+        payload.idempotency_key,
+    )
+    if existing:
+        row = dict(existing)
+        return JSONResponse(status_code=200, content={
+            "reference_number": row["reference_number"],
+            "status":           row["status"],
+            "party_size":       row["party_size"],
+            "reserved_date":    row["reserved_date"],
+            "reserved_time":    row["reserved_time"],
+        })
+
+    # Step 2 — validate time (past check + hours check)
+    err = validate_reservation_time(payload.reserved_date, payload.reserved_time, config)
+    if err:
+        return err
+
+    # Step 3 — party size check
+    max_party = config["max_reservation_party_size"]
+    if payload.party_size > max_party:
+        return error_response(
+            f"Party size exceeds maximum of {max_party}", "PARTY_SIZE_EXCEEDED", 422
+        )
+
+    # Step 4 — generate reference number and save to DB
+    reserved_date_obj = date.fromisoformat(payload.reserved_date)
+    reference_number = await generate_reference_number(db)
+
+    await db.execute(
+        """
+        INSERT INTO reservations (
+            location_id, idempotency_key, reference_number,
+            customer_name, customer_email, customer_phone,
+            party_size, reserved_date, reserved_time,
+            notes, status
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'confirmed')
+        """,
+        settings.location_id,
+        payload.idempotency_key,
+        reference_number,
+        payload.customer_name,
+        payload.customer_email,
+        payload.customer_phone,
+        payload.party_size,
+        reserved_date_obj,
+        payload.reserved_time,
+        payload.notes,
+    )
+
+    # Step 5 — return the response
+    return JSONResponse(status_code=201, content={
+        "reference_number": reference_number,
+        "status":           "confirmed",
+        "party_size":       payload.party_size,
+        "reserved_date":    payload.reserved_date,
+        "reserved_time":    payload.reserved_time,
+    })
