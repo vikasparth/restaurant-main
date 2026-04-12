@@ -3,6 +3,18 @@
 **Slice tasks:** 2.N.1 → 2.N.7
 **References:** architecture.md §7, §19 (shared contracts)
 
+> **Before writing this spec:** grep `requirements.md` for this feature's req IDs only (e.g. `grep "CAT-" requirements.md`). Do NOT read the full file. Fill in the Requirements Coverage table below before writing anything else.
+
+---
+
+## Requirements Coverage
+
+> Grep `requirements.md` for this slice's req IDs. List every matching ID below. Mark it covered here or note which slice handles it. This table is the audit trail that proves the spec doesn't miss a business rule.
+
+| Req ID | Requirement (short) | Covered in this spec | Deferred to |
+|---|---|---|---|
+| XXX-01 | ... | ✅ / ❌ | — / Slice N |
+
 ---
 
 ## What This Slice Does

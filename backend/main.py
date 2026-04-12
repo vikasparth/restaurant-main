@@ -63,13 +63,14 @@ register_error_handlers(app)
 # Routers
 # ---------------------------------------------------------------------------
 
-from routers import health, menu, delivery, orders, reservations
+from routers import health, menu, delivery, orders, reservations, catering
 
 app.include_router(health.router)
 app.include_router(menu.router)
 app.include_router(delivery.router)
 app.include_router(orders.router)
 app.include_router(reservations.router)
+app.include_router(catering.router)
 
 
 

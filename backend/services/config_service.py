@@ -13,6 +13,7 @@ async def get_restaurant_config(db) -> dict:
                min_delivery_order,
                min_catering_order,
                catering_advance_hours,
+               catering_deposit_percent,
                max_reservation_party_size
         FROM   restaurant_config
         WHERE  location_id = $1

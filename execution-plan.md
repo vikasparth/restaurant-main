@@ -144,13 +144,13 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| 2.5.1 | Pydantic model | `models/catering.py` — includes `idempotency_key: UUID` | ⏳ Pending |
-| 2.5.2 | Catering service | `services/catering_service.py` — 48h validation, $100 minimum, calculate 40% deposit amount from `restaurant_config.catering_deposit_percent`, save to Supabase; idempotency check on key | ⏳ Pending |
-| 2.5.3 | Catering router | `routers/catering.py` — `POST /api/catering` | ⏳ Pending |
-| 2.5.4 | Frontend service | `src/services/cateringService.ts` | ⏳ Pending |
-| 2.5.5 | Wire to UI | Update `CateringPage.tsx` to POST to API | ⏳ Pending |
-| 2.5.6 | Automated tests | pytest: catering saved, 48h rule enforced, minimum order enforced, idempotency check | ⏳ Pending |
-| 2.5.7 | Manual verification | Full catering flow in browser, reference number + deposit amount shown on success screen | ⏳ Pending |
+| 2.5.1 | Pydantic model | `models/catering.py` — includes `idempotency_key: UUID` | ✅ Done 2026-04-12 |
+| 2.5.2 | Catering service | `services/catering_service.py` — 48h validation, zip validation, $100 minimum, calculate 40% deposit amount from `restaurant_config.catering_deposit_percent`, save to Supabase; idempotency check on key | ✅ Done 2026-04-12 |
+| 2.5.3 | Catering router | `routers/catering.py` — `POST /api/catering` | ✅ Done 2026-04-12 |
+| 2.5.4 | Frontend service | `src/services/cateringService.ts` | ✅ Done 2026-04-12 |
+| 2.5.5 | Wire to UI | Update `CateringPage.tsx` to POST to API | ✅ Done 2026-04-12 |
+| 2.5.6 | Automated tests | pytest: 11 tests — catering saved, 48h rule, zip validation, minimum order, idempotency, deposit math, both tables populated | ✅ Done 2026-04-12 |
+| 2.5.7 | Manual verification | Full catering flow in browser, reference number + deposit amount shown on success screen | ✅ Done 2026-04-12 |
 
 ---
 
@@ -252,6 +252,6 @@ Controlled by one env variable: `API_BASE_URL=https://yourapp.onrender.com`
 
 - [ ] Stripe payment integration
 - [ ] Customer order status tracking page
-- [ ] Real geocoding for delivery radius (upgrade from zip code list)
+- [ ] Real geocoding for delivery radius (upgrade from zip code list — applies to both regular orders and catering)
 - [ ] Admin panel API endpoints (once Lovable UI is ready)
 - [ ] Upgrade Render to paid tier if cold starts become a problem

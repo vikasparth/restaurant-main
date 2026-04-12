@@ -116,6 +116,7 @@
 | CAT-11 | Only the owner can cancel a catering order (via admin panel) | Must-have |
 | CAT-12 | Customers can add special instructions to a catering order (e.g. "vegetarian guests only", "no nuts") | Must-have |
 | CAT-13 | A 40% deposit amount is calculated and shown in the confirmation email and success screen — e.g. "A deposit of $X is required. Our team will contact you within 24 hours to arrange payment." Online payment collection is Phase 2 (Stripe). | Must-have |
+| CAT-14 | Catering delivery is restricted to the same zip code list as regular delivery orders (Phase 1). Phase 2: upgrade to geocoding radius check. | Must-have |
 
 ---
 
