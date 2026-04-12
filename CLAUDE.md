@@ -26,6 +26,8 @@ If adapting code requires a visual change, **stop and ask the user** before proc
 
 ## Slice Rules — ALWAYS ACTIVE
 
+**Before suggesting any code, read `execution-plan.md` to find the current task.**
+
 Before starting any new slice:
 1. **Read `specs/DEPENDENCY_MAP.md`** — check which signatures to pull from prior slices.
 2. **Write the spec first** (`specs/sliceN_name.md`) and wait for sign-off before any code.
