@@ -21,15 +21,35 @@ For each slice, this tells you: which earlier slices to pull signatures from.
 
 ## Shared Services (always inject when the slice uses them)
 
-| Service | File | Used by slices |
+| Service | Full signature | Used by slices |
 |---|---|---|
-| DB connection | `core/database.get_db()` | All |
-| Location ID | `core/config.settings.location_id` | All |
-| Restaurant config | `services/config_service.get_restaurant_config(db)` | 3, 4, 5, 8 |
-| Reference number | `services/reference_service.generate_reference_number(db)` | 3, 4, 5 |
-| Timezone | `core/timezone.to_restaurant_time(dt, tz)` | 3, 4, 5 |
-| Menu validation | `services/menu_service.validate_menu_items(db, ids)` | 3, 5 |
-| Error format | `core/errors.py` | All |
+| DB connection | `async def get_db() -> AsyncGenerator` — use as FastAPI dependency | All |
+| Location ID | `settings.default_location_id: str` from `core/config.py` | All |
+| Restaurant config | `async def get_restaurant_config(db) -> dict` — keys: `operating_hours`, `timezone`, `min_order_amount`, `delivery_fee`, `max_reservation_party_size`, `catering_min_order`, `catering_deposit_percent` | 3, 4, 5, 8 |
+| Reference number | `async def generate_reference_number(db) -> str` — returns `"AKR-YYYYMMDD-XXXX"` | 3, 4, 5 |
+| Timezone | `def now_in_restaurant_time(tz: str) -> datetime` — returns current time as aware datetime in restaurant tz | 3, 4, 5 |
+| Menu validation | `async def validate_menu_items(db, item_ids: list[str]) -> None` — raises `422 INVALID_MENU_ITEM` if any ID invalid or unavailable | 3, 5 |
+| Error format | `def error_response(error: str, code: str, status_code: int) -> JSONResponse` from `core/errors.py` | All |
+
+---
+
+## Idempotency Pattern (Slices 3, 4, 5 — identical logic)
+
+Each of these slices accepts `idempotency_key: UUID` in the request body. The check is the same every time:
+
+```python
+# 1. Check if key already exists in this slice's table
+existing = await db.fetchrow(
+    "SELECT * FROM <table> WHERE idempotency_key = $1",
+    payload.idempotency_key,
+)
+# 2. If yes — return original response with status 200 (not 201)
+if existing:
+    return JSONResponse(status_code=200, content={...})
+# 3. If no — proceed to save, then return 201
+```
+
+The only difference between slices is the table name and the response fields.
 
 ---
 
