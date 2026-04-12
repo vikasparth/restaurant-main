@@ -130,12 +130,12 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 | 2.4.1 | Spec | `specs/slice4_reservations.md` — 10 tests defined, business rules captured, signed off | ✅ Done 2026-04-10 |
 | 2.4.2 | Automated tests | `tests/test_reservations.py` — 10 tests written, all failing (TDD Step 1) | ✅ Done 2026-04-10 |
 | 2.4.3 | Pydantic model | `models/reservation.py` — `ReservationCreateRequest`, `ReservationCreateResponse` | ✅ Done 2026-04-10 |
-| 2.4.4 | Reservation service | `services/reservation_service.py` — validate time, party size, idempotency, save to DB | ⏳ Pending |
-| 2.4.5 | Reservations router | `routers/reservations.py` — `POST /api/reservations` | ⏳ Pending |
-| 2.4.6 | Run tests | All 10 tests green | ⏳ Pending |
-| 2.4.7 | Frontend service | `src/services/reservationService.ts` | ⏳ Pending |
-| 2.4.8 | Wire to UI | Update `ReservationPage.tsx` — generate idempotency_key, show reference number | ⏳ Pending |
-| 2.4.9 | Manual verification | Reservation saved in Supabase, confirmation shown in browser | ⏳ Pending |
+| 2.4.4 | Reservation service | `services/reservation_service.py` — validate time, party size, idempotency, save to DB | ✅ Done 2026-04-12 |
+| 2.4.5 | Reservations router | `routers/reservations.py` — `POST /api/reservations` | ✅ Done 2026-04-12 |
+| 2.4.6 | Run tests | All 10 tests green | ✅ Done 2026-04-12 |
+| 2.4.7 | Frontend service | `src/services/reservationService.ts` | ✅ Done 2026-04-12 |
+| 2.4.8 | Wire to UI | Update `ReservationPage.tsx` — generate idempotency_key, show reference number | ✅ Done 2026-04-12 |
+| 2.4.9 | Manual verification | Reservation saved in Supabase, confirmation shown in browser | ✅ Done 2026-04-12 |
 
 ---
 
