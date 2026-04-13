@@ -11,6 +11,8 @@ OWNER_EMAIL = settings.owner_email
 
 async def notify_order(order_data: dict) -> None:
     """Fire customer + owner email and owner WhatsApp for a new order. Never raises."""
+    if not settings.notifications_enabled:
+        return
     ref = order_data["reference_number"]
     customer_email = order_data["customer_email"]
     subject = f"Order Confirmed — {ref}"
@@ -54,6 +56,8 @@ async def notify_order(order_data: dict) -> None:
 
 async def notify_reservation(reservation_data: dict) -> None:
     """Fire customer (if email present) + owner email and owner WhatsApp. Never raises."""
+    if not settings.notifications_enabled:
+        return
     customer_email = reservation_data.get("customer_email")
     ref = reservation_data["reference_number"]
     subject = f"Reservation Confirmed — {ref}"
@@ -94,6 +98,8 @@ async def notify_reservation(reservation_data: dict) -> None:
 
 async def notify_catering(catering_data: dict) -> None:
     """Fire customer + owner email and owner WhatsApp for a catering order. Never raises."""
+    if not settings.notifications_enabled:
+        return
     ref = catering_data["reference_number"]
     customer_email = catering_data["customer_email"]
     subject = f"Catering Order Confirmed — {ref}"

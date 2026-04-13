@@ -4,6 +4,7 @@ from httpx import AsyncClient, ASGITransport
 from main import app
 from core.database import connect, disconnect
 from core.logging import setup_logging
+from unittest.mock import AsyncMock, patch
 
 
 @pytest.fixture(autouse=True)
@@ -21,3 +22,11 @@ async def client():
         base_url="http://test",
     ) as ac:
         yield ac
+
+
+@pytest.fixture(autouse=True)
+def mock_notifications():
+    with patch(
+        "services.notification_service.send_email", new_callable=AsyncMock
+    ), patch("services.notification_service.send_whatsapp", new_callable=AsyncMock):
+        yield

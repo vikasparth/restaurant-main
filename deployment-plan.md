@@ -59,6 +59,9 @@ Add every variable from `backend/.env` (except the blank RESEND line used for lo
 | `TWILIO_WHATSAPP_FROM`| `whatsapp:+14155238886`                      |
 | `OWNER_WHATSAPP`      | `whatsapp:+<your-number>`                    |
 | `INTERNAL_TOKEN`      | Your generated secret token                  |
+| `NOTIFICATIONS_ENABLED` | `true` to enable email + WhatsApp, `false` to disable all notifications without code changes |
+
+> **Feature flag:** Set `NOTIFICATIONS_ENABLED=false` on Render to silence all email and WhatsApp notifications instantly (e.g. during staging or if Resend/Twilio quotas are hit). Set to `true` to re-enable. Takes effect on next restart — no redeploy needed.
 
 ### 1.3 Verify backend is live
 

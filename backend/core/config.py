@@ -4,6 +4,7 @@ from uuid import UUID
 
 
 class Settings(BaseSettings):
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -37,6 +38,9 @@ class Settings(BaseSettings):
 
     # --- Internal API security ---
     internal_token: str = ""
+
+    # --- Feature flags ---
+    notifications_enabled: bool = True
 
     @field_validator("environment")
     @classmethod
