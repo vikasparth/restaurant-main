@@ -40,10 +40,18 @@ async def test_menu_items_have_required_fields(client):
     body = response.json()
 
     required_fields = {
-        "id", "name", "description", "price", "category",
-        "image_url", "is_vegetarian", "is_available",
-        "catering_available", "catering_price_per_tray",
-        "allergens", "display_order",
+        "id",
+        "name",
+        "description",
+        "price",
+        "category",
+        "image_url",
+        "is_vegetarian",
+        "is_available",
+        "catering_available",
+        "catering_price_per_tray",
+        "allergens",
+        "display_order",
     }
 
     for category in body["categories"]:
@@ -63,9 +71,9 @@ async def test_unavailable_items_excluded(client):
 
     for category in body["categories"]:
         for item in category["items"]:
-            assert item["is_available"] is True, (
-                f"Item '{item['id']}' has is_available=false but appeared in response"
-            )
+            assert (
+                item["is_available"] is True
+            ), f"Item '{item['id']}' has is_available=false but appeared in response"
 
 
 # ============================================================
@@ -134,9 +142,9 @@ async def test_categories_in_correct_order(client):
     # Filter fixed_order to only categories that are present in response
     expected_order = [c for c in fixed_order if c in returned_category_names]
 
-    assert returned_category_names == expected_order, (
-        f"Categories out of order. Expected: {expected_order}, Got: {returned_category_names}"
-    )
+    assert (
+        returned_category_names == expected_order
+    ), f"Categories out of order. Expected: {expected_order}, Got: {returned_category_names}"
 
 
 # ============================================================
@@ -150,12 +158,24 @@ async def test_field_types_are_correct(client):
 
     for category in body["categories"]:
         for item in category["items"]:
-            assert isinstance(item["id"], str), f"id must be str, got {type(item['id'])}"
-            assert isinstance(item["price"], (int, float)), f"price must be number, got {type(item['price'])}"
-            assert isinstance(item["allergens"], list), f"allergens must be list, got {type(item['allergens'])}"
-            assert isinstance(item["is_vegetarian"], bool), f"is_vegetarian must be bool, got {type(item['is_vegetarian'])}"
-            assert isinstance(item["is_available"], bool), f"is_available must be bool, got {type(item['is_available'])}"
-            assert isinstance(item["catering_available"], bool), f"catering_available must be bool, got {type(item['catering_available'])}"
+            assert isinstance(
+                item["id"], str
+            ), f"id must be str, got {type(item['id'])}"
+            assert isinstance(
+                item["price"], (int, float)
+            ), f"price must be number, got {type(item['price'])}"
+            assert isinstance(
+                item["allergens"], list
+            ), f"allergens must be list, got {type(item['allergens'])}"
+            assert isinstance(
+                item["is_vegetarian"], bool
+            ), f"is_vegetarian must be bool, got {type(item['is_vegetarian'])}"
+            assert isinstance(
+                item["is_available"], bool
+            ), f"is_available must be bool, got {type(item['is_available'])}"
+            assert isinstance(
+                item["catering_available"], bool
+            ), f"catering_available must be bool, got {type(item['catering_available'])}"
 
 
 # ============================================================
@@ -172,9 +192,9 @@ async def test_internal_fields_not_exposed(client):
     for category in body["categories"]:
         for item in category["items"]:
             exposed = internal_fields & item.keys()
-            assert not exposed, (
-                f"Item '{item['id']}' exposes internal fields: {exposed}"
-            )
+            assert (
+                not exposed
+            ), f"Item '{item['id']}' exposes internal fields: {exposed}"
 
 
 # ============================================================
@@ -189,13 +209,13 @@ async def test_catering_fields_correct(client):
     for category in body["categories"]:
         for item in category["items"]:
             if item["catering_available"]:
-                assert item["catering_price_per_tray"] is not None, (
-                    f"Item '{item['id']}' has catering_available=true but catering_price_per_tray is null"
-                )
+                assert (
+                    item["catering_price_per_tray"] is not None
+                ), f"Item '{item['id']}' has catering_available=true but catering_price_per_tray is null"
             else:
-                assert item["catering_price_per_tray"] is None, (
-                    f"Item '{item['id']}' has catering_available=false but catering_price_per_tray is not null"
-                )
+                assert (
+                    item["catering_price_per_tray"] is None
+                ), f"Item '{item['id']}' has catering_available=false but catering_price_per_tray is not null"
 
 
 # ============================================================

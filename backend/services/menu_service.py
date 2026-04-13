@@ -1,7 +1,6 @@
 from core.config import settings
 from models.menu import MenuCategory, MenuItem, MenuResponse
 
-
 CATEGORY_ORDER = ["appetizers", "mains", "breads", "desserts", "drinks", "specials"]
 
 
@@ -24,6 +23,7 @@ async def get_menu_items(db) -> list[dict]:
 async def validate_menu_items(db, item_ids: list[str]) -> None:
     """Raises HTTP 422 INVALID_MENU_ITEM if any id is not found or is_available=false."""
     from fastapi import HTTPException
+
     rows = await db.fetch(
         """
         SELECT id FROM menu_items
@@ -39,7 +39,10 @@ async def validate_menu_items(db, item_ids: list[str]) -> None:
         if item_id not in found_ids:
             raise HTTPException(
                 status_code=422,
-                detail={"error": f"Menu item not found or unavailable: {item_id}", "code": "INVALID_MENU_ITEM"},
+                detail={
+                    "error": f"Menu item not found or unavailable: {item_id}",
+                    "code": "INVALID_MENU_ITEM",
+                },
             )
 
 

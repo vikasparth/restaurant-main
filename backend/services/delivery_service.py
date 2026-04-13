@@ -1,5 +1,6 @@
 from core.config import settings
 
+
 async def validate_zip(db, zip_code: str) -> dict | None:
     """Returns {"zip_code": str, "city": str} if covered, or None if not."""
     row = await db.fetchrow(

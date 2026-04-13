@@ -11,8 +11,7 @@ class DeliveryValidateRequest(BaseModel):
             raise ValueError("zip_code must not be empty")
         return v
 
-    
+
 class DeliveryValidateResponse(BaseModel):
     is_covered: bool
-    city: str | None # None means null — allowed when zip is not cvered
-    
+    city: str | None  # None means null — allowed when zip is not cvered

@@ -17,9 +17,7 @@ def setup_logging() -> None:
 
     if settings.is_production:
         # JSON format — parsed by Render log viewer
-        formatter = JsonFormatter(
-            fmt="%(asctime)s %(levelname)s %(name)s %(message)s"
-        )
+        formatter = JsonFormatter(fmt="%(asctime)s %(levelname)s %(name)s %(message)s")
     else:
         # Human-readable format for local development
         formatter = logging.Formatter(

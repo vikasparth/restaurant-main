@@ -26,17 +26,17 @@ VALID_EVENT_TIME = "18:00"
 def catering_payload(**overrides) -> dict:
     """Minimal valid catering order. butter-chicken($85) + samosa($35) = $120 total."""
     base = {
-        "idempotency_key":  str(uuid.uuid4()),
-        "customer_name":    "Priya Sharma",
-        "customer_email":   "priya@example.com",
-        "customer_phone":   "4255550123",
-        "event_date":       VALID_EVENT_DATE,
-        "event_time":       VALID_EVENT_TIME,
+        "idempotency_key": str(uuid.uuid4()),
+        "customer_name": "Priya Sharma",
+        "customer_email": "priya@example.com",
+        "customer_phone": "4255550123",
+        "event_date": VALID_EVENT_DATE,
+        "event_time": VALID_EVENT_TIME,
         "delivery_address": "123 Main St, Bellevue, WA 98004",
-        "zip_code":         "98004",
+        "zip_code": "98004",
         "items": [
             {"item_id": "butter-chicken", "trays": 1},  # $85
-            {"item_id": "samosa",         "trays": 1},  # $35
+            {"item_id": "samosa", "trays": 1},  # $35
         ],
     }
     base.update(overrides)
@@ -115,10 +115,12 @@ async def test_non_catering_item_returns_422(client):
     # mango-lassi has catering_available=false in seed data
     response = await client.post(
         "/api/catering",
-        json=catering_payload(items=[
-            {"item_id": "mango-lassi",    "trays": 1},
-            {"item_id": "butter-chicken", "trays": 2},
-        ]),
+        json=catering_payload(
+            items=[
+                {"item_id": "mango-lassi", "trays": 1},
+                {"item_id": "butter-chicken", "trays": 2},
+            ]
+        ),
     )
     assert response.status_code == 422
     assert response.json().get("code") == "ITEM_NOT_CATERING_AVAILABLE"

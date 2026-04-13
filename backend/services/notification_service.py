@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 OWNER_EMAIL = os.environ.get("OWNER_EMAIL", "")
 
+
 async def notify_order(order_data: dict) -> None:
     """Fire customer + owner email and owner WhatsApp for a new order. Never raises."""
     ref = order_data["reference_number"]
@@ -79,7 +80,9 @@ async def notify_reservation(reservation_data: dict) -> None:
         f"Party size: {reservation_data['party_size']}"
     )
     try:
-        await send_email(OWNER_EMAIL, f"[New Reservation] {ref}", f"<pre>{owner_body}</pre>")
+        await send_email(
+            OWNER_EMAIL, f"[New Reservation] {ref}", f"<pre>{owner_body}</pre>"
+        )
     except Exception as e:
         logger.error("Reservation owner email failed: %s", e)
 
@@ -87,6 +90,7 @@ async def notify_reservation(reservation_data: dict) -> None:
         await send_whatsapp(owner_body)
     except Exception as e:
         logger.error("Reservation WhatsApp failed: %s", e)
+
 
 async def notify_catering(catering_data: dict) -> None:
     """Fire customer + owner email and owner WhatsApp for a catering order. Never raises."""
@@ -124,7 +128,9 @@ async def notify_catering(catering_data: dict) -> None:
         f"Deposit: ${catering_data['deposit_amount']:.2f}"
     )
     try:
-        await send_email(OWNER_EMAIL, f"[New Catering] {ref}", f"<pre>{owner_body}</pre>")
+        await send_email(
+            OWNER_EMAIL, f"[New Catering] {ref}", f"<pre>{owner_body}</pre>"
+        )
     except Exception as e:
         logger.error("Catering owner email failed: %s", e)
 
@@ -132,6 +138,7 @@ async def notify_catering(catering_data: dict) -> None:
         await send_whatsapp(owner_body)
     except Exception as e:
         logger.error("Catering WhatsApp failed: %s", e)
+
 
 async def send_reservation_reminders(db) -> int:
     """Query tomorrow's confirmed reservations, send reminder emails. Returns count sent."""

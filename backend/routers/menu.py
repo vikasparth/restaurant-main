@@ -16,5 +16,8 @@ async def get_menu(db=Depends(get_db)):
     except Exception:
         return JSONResponse(
             status_code=503,
-            content={"code": "DB_UNAVAILABLE", "message": "Service temporarily unavailable"},
+            content={
+                "code": "DB_UNAVAILABLE",
+                "message": "Service temporarily unavailable",
+            },
         )

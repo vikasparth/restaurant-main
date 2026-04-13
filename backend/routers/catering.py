@@ -17,5 +17,8 @@ async def catering_create(request: CateringCreateRequest, db=Depends(get_db)):
     except Exception:
         return JSONResponse(
             status_code=503,
-            content={"code": "DB_UNAVAILABLE", "error": "Service temporarily unavailable"},
+            content={
+                "code": "DB_UNAVAILABLE",
+                "error": "Service temporarily unavailable",
+            },
         )

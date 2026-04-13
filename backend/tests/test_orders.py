@@ -25,29 +25,30 @@ from core.database import get_pool
 #   operating hours Wed: 11:00–21:00
 # ---------------------------------------------------------------------------
 
-_future   = date.today() + timedelta(days=60)  # always well in the future
+_future = date.today() + timedelta(days=60)  # always well in the future
 VALID_DATE = _future.strftime("%Y-%m-%d")
-VALID_TIME = "18:00"        # Within 11:00–21:00 window
-VALID_ZIP  = "98004"        # Active delivery zone (Bellevue)
+VALID_TIME = "18:00"  # Within 11:00–21:00 window
+VALID_ZIP = "98004"  # Active delivery zone (Bellevue)
 
 
 # ---------------------------------------------------------------------------
 # Payload builders
 # ---------------------------------------------------------------------------
 
+
 def pickup_payload(**overrides) -> dict:
     """Minimal valid pickup order. samosa×2 + butter-chicken×1 = $28.97."""
     base = {
-        "idempotency_key":    str(uuid.uuid4()),
-        "customer_name":      "Priya Sharma",
-        "customer_email":     "priya@example.com",
-        "customer_phone":     "4255550123",
-        "order_type":         "pickup",
-        "scheduled_date":     VALID_DATE,
-        "scheduled_time":     VALID_TIME,
+        "idempotency_key": str(uuid.uuid4()),
+        "customer_name": "Priya Sharma",
+        "customer_email": "priya@example.com",
+        "customer_phone": "4255550123",
+        "order_type": "pickup",
+        "scheduled_date": VALID_DATE,
+        "scheduled_time": VALID_TIME,
         "items": [
-            {"menu_item_id": "butter-chicken", "quantity": 1},   # $16.99
-            {"menu_item_id": "samosa",         "quantity": 2},   # $11.98
+            {"menu_item_id": "butter-chicken", "quantity": 1},  # $16.99
+            {"menu_item_id": "samosa", "quantity": 2},  # $11.98
         ],
     }
     base.update(overrides)
@@ -57,18 +58,18 @@ def pickup_payload(**overrides) -> dict:
 def delivery_payload(**overrides) -> dict:
     """Minimal valid delivery order. butter-chicken×2 = $33.98 (above $25 min)."""
     base = {
-        "idempotency_key":    str(uuid.uuid4()),
-        "customer_name":      "Priya Sharma",
-        "customer_email":     "priya@example.com",
-        "customer_phone":     "4255550123",
-        "order_type":         "delivery",
-        "scheduled_date":     VALID_DATE,
-        "scheduled_time":     VALID_TIME,
+        "idempotency_key": str(uuid.uuid4()),
+        "customer_name": "Priya Sharma",
+        "customer_email": "priya@example.com",
+        "customer_phone": "4255550123",
+        "order_type": "delivery",
+        "scheduled_date": VALID_DATE,
+        "scheduled_time": VALID_TIME,
         "items": [
-            {"menu_item_id": "butter-chicken", "quantity": 2},   # $33.98
+            {"menu_item_id": "butter-chicken", "quantity": 2},  # $33.98
         ],
-        "delivery_address":   "123 Main St",
-        "delivery_zip":       VALID_ZIP,
+        "delivery_address": "123 Main St",
+        "delivery_zip": VALID_ZIP,
     }
     base.update(overrides)
     return base
@@ -77,6 +78,7 @@ def delivery_payload(**overrides) -> dict:
 # ---------------------------------------------------------------------------
 # ORD-01  Valid pickup order — 201 + reference number + status
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.anyio
 async def test_valid_pickup_order_returns_201(client):
@@ -91,6 +93,7 @@ async def test_valid_pickup_order_returns_201(client):
 # ---------------------------------------------------------------------------
 # ORD-02  Valid delivery order — 201 + delivery fee applied
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.anyio
 async def test_valid_delivery_order_returns_201(client):
@@ -107,6 +110,7 @@ async def test_valid_delivery_order_returns_201(client):
 # ORD-03  Pickup order has zero delivery fee
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.anyio
 async def test_pickup_order_has_zero_delivery_fee(client):
     response = await client.post("/api/orders", json=pickup_payload())
@@ -119,6 +123,7 @@ async def test_pickup_order_has_zero_delivery_fee(client):
 # ---------------------------------------------------------------------------
 # ORD-04  Price snapshot — order_items.price matches menu_items.price at order time
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.anyio
 async def test_price_snapshot_on_order_items(client):
@@ -154,6 +159,7 @@ async def test_price_snapshot_on_order_items(client):
 # ORD-05  Reference number format — AKR-YYYYMMDD-XXXX
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.anyio
 async def test_reference_number_format(client):
     response = await client.post("/api/orders", json=pickup_payload())
@@ -165,6 +171,7 @@ async def test_reference_number_format(client):
 # ---------------------------------------------------------------------------
 # ORD-06  Scheduled time outside operating hours → 422 OUTSIDE_HOURS
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.anyio
 async def test_scheduled_time_outside_hours_returns_422(client):
@@ -181,6 +188,7 @@ async def test_scheduled_time_outside_hours_returns_422(client):
 # ORD-07  Scheduled time in the past → 422 SCHEDULED_TIME_IN_PAST
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.anyio
 async def test_scheduled_time_in_past_returns_422(client):
     response = await client.post(
@@ -195,13 +203,13 @@ async def test_scheduled_time_in_past_returns_422(client):
 # ORD-08  Unavailable menu item → 422 INVALID_MENU_ITEM
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 async def unavailable_item():
     """Insert a temporarily unavailable menu item; clean up afterwards."""
     pool = get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            """
+        await conn.execute("""
             INSERT INTO menu_items
               (id, location_id, name, description, price, image_url, category,
                allergens, is_vegetarian, is_available, catering_available, display_order)
@@ -209,8 +217,7 @@ async def unavailable_item():
               ('test-unavailable', '00000000-0000-0000-0000-000000000001',
                'Test Item', 'Temp item for tests', 9.99, '/images/test.jpg',
                'mains', '{}', true, false, false, 99)
-            """
-        )
+            """)
     yield
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM menu_items WHERE id = 'test-unavailable'")
@@ -220,7 +227,9 @@ async def unavailable_item():
 async def test_unavailable_menu_item_returns_422(client, unavailable_item):
     response = await client.post(
         "/api/orders",
-        json=pickup_payload(items=[{"menu_item_id": "test-unavailable", "quantity": 1}]),
+        json=pickup_payload(
+            items=[{"menu_item_id": "test-unavailable", "quantity": 1}]
+        ),
     )
     assert response.status_code == 422
     assert response.json().get("code") == "INVALID_MENU_ITEM"
@@ -229,6 +238,7 @@ async def test_unavailable_menu_item_returns_422(client, unavailable_item):
 # ---------------------------------------------------------------------------
 # ORD-09  Unknown menu item ID → 422 INVALID_MENU_ITEM
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.anyio
 async def test_unknown_menu_item_returns_422(client):
@@ -244,6 +254,7 @@ async def test_unknown_menu_item_returns_422(client):
 # ORD-10  Delivery zip not in an active zone → 422 ZIP_NOT_COVERED
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.anyio
 async def test_delivery_zip_not_covered_returns_422(client):
     response = await client.post(
@@ -257,6 +268,7 @@ async def test_delivery_zip_not_covered_returns_422(client):
 # ---------------------------------------------------------------------------
 # ORD-11  Delivery subtotal below minimum order ($25) → 422 BELOW_MIN_ORDER
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.anyio
 async def test_delivery_below_min_order_returns_422(client):
@@ -273,6 +285,7 @@ async def test_delivery_below_min_order_returns_422(client):
 # ORD-12  Delivery order missing zip → 422 VALIDATION_ERROR
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.anyio
 async def test_delivery_missing_zip_returns_422(client):
     payload = delivery_payload()
@@ -284,6 +297,7 @@ async def test_delivery_missing_zip_returns_422(client):
 # ---------------------------------------------------------------------------
 # ORD-13  Delivery order missing address → 422 VALIDATION_ERROR
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.anyio
 async def test_delivery_missing_address_returns_422(client):
@@ -297,6 +311,7 @@ async def test_delivery_missing_address_returns_422(client):
 # ORD-14  Empty items array → 422 VALIDATION_ERROR
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.anyio
 async def test_missing_items_returns_422(client):
     response = await client.post("/api/orders", json=pickup_payload(items=[]))
@@ -306,6 +321,7 @@ async def test_missing_items_returns_422(client):
 # ---------------------------------------------------------------------------
 # ORD-15  Invalid order_type value → 422 VALIDATION_ERROR
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.anyio
 async def test_invalid_order_type_returns_422(client):
@@ -320,6 +336,7 @@ async def test_invalid_order_type_returns_422(client):
 # ORD-16  Item quantity of 0 → 422 VALIDATION_ERROR
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.anyio
 async def test_invalid_quantity_returns_422(client):
     response = await client.post(
@@ -332,6 +349,7 @@ async def test_invalid_quantity_returns_422(client):
 # ---------------------------------------------------------------------------
 # ORD-17  Idempotency — duplicate key returns original response, no new record
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.anyio
 async def test_idempotency_duplicate_key_returns_original(client):
@@ -361,6 +379,7 @@ async def test_idempotency_duplicate_key_returns_original(client):
 # ---------------------------------------------------------------------------
 # ORD-18  DB failure → 503 DB_UNAVAILABLE
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.anyio
 async def test_db_failure_returns_503(client, monkeypatch):

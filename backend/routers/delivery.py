@@ -18,5 +18,8 @@ async def validate_delivery_zip(request: DeliveryValidateRequest, db=Depends(get
     except Exception:
         return JSONResponse(
             status_code=503,
-            content={"code": "DB_UNAVAILABLE", "message": "Service temporarily unavailable"},
+            content={
+                "code": "DB_UNAVAILABLE",
+                "message": "Service temporarily unavailable",
+            },
         )

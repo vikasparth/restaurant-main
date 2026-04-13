@@ -11,21 +11,21 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 # Valid future dates — computed dynamically so they never expire
-_future              = date.today() + timedelta(days=60)
+_future = date.today() + timedelta(days=60)
 VALID_SCHEDULED_DATE = _future.strftime("%Y-%m-%d")
-VALID_RESERVED_DATE  = _future.strftime("%Y-%m-%d")
-VALID_EVENT_DATE     = _future.strftime("%Y-%m-%d")
+VALID_RESERVED_DATE = _future.strftime("%Y-%m-%d")
+VALID_EVENT_DATE = _future.strftime("%Y-%m-%d")
 
 
 def order_payload(**overrides) -> dict:
     base = {
         "idempotency_key": str(uuid.uuid4()),
-        "customer_name":   "Test Customer",
-        "customer_email":  "test@example.com",
-        "customer_phone":  "4255550123",
-        "order_type":      "pickup",
-        "scheduled_date":  VALID_SCHEDULED_DATE,
-        "scheduled_time":  "18:00",
+        "customer_name": "Test Customer",
+        "customer_email": "test@example.com",
+        "customer_phone": "4255550123",
+        "order_type": "pickup",
+        "scheduled_date": VALID_SCHEDULED_DATE,
+        "scheduled_time": "18:00",
         "items": [{"menu_item_id": "butter-chicken", "quantity": 1}],
     }
     base.update(overrides)
@@ -35,12 +35,12 @@ def order_payload(**overrides) -> dict:
 def reservation_payload(**overrides) -> dict:
     base = {
         "idempotency_key": str(uuid.uuid4()),
-        "customer_name":   "Test Customer",
-        "customer_email":  "test@example.com",
-        "customer_phone":  "4255550123",
-        "reserved_date":   VALID_RESERVED_DATE,
-        "reserved_time":   "18:00",
-        "party_size":      4,
+        "customer_name": "Test Customer",
+        "customer_email": "test@example.com",
+        "customer_phone": "4255550123",
+        "reserved_date": VALID_RESERVED_DATE,
+        "reserved_time": "18:00",
+        "party_size": 4,
     }
     base.update(overrides)
     return base
@@ -48,17 +48,17 @@ def reservation_payload(**overrides) -> dict:
 
 def catering_payload(**overrides) -> dict:
     base = {
-        "idempotency_key":  str(uuid.uuid4()),
-        "customer_name":    "Test Customer",
-        "customer_email":   "test@example.com",
-        "customer_phone":   "4255550123",
-        "event_date":       VALID_EVENT_DATE,
-        "event_time":       "18:00",
+        "idempotency_key": str(uuid.uuid4()),
+        "customer_name": "Test Customer",
+        "customer_email": "test@example.com",
+        "customer_phone": "4255550123",
+        "event_date": VALID_EVENT_DATE,
+        "event_time": "18:00",
         "delivery_address": "123 Main St, Bellevue, WA 98004",
-        "zip_code":         "98004",
+        "zip_code": "98004",
         "items": [
             {"item_id": "butter-chicken", "trays": 1},
-            {"item_id": "samosa",         "trays": 1},
+            {"item_id": "samosa", "trays": 1},
         ],
     }
     base.update(overrides)
@@ -99,7 +99,9 @@ async def test_reservation_triggers_customer_email(mock_email, mock_whatsapp, cl
 @pytest.mark.anyio
 @patch("services.notification_service.send_whatsapp", new_callable=AsyncMock)
 @patch("services.notification_service.send_email", new_callable=AsyncMock)
-async def test_reservation_triggers_owner_notifications(mock_email, mock_whatsapp, client):
+async def test_reservation_triggers_owner_notifications(
+    mock_email, mock_whatsapp, client
+):
     """Valid reservation → owner email AND WhatsApp both called."""
     response = await client.post("/api/reservations", json=reservation_payload())
     assert response.status_code == 201
@@ -151,7 +153,9 @@ async def test_whatsapp_failure_does_not_block_order(mock_email, mock_whatsapp, 
 @pytest.mark.anyio
 @patch("services.notification_service.send_whatsapp", new_callable=AsyncMock)
 @patch("services.notification_service.send_email", new_callable=AsyncMock)
-async def test_reminder_endpoint_sends_tomorrows_reservations(mock_email, mock_whatsapp, client):
+async def test_reminder_endpoint_sends_tomorrows_reservations(
+    mock_email, mock_whatsapp, client
+):
     """Reminder endpoint with valid token → returns 200 with sent count."""
     response = await client.post(
         "/api/internal/send-reminders",
@@ -171,9 +175,13 @@ async def test_reminder_endpoint_rejects_missing_token(client):
 @pytest.mark.anyio
 @patch("services.notification_service.send_whatsapp", new_callable=AsyncMock)
 @patch("services.notification_service.send_email", new_callable=AsyncMock)
-async def test_reservation_without_email_skips_customer_email(mock_email, mock_whatsapp, client):
+async def test_reservation_without_email_skips_customer_email(
+    mock_email, mock_whatsapp, client
+):
     """Reservation with no customer_email → no customer email sent, owner still notified."""
-    response = await client.post("/api/reservations", json=reservation_payload(customer_email=None))
+    response = await client.post(
+        "/api/reservations", json=reservation_payload(customer_email=None)
+    )
     assert response.status_code == 201
     assert mock_whatsapp.called
 
@@ -181,7 +189,9 @@ async def test_reservation_without_email_skips_customer_email(mock_email, mock_w
 @pytest.mark.anyio
 @patch("services.notification_service.send_whatsapp", new_callable=AsyncMock)
 @patch("services.notification_service.send_email", new_callable=AsyncMock)
-async def test_reminder_skips_reservation_without_email(mock_email, mock_whatsapp, client):
+async def test_reminder_skips_reservation_without_email(
+    mock_email, mock_whatsapp, client
+):
     """Reminder endpoint → reservations with null email are skipped silently."""
     response = await client.post(
         "/api/internal/send-reminders",

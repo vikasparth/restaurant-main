@@ -20,5 +20,8 @@ async def reservation_create(request: ReservationCreateRequest, db=Depends(get_d
     except Exception:
         return JSONResponse(
             status_code=503,
-            content={"code": "DB_UNAVAILABLE", "error": "Service temporarily unavailable"},
+            content={
+                "code": "DB_UNAVAILABLE",
+                "error": "Service temporarily unavailable",
+            },
         )

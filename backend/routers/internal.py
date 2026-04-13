@@ -10,6 +10,7 @@ router = APIRouter(prefix="/api/internal")
 
 INTERNAL_TOKEN = os.environ.get("INTERNAL_TOKEN", "test-secret")
 
+
 @router.post("/send-reminders")
 async def send_reminders(
     x_internal_token: str | None = Header(default=None),

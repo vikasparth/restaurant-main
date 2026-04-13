@@ -32,11 +32,15 @@ async def fetch_catering_items(db, items: list) -> list[dict]:
     found_ids = {r["id"] for r in rows}
     for item_id in item_ids:
         if item_id not in found_ids:
-            raise _validation_error("Menu item not found or unavailable", "INVALID_MENU_ITEM")
+            raise _validation_error(
+                "Menu item not found or unavailable", "INVALID_MENU_ITEM"
+            )
 
     for row in rows:
         if not row["is_available"]:
-            raise _validation_error("Menu item not found or unavailable", "INVALID_MENU_ITEM")
+            raise _validation_error(
+                "Menu item not found or unavailable", "INVALID_MENU_ITEM"
+            )
         if not row["catering_available"]:
             raise _validation_error(
                 f"Item '{row['id']}' is not available for catering",
@@ -75,15 +79,20 @@ async def create_catering_order(db, payload, config: dict) -> JSONResponse:
     )
     if existing:
         row = dict(existing)
-        deposit_amount = round(row["total"] * config["catering_deposit_percent"] / 100, 2)
-        return JSONResponse(status_code=200, content={
-            "reference_number": row["reference_number"],
-            "status":           row["status"],
-            "total_amount":     row["total"],
-            "deposit_amount":   deposit_amount,
-            "event_date":       row["event_date"],
-            "event_time":       row["event_time"],
-        })
+        deposit_amount = round(
+            row["total"] * config["catering_deposit_percent"] / 100, 2
+        )
+        return JSONResponse(
+            status_code=200,
+            content={
+                "reference_number": row["reference_number"],
+                "status": row["status"],
+                "total_amount": row["total"],
+                "deposit_amount": deposit_amount,
+                "event_date": row["event_date"],
+                "event_time": row["event_time"],
+            },
+        )
 
     # --- 48-hour advance rule ---
     tz = config["timezone"]
@@ -102,7 +111,9 @@ async def create_catering_order(db, payload, config: dict) -> JSONResponse:
     # --- Zip code validation ---
     zone = await validate_zip(db, payload.zip_code)
     if zone is None:
-        return error_response("Zip code is not in our delivery area", "ZIP_NOT_COVERED", 422)
+        return error_response(
+            "Zip code is not in our delivery area", "ZIP_NOT_COVERED", 422
+        )
 
     # --- Validate items and fetch DB prices ---
     try:
@@ -166,25 +177,30 @@ async def create_catering_order(db, payload, config: dict) -> JSONResponse:
         )
 
     # --- Fire notifications (failures are logged, never block the response) ---
-    await notify_catering({
-        "reference_number":   reference_number,
-        "customer_name":      payload.customer_name,
-        "customer_email":     payload.customer_email,
-        "customer_phone":     payload.customer_phone,
-        "event_date":         payload.event_date,
-        "event_time":         payload.event_time,
-        "delivery_address":   payload.delivery_address,
-        "total_amount":       total,
-        "deposit_amount":     deposit_amount,
-        "line_items":         line_items,
-        "special_instructions": payload.special_instructions,
-    })
+    await notify_catering(
+        {
+            "reference_number": reference_number,
+            "customer_name": payload.customer_name,
+            "customer_email": payload.customer_email,
+            "customer_phone": payload.customer_phone,
+            "event_date": payload.event_date,
+            "event_time": payload.event_time,
+            "delivery_address": payload.delivery_address,
+            "total_amount": total,
+            "deposit_amount": deposit_amount,
+            "line_items": line_items,
+            "special_instructions": payload.special_instructions,
+        }
+    )
 
-    return JSONResponse(status_code=201, content={
-        "reference_number": reference_number,
-        "status":           "confirmed",
-        "total_amount":     total,
-        "deposit_amount":   deposit_amount,
-        "event_date":       payload.event_date,
-        "event_time":       payload.event_time,
-    })
+    return JSONResponse(
+        status_code=201,
+        content={
+            "reference_number": reference_number,
+            "status": "confirmed",
+            "total_amount": total,
+            "deposit_amount": deposit_amount,
+            "event_date": payload.event_date,
+            "event_time": payload.event_time,
+        },
+    )

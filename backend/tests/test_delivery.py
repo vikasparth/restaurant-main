@@ -7,6 +7,7 @@
 
 import pytest
 
+
 @pytest.mark.anyio
 async def test_valid_zip_returns_covered(client):
     response = await client.post("/api/delivery/validate", json={"zip_code": "98004"})
@@ -14,6 +15,7 @@ async def test_valid_zip_returns_covered(client):
     body = response.json()
     assert body["is_covered"] is True
     assert body["city"] == "Bellevue"
+
 
 @pytest.mark.anyio
 async def test_invalid_zip_returns_not_covered(client):
@@ -23,34 +25,39 @@ async def test_invalid_zip_returns_not_covered(client):
     assert body["is_covered"] is False
     assert body["city"] is None
 
+
 @pytest.mark.anyio
 async def test_empty_zip_returns_422(client):
     response = await client.post("/api/delivery/validate", json={"zip_code": ""})
     assert response.status_code == 422
+
 
 @pytest.mark.anyio
 async def test_missing_zip_returns_422(client):
     response = await client.post("/api/delivery/validate", json={})
     assert response.status_code == 422
 
+
 @pytest.mark.anyio
 async def test_zip_is_trimmed(client):
-    response = await client.post("/api/delivery/validate", json={"zip_code": "  98004  "})
+    response = await client.post(
+        "/api/delivery/validate", json={"zip_code": "  98004  "}
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["is_covered"] is True
 
+
 @pytest.fixture
 async def inactive_zone():
     from core.database import get_pool
+
     pool = get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            """
+        await conn.execute("""
             INSERT INTO delivery_zones (location_id, zip_code, city, is_active)
             VALUES ('00000000-0000-0000-0000-000000000001', '00000', 'TestCity', false)
-            """
-        )
+            """)
     yield
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM delivery_zones WHERE zip_code = '00000'")
@@ -78,4 +85,3 @@ async def test_db_failure_returns_503(client, monkeypatch):
     assert response.status_code == 503
     body = response.json()
     assert body.get("code") == "DB_UNAVAILABLE"
-

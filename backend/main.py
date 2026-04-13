@@ -7,7 +7,12 @@ from core.config import settings
 from core.database import connect, disconnect
 from core.errors import register_error_handlers
 from core.logging import logger, setup_logging
-from core.rate_limit import limiter, rate_limit_exceeded_handler, SlowAPIMiddleware, RateLimitExceeded
+from core.rate_limit import (
+    limiter,
+    rate_limit_exceeded_handler,
+    SlowAPIMiddleware,
+    RateLimitExceeded,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -63,7 +68,15 @@ register_error_handlers(app)
 # Routers
 # ---------------------------------------------------------------------------
 
-from routers import health, menu, delivery, orders, reservations, catering, internal
+from routers import (
+    health,
+    menu,
+    delivery,
+    orders,
+    reservations,
+    catering,
+    internal,
+)  # noqa: E402
 
 app.include_router(health.router)
 app.include_router(menu.router)
@@ -72,7 +85,6 @@ app.include_router(orders.router)
 app.include_router(reservations.router)
 app.include_router(catering.router)
 app.include_router(internal.router)
-
 
 
 # ---------------------------------------------------------------------------

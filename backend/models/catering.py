@@ -12,8 +12,8 @@ class CateringCreateRequest(BaseModel):
     customer_name: str
     customer_email: str
     customer_phone: str
-    event_date: str        # "YYYY-MM-DD"
-    event_time: str        # "HH:MM"
+    event_date: str  # "YYYY-MM-DD"
+    event_time: str  # "HH:MM"
     delivery_address: str
     zip_code: str
     items: list[CateringItemRequest] = Field(..., min_length=1)
