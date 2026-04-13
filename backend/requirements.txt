@@ -27,13 +27,6 @@ resend==2.27.0
 # WhatsApp notifications (Twilio)
 twilio==9.4.3
 
-# HTTP client (used in tests)
-httpx==0.28.1
-
-# Testing
-pytest==8.3.4
-pytest-asyncio==0.25.0
-
 # Logging
 python-json-logger==3.2.1
 
