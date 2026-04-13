@@ -159,13 +159,13 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| 2.6.1 | Email service | `services/email_service.py` — Resend wrapper, confirmation templates | ⏳ Pending |
-| 2.6.2 | WhatsApp service | `services/whatsapp_service.py` — Twilio wrapper | ⏳ Pending |
-| 2.6.3 | Wire to orders | Call email + WhatsApp after order saved | ⏳ Pending |
-| 2.6.4 | Wire to reservations | Call email + WhatsApp after reservation saved | ⏳ Pending |
-| 2.6.5 | Wire to catering | Call email + WhatsApp after catering order saved | ⏳ Pending |
-| 2.6.6 | Automated tests | pytest: email/WhatsApp failures do not block order save (REL-02, REL-03); failure logged | ⏳ Pending |
-| 2.6.7 | Manual verification | Customer receives confirmation email, owner receives WhatsApp message | ⏳ Pending |
+| 2.6.1 | Email service | `services/email_service.py` — Resend wrapper, confirmation templates | ✅ Done 2026-04-13 |
+| 2.6.2 | WhatsApp service | `services/whatsapp_service.py` — Twilio wrapper | ✅ Done 2026-04-13 |
+| 2.6.3 | Wire to orders | Call email + WhatsApp after order saved | ✅ Done 2026-04-13 |
+| 2.6.4 | Wire to reservations | Call email + WhatsApp after reservation saved | ✅ Done 2026-04-13 |
+| 2.6.5 | Wire to catering | Call email + WhatsApp after catering order saved | ✅ Done 2026-04-13 |
+| 2.6.6 | Automated tests | pytest: email/WhatsApp failures do not block order save (REL-02, REL-03); failure logged | ✅ Done 2026-04-13 |
+| 2.6.7 | Manual verification | Set up Resend API key + Twilio sandbox, place a real order from UI, confirm customer email and owner WhatsApp received | ⏳ Next session |
 
 ---
 
