@@ -15,6 +15,12 @@
 - Always validate the session/token on the server side — never trust client-side auth state alone.
 - Add an auth layer to the API service wrapper so every request automatically includes credentials.
 
+## Config / Environment Rules
+
+- **Always update `config.py` and `.env` together.** Adding a new env var means adding the matching field to `Settings` in the same step — never one without the other.
+- The `Settings` field name must match the env var name exactly (pydantic-settings is case-insensitive, but use the same spelling). Mismatches silently fall back to the default with no error.
+- After adding a field, verify it by printing `settings.<field>` or checking it in a test — silent defaults are hard to spot.
+
 ## Testing Rules
 
 ### Writing test payloads
@@ -23,6 +29,11 @@
 
 ### Writing SQL in services
 - Before writing any SQL query, grep the migration files for the exact column names. Never assume — the spec and the schema often use different names (e.g. spec says `reservation_date`, schema has `reserved_date`).
+
+### Config values in tests
+- Never hardcode a value in a test that the production code reads from `settings.*`.
+- Import `settings` and use `settings.<field>` — the same source the route uses. This prevents drift when defaults change.
+- Applies to: tokens (`settings.internal_token`), emails (`settings.owner_email`), phone numbers, environment flags — anything from `.env`.
 
 ### Mocking with `@patch`
 - Always patch at the **import site** (where the function is used), not the **definition site**.

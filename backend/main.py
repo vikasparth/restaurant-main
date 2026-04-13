@@ -68,7 +68,7 @@ register_error_handlers(app)
 # Routers
 # ---------------------------------------------------------------------------
 
-from routers import (
+from routers import (  # noqa: E402 — routers must come after app is created
     health,
     menu,
     delivery,
@@ -76,7 +76,7 @@ from routers import (
     reservations,
     catering,
     internal,
-)  # noqa: E402
+)
 
 app.include_router(health.router)
 app.include_router(menu.router)

@@ -10,6 +10,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from core.config import settings
+
+INTERNAL_TOKEN = settings.internal_token
+
 # Valid future dates — computed dynamically so they never expire
 _future = date.today() + timedelta(days=60)
 VALID_SCHEDULED_DATE = _future.strftime("%Y-%m-%d")
@@ -159,7 +163,7 @@ async def test_reminder_endpoint_sends_tomorrows_reservations(
     """Reminder endpoint with valid token → returns 200 with sent count."""
     response = await client.post(
         "/api/internal/send-reminders",
-        headers={"X-Internal-Token": "test-secret"},
+        headers={"X-Internal-Token": INTERNAL_TOKEN},
     )
     assert response.status_code == 200
     assert "sent" in response.json()
@@ -195,7 +199,7 @@ async def test_reminder_skips_reservation_without_email(
     """Reminder endpoint → reservations with null email are skipped silently."""
     response = await client.post(
         "/api/internal/send-reminders",
-        headers={"X-Internal-Token": "test-secret"},
+        headers={"X-Internal-Token": INTERNAL_TOKEN},
     )
     assert response.status_code == 200
     # No assertion on mock_email — depends on DB state; just verify no crash

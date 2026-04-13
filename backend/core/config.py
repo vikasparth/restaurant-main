@@ -26,17 +26,17 @@ class Settings(BaseSettings):
 
     # --- Email (Resend) ---
     resend_api_key: str = ""
-    email_from: str = ""
+    resend_from_email: str = "onboarding@resend.dev"
     owner_email: str = ""
 
     # --- WhatsApp (Twilio) ---
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
-    twilio_whatsapp_from: str = ""
+    twilio_whatsapp_from: str = "whatsapp:+14155238886"
     owner_whatsapp: str = ""
 
-    # --- Cron security ---
-    cron_secret: str = ""
+    # --- Internal API security ---
+    internal_token: str = ""
 
     @field_validator("environment")
     @classmethod

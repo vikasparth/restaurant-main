@@ -1,12 +1,12 @@
 import logging
-import os
 
+from core.config import settings
 from services.email_service import send_email
 from services.whatsapp_service import send_whatsapp
 
 logger = logging.getLogger(__name__)
 
-OWNER_EMAIL = os.environ.get("OWNER_EMAIL", "")
+OWNER_EMAIL = settings.owner_email
 
 
 async def notify_order(order_data: dict) -> None:

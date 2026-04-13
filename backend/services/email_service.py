@@ -1,12 +1,13 @@
 import logging
-import os
 
 import resend
 
+from core.config import settings
+
 logger = logging.getLogger(__name__)
 
-resend.api_key = os.environ.get("RESEND_API_KEY", "")
-FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+resend.api_key = settings.resend_api_key
+FROM_EMAIL = settings.resend_from_email
 
 
 async def send_email(to: str, subject: str, html_body: str) -> None:

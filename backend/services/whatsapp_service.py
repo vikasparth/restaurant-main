@@ -1,16 +1,15 @@
 import logging
-import os
 
 from twilio.rest import Client
 
+from core.config import settings
+
 logger = logging.getLogger(__name__)
 
-_account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
-_auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-FROM_WHATSAPP = os.environ.get("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886")
-OWNER_WHATSAPP = os.environ.get("OWNER_WHATSAPP", "")
+FROM_WHATSAPP = settings.twilio_whatsapp_from
+OWNER_WHATSAPP = settings.owner_whatsapp
 
-client = Client(_account_sid, _auth_token)
+client = Client(settings.twilio_account_sid, settings.twilio_auth_token)
 
 
 async def send_whatsapp(body: str) -> None:
