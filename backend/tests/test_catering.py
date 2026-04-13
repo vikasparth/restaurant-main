@@ -5,13 +5,15 @@
 # Run with: pytest tests/test_catering.py -v
 
 import uuid
+from datetime import date, timedelta
 
 import pytest
 
 from core.database import get_pool
 
-# Event date well beyond the 48-hour advance rule
-VALID_EVENT_DATE = "2026-06-01"
+# Event date always 60 days out — stays valid as time passes
+_future = date.today() + timedelta(days=60)
+VALID_EVENT_DATE = _future.strftime("%Y-%m-%d")
 VALID_EVENT_TIME = "18:00"
 
 # Prices come from seed data (20260406000002_seed_data.sql)

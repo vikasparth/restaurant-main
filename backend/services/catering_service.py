@@ -7,6 +7,7 @@ from core.errors import error_response
 from core.timezone import now_in_restaurant_time
 from services.delivery_service import validate_zip
 from services.reference_service import generate_reference_number
+from services.notification_service import notify_catering
 
 
 async def fetch_catering_items(db, items: list) -> list[dict]:
@@ -163,6 +164,21 @@ async def create_catering_order(db, payload, config: dict) -> JSONResponse:
             item["price_per_tray"],
             item["trays"],
         )
+
+    # --- Fire notifications (failures are logged, never block the response) ---
+    await notify_catering({
+        "reference_number":   reference_number,
+        "customer_name":      payload.customer_name,
+        "customer_email":     payload.customer_email,
+        "customer_phone":     payload.customer_phone,
+        "event_date":         payload.event_date,
+        "event_time":         payload.event_time,
+        "delivery_address":   payload.delivery_address,
+        "total_amount":       total,
+        "deposit_amount":     deposit_amount,
+        "line_items":         line_items,
+        "special_instructions": payload.special_instructions,
+    })
 
     return JSONResponse(status_code=201, content={
         "reference_number": reference_number,

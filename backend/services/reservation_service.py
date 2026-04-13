@@ -7,6 +7,7 @@ from core.config import settings
 from core.errors import error_response
 from core.timezone import now_in_restaurant_time
 from services.config_service import get_restaurant_config
+from services.notification_service import notify_reservation
 from services.reference_service import generate_reference_number
 
 def validate_reservation_time(
@@ -105,7 +106,19 @@ async def create_reservation(db, payload, config: dict) -> JSONResponse:
         payload.notes,
     )
 
-    # Step 5 — return the response
+    # Step 5 — fire notifications (failures are logged, never block the response)
+    await notify_reservation({
+        "reference_number":   reference_number,
+        "customer_name":      payload.customer_name,
+        "customer_email":     payload.customer_email,
+        "customer_phone":     payload.customer_phone,
+        "reservation_date":   payload.reserved_date,
+        "reservation_time":   payload.reserved_time,
+        "party_size":         payload.party_size,
+        "special_instructions": payload.notes,
+    })
+
+    # Step 6 — return the response
     return JSONResponse(status_code=201, content={
         "reference_number": reference_number,
         "status":           "confirmed",

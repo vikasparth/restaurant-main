@@ -6,12 +6,14 @@
 
 import re
 import uuid
+from datetime import date, timedelta
 
 import pytest
 
 from core.database import get_pool
 
-VALID_DATE = "2026-04-15"   # Wednesday — within operating hours
+_future    = date.today() + timedelta(days=60)  # always well in the future
+VALID_DATE = _future.strftime("%Y-%m-%d")
 VALID_TIME = "18:00"
 
 def reservation_payload(**overrides) -> dict:

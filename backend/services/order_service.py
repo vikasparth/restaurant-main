@@ -8,6 +8,7 @@ from core.config import settings
 from core.errors import error_response
 from core.timezone import now_in_restaurant_time
 from services.config_service import get_restaurant_config
+from services.notification_service import notify_order
 from services.delivery_service import validate_zip
 from services.menu_service import validate_menu_items
 from services.reference_service import generate_reference_number
@@ -187,7 +188,21 @@ async def create_order(db, payload, config: dict) -> JSONResponse:
             item["quantity"],
         )
 
-    # Step 9 — return the response
+    # Step 9 — fire notifications (failures are logged, never block the response)
+    await notify_order({
+        "reference_number":   reference_number,
+        "customer_name":      payload.customer_name,
+        "customer_email":     payload.customer_email,
+        "customer_phone":     payload.customer_phone,
+        "order_type":         payload.order_type,
+        "scheduled_time":     f"{payload.scheduled_date} {payload.scheduled_time}",
+        "total_amount":       total,
+        "delivery_fee":       delivery_fee,
+        "line_items":         line_items,
+        "special_instructions": payload.special_instructions,
+    })
+
+    # Step 10 — return the response
     return JSONResponse(status_code=201, content={
         "reference_number": reference_number,
         "status":           "confirmed",
