@@ -215,6 +215,8 @@ A runbook (`docs/runbook.md`) will be created as part of task 3.8 and grown incr
 - [ ] **3.6** — Canary monitoring setup
 - [ ] **3.7** — Sentry setup (frontend error tracking pre-requisite)
 - [ ] **3.8** — Runbook skeleton (`docs/runbook.md`)
-- [ ] **3.9** — Write spec and build Phase 1 monitoring agent
-- [ ] **3.10** — Claude Code Skill `/monitor-check` (only needs Phase 1 endpoint, no MCP required)
-- [ ] **3.11** — Phase 2: MCP server (Skill automatically gets richer output once MCP is live)
+- [ ] **3.9** — Request logging middleware (records endpoint, status code, duration to DB)
+- [ ] **3.10** — Notification failure logging (records Twilio/Resend results to DB)
+- [ ] **3.11** — Write spec and build Phase 1 monitoring agent (rule-based)
+- [ ] **3.12** — Claude Code Skill `/monitor-check`
+- [ ] **3.13** — Phase 2: MCP server

@@ -1,6 +1,6 @@
 # Execution Plan — Aap ki Rasoi Backend
 **Status: APPROVED — Signed off by Vikas, 2026-04-06**
-**Last updated: 2026-04-09**
+**Last updated: 2026-04-14**
 **Reference:** See `docs/architecture.md` for full design decisions.
 
 ---
@@ -208,11 +208,13 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 | 3.4 | Deploy frontend to Vercel | Connect GitHub repo, vercel.json rewrite to Render URL | ✅ Done 2026-04-13 |
 | 3.5 | End-to-end smoke test | Full order flow on production URLs | ✅ Done 2026-04-13 |
 | 3.6 | Canary monitoring setup | UptimeRobot HTTP check on `/health` every 5 min (unlimited); GitHub Actions runs canary tests every 50 min (~864 min/month, well within free tier); alert to owner email on failure | ✅ Done 2026-04-14 |
-| 3.7 | Sentry setup (pre-requisite for AI agent) | Install Sentry React SDK in frontend; capture page crashes, JS errors, and network errors scoped to `/api/*` endpoints; verify errors appear in Sentry dashboard | ⏳ Pending |
-| 3.8 | Runbook skeleton | Create `docs/runbook.md` with one entry per monitored metric category; each entry: symptom, likely cause, diagnostic steps, fix; grow incrementally as each monitoring metric is instrumented | ⏳ Pending |
-| 3.9 | AI monitoring agent — Phase 1 (rule-based) | Spec + build: metrics snapshot collector + Python rule-based threshold checks + alert via WhatsApp/email; no Claude API calls; zero additional cost; update runbook entries alongside each metric | ⏳ Pending |
-| 3.10 | Claude Code Skill — `/monitor-check` | IDE-side skill that calls `/api/internal/monitor`, passes metrics snapshot to Claude using existing Claude Code session (covered by Claude Pro — no API billing); on-demand analysis only | ⏳ Pending |
-| 3.11 | AI monitoring agent — Phase 2 (MCP) | MCP server with tools: `query_metrics_table`, `check_endpoint`, `get_recent_errors`; Claude drives its own investigation during Skill session; still zero additional cost | ⏳ Pending |
+| 3.7 | Sentry setup (pre-requisite for AI agent) | Install Sentry React SDK in frontend; capture page crashes, JS errors, and network errors scoped to `/api/*` endpoints; verify errors appear in Sentry dashboard | ✅ Done 2026-04-14 |
+| 3.8 | Runbook skeleton | Create `docs/runbook.md` with one entry per monitored metric category; each entry: symptom, likely cause, diagnostic steps, fix; grow incrementally as each monitoring metric is instrumented | ✅ Done 2026-04-14 |
+| 3.9 | Request logging middleware | FastAPI middleware that logs every request (endpoint, method, status code, duration ms) to a `request_logs` DB table; foundation for error rate, latency, throttling, and request count metrics | ⏳ Pending |
+| 3.10 | Notification failure logging | Log Twilio/Resend call results (success/failure, provider, error code) to a `notification_logs` DB table; enables outbound throttling and downstream failure metrics | ⏳ Pending |
+| 3.11 | AI monitoring agent — Phase 1 (rule-based) | Spec + build: metrics snapshot collector + Python rule-based threshold checks + alert via WhatsApp/email; no Claude API calls; zero additional cost; update runbook entries alongside each metric | ⏳ Pending |
+| 3.12 | Claude Code Skill — `/monitor-check` | IDE-side skill that calls `/api/internal/monitor`, passes metrics snapshot to Claude using existing Claude Code session (covered by Claude Pro — no API billing); on-demand analysis only | ⏳ Pending |
+| 3.13 | AI monitoring agent — Phase 2 (MCP) | MCP server with tools: `query_metrics_table`, `check_endpoint`, `get_recent_errors`; Claude drives its own investigation during Skill session; still zero additional cost | ⏳ Pending |
 
 ---
 
@@ -224,14 +226,14 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 The same pytest integration tests used during development are made **environment-aware** — pointed at the live Render URL instead of localhost. A GitHub Actions workflow (free, 2000 min/month) runs them on a schedule.
 
 ```
-tests/
-  canary/
+backend/tests/canary/
     test_health.py          # GET /health → 200, {"status": "ok"}
     test_menu_available.py  # GET /api/menu → 200, non-empty array
     test_delivery_check.py  # POST /api/delivery/validate with known valid zip → 200
 ```
 
-Controlled by one env variable: `API_BASE_URL=https://yourapp.onrender.com`
+Controlled by one env variable: `API_BASE_URL=https://restaurant-main.onrender.com`
+Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid loading app dependencies
 
 ### Alert Channels
 | Tool | What it monitors | Frequency | Cost |
