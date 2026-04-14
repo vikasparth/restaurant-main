@@ -16,10 +16,10 @@ The frontend calls all APIs on relative `/api/...` paths. In development, Vite p
 
 Complete all items below before starting the deployment steps.
 
-- [ ] **Move test deps to `requirements-dev.txt`** — remove `pytest`, `pytest-asyncio`, `httpx` from `requirements.txt`; confirm they exist in `requirements-dev.txt`
-- [ ] **Add `backend/runtime.txt`** — single line: `python-3.12.10` so Render uses the correct Python version
-- [ ] **Apply rate limits to public routes** — add `@limiter.limit()` to orders, reservations, and catering POST endpoints
-- [ ] **Harden `/health` endpoint** — wrap `pool.acquire()` in try/except and return `503` on DB failure instead of unhandled 500
+- [x] **Move test deps to `requirements-dev.txt`** — remove `pytest`, `pytest-asyncio`, `httpx` from `requirements.txt`; confirm they exist in `requirements-dev.txt`
+- [x] **Add `backend/runtime.txt`** — single line: `python-3.12.10` so Render uses the correct Python version
+- [x] **Apply rate limits to public routes** — add `@limiter.limit()` to orders, reservations, and catering POST endpoints
+- [x] **Harden `/health` endpoint** — wrap `pool.acquire()` in try/except and return `503` on DB failure instead of unhandled 500
 
 ---
 
@@ -136,12 +136,21 @@ Open the Vercel URL. The app should load and the menu should display (served fro
 
 Run through this checklist on the live Vercel URL:
 
-- [ ] Menu page loads (GET `/api/menu`)
-- [ ] Delivery availability check works
-- [ ] Place a delivery order → customer email received, owner WhatsApp received
-- [ ] Make a reservation → confirmation shown
-- [ ] Submit a catering enquiry → confirmation shown
-- [ ] Visit `https://<render-url>/health` → `200 OK`
+- [x] Menu page loads (GET `/api/menu`)
+- [x] Delivery availability check works
+- [x] Place a delivery order → confirmation shown (notifications off — NOTIFICATIONS_ENABLED=false)
+- [x] Make a reservation → confirmation shown
+- [x] Submit a catering enquiry → confirmation shown
+- [x] Visit `https://restaurant-main.onrender.com/health` → `200 OK`
+
+---
+
+## Post-Deployment Steps
+
+Complete these after the smoke test passes.
+
+- [ ] **Apply pg_cron migration on production Supabase** — run the SQL in `supabase/migrations/20260413000001_add_reminder_cron.sql` against your production Supabase project. Without this, reservation reminder emails will not be sent automatically.
+- [ ] **Set `ENVIRONMENT=production` on Render** — switches backend logging from human-readable to JSON format, which is easier to parse in Render's log viewer. Triggers on next restart.
 
 ---
 

@@ -1,7 +1,7 @@
 # Spec — Slice 5: Catering Orders
 **Status: DRAFT — awaiting sign-off**
 **Slice tasks:** 2.5.1 → 2.5.7
-**References:** architecture.md §catering, execution-plan.md §Slice 5
+**References:** docs/architecture.md §catering, execution-plan.md §Slice 5
 
 ---
 

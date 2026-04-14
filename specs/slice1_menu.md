@@ -1,7 +1,7 @@
 # Spec — Slice 1: Menu (Read)
 **Status: APPROVED — Signed off by Vikas, 2026-04-07**
 **Slice tasks:** 2.1.1 → 2.1.7
-**References:** architecture.md §7, §6 (menu_items table), §12 (testing strategy)
+**References:** docs/architecture.md §7, §6 (menu_items table), §12 (testing strategy)
 
 ---
 
@@ -30,7 +30,7 @@ No request body. No query parameters. No headers required.
 
 ## Response Shape (success)
 
-HTTP 200. Payload returned directly — no envelope wrapper (see architecture.md §Response Convention).
+HTTP 200. Payload returned directly — no envelope wrapper (see docs/architecture.md §Response Convention).
 
 ```json
 {
@@ -77,7 +77,7 @@ HTTP 200. Payload returned directly — no envelope wrapper (see architecture.md
 | Items sorted within category | Items sorted by `display_order` ascending |
 | Category disappears if empty | If all items in a category are unavailable, that category does not appear in the response |
 | Empty menu | If zero items are available, return `{"categories": []}` — not an error |
-| Location | Queries items for `DEFAULT_LOCATION_ID` from environment config (see architecture.md §location_id Strategy) |
+| Location | Queries items for `DEFAULT_LOCATION_ID` from environment config (see docs/architecture.md §location_id Strategy) |
 
 ---
 

@@ -1,7 +1,7 @@
 # Architecture — Aap ki Rasoi Backend
 **Status: APPROVED — Signed off by Vikas, 2026-04-06**
 **Last updated: 2026-04-06**
-**Reference:** See `requirements.md` for full functional requirements. See `execution-plan.md` for build order.
+**Reference:** See `docs/requirements.md` for full functional requirements. See `execution-plan.md` for build order.
 
 ---
 

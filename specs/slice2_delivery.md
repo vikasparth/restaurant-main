@@ -1,7 +1,7 @@
 # Spec — Slice 2: Delivery Validation
 **Status: DRAFT — Awaiting sign-off by Vikas**
 **Slice tasks:** 2.2.1 → 2.2.7
-**References:** architecture.md §delivery_zones table, §rate limiting
+**References:** docs/architecture.md §delivery_zones table, §rate limiting
 
 ---
 

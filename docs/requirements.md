@@ -2,7 +2,7 @@
 **Version: 1.0**
 **Status: APPROVED — Signed off by Vikas, 2026-04-06**
 **Last updated: 2026-04-06**
-**Reference:** See `architecture.md` for technical design decisions.
+**Reference:** See `docs/architecture.md` for technical design decisions.
 
 ---
 

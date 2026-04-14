@@ -1,7 +1,7 @@
 # Execution Plan — Aap ki Rasoi Backend
 **Status: APPROVED — Signed off by Vikas, 2026-04-06**
 **Last updated: 2026-04-09**
-**Reference:** See `architecture.md` for full design decisions.
+**Reference:** See `docs/architecture.md` for full design decisions.
 
 ---
 
@@ -11,14 +11,14 @@
 - Never start the next stage until the current one is tested and working
 - One vertical slice at a time — fully working end-to-end before moving on
 - Show a 2–3 line summary of what will be built, wait for approval, then build
-- Token efficiency: keep context lean — reference `architecture.md` for design detail
+- Token efficiency: keep context lean — reference `docs/architecture.md` for design detail
 
 ---
 
 ## Pre-conditions (must be resolved before Stage 1)
 
 ### Architecture sign-off
-- [x] Owner reviews and approves `architecture.md` ✅ 2026-04-06
+- [x] Owner reviews and approves `docs/architecture.md` ✅ 2026-04-06
 
 ### Accounts to create (all free)
 - [x] Create Supabase account — supabase.com (GitHub login) ✅
@@ -204,9 +204,9 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 |---|---|---|---|
 | 3.1 | Global error handling | Consistent error response format across all endpoints | ⏳ Pending |
 | 3.2 | Input validation review | Review all Pydantic models for edge cases | ⏳ Pending |
-| 3.3 | Deploy backend to Render | Connect GitHub repo, set env vars, verify live URL | ⏳ Pending |
-| 3.4 | Deploy frontend to Vercel | Connect GitHub repo, set `VITE_API_URL` to Render URL | ⏳ Pending |
-| 3.5 | End-to-end smoke test | Full order flow on production URLs | ⏳ Pending |
+| 3.3 | Deploy backend to Render | Connect GitHub repo, set env vars, verify live URL | ✅ Done 2026-04-13 |
+| 3.4 | Deploy frontend to Vercel | Connect GitHub repo, vercel.json rewrite to Render URL | ✅ Done 2026-04-13 |
+| 3.5 | End-to-end smoke test | Full order flow on production URLs | ✅ Done 2026-04-13 |
 | 3.6 | Canary monitoring setup | UptimeRobot HTTP check on `/health` every 5 min (unlimited); GitHub Actions runs canary tests every 50 min (~864 min/month, well within free tier); alert to owner email on failure | ⏳ Pending |
 
 ---

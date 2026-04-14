@@ -1,7 +1,7 @@
 # Spec — Slice 3: Orders
 **Status: APPROVED — Signed off by Vikas, 2026-04-09**
 **Slice tasks:** 2.3.1 → 2.3.9
-**References:** architecture.md §orders table, §order_items table, §restaurant_config, §Shared Contracts, §Idempotency Pattern, §Business Rules
+**References:** docs/architecture.md §orders table, §order_items table, §restaurant_config, §Shared Contracts, §Idempotency Pattern, §Business Rules
 
 ---
 

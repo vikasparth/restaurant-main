@@ -1,13 +1,13 @@
 # Spec — Slice 6: Notifications
 **Status: SIGNED OFF — 2026-04-12**
 **Slice tasks:** 2.6.1 → 2.6.7
-**References:** architecture.md §notifications, execution-plan.md §Slice 6
+**References:** docs/architecture.md §notifications, execution-plan.md §Slice 6
 
 ---
 
 ## Requirements Coverage
 
-> **Before writing this spec:** grep `requirements.md` for `NOT-` and `RES-08`, `RES-09` only.
+> **Before writing this spec:** grep `docs/requirements.md` for `NOT-` and `RES-08`, `RES-09` only.
 
 | Req ID | Requirement (short) | Covered in this spec | Deferred to |
 |---|---|---|---|
