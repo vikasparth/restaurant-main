@@ -28,7 +28,11 @@ async def client():
 def mock_notifications():
     with patch(
         "services.notification_service.send_email", new_callable=AsyncMock
-    ), patch("services.notification_service.send_whatsapp", new_callable=AsyncMock):
+    ), patch(
+        "services.notification_service.send_whatsapp", new_callable=AsyncMock
+    ), patch(
+        "services.notification_service._log_notification", new_callable=AsyncMock
+    ):
         yield
 
 
