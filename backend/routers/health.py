@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 router = APIRouter()
 
 
-@router.get("/health")
+@router.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
     try:
         pool = get_pool()
