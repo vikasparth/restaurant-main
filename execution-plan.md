@@ -215,6 +215,7 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 | 3.11 | AI monitoring agent — Phase 1 (rule-based) | Spec + build: metrics snapshot collector + Python rule-based threshold checks + alert via WhatsApp/email; no Claude API calls; zero additional cost; update runbook entries alongside each metric | ⏳ Pending |
 | 3.12 | Claude Code Skill — `/monitor-check` | IDE-side skill that calls `/api/internal/monitor`, passes metrics snapshot to Claude using existing Claude Code session (covered by Claude Pro — no API billing); on-demand analysis only | ⏳ Pending |
 | 3.13 | AI monitoring agent — Phase 2 (MCP) | MCP server with tools: `query_metrics_table`, `check_endpoint`, `get_recent_errors`; Claude drives its own investigation during Skill session; still zero additional cost | ⏳ Pending |
+| 3.14 | Sentry backend SDK (Phase 2 observability) | Install `sentry-sdk[fastapi]`; auto-capture unhandled exceptions with request context (URL, method, correlation ID); correlates with frontend Sentry project; zero additional cost on free tier | ⏳ Pending |
 
 ---
 

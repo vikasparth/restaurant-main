@@ -7,6 +7,8 @@ from core.config import settings
 from core.database import connect, disconnect
 from core.errors import register_error_handlers
 from core.logging import logger, setup_logging
+from core.middleware import RequestLoggingMiddleware
+
 from core.rate_limit import (
     limiter,
     rate_limit_exceeded_handler,
@@ -44,6 +46,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
 
 
 # ---------------------------------------------------------------------------

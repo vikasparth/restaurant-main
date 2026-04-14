@@ -15,6 +15,19 @@
 - Always validate the session/token on the server side — never trust client-side auth state alone.
 - Add an auth layer to the API service wrapper so every request automatically includes credentials.
 
+## Logging Rules — Design for the Developer First
+
+When writing logs, always ask: *what does a developer (or AI agent) debugging a 2am incident need to find the root cause fast?* Every log line should make it faster to answer:
+1. Which request failed? (correlation ID)
+2. What went wrong? (error message + context)
+3. Why? (relevant state, not a stack dump)
+
+- **Always include `request_id` (correlation ID)** in every log line — generated per request in middleware, stored in `contextvars.ContextVar`, read automatically by the logger. One ID → one search → all lines for that request.
+- **Never log query parameters** — they can contain customer PII (e.g. `?email=...`, `?name=...`).
+- **Never log request bodies or headers** in middleware or shared infrastructure — bodies contain customer names, emails, phone numbers, and order details.
+- Infrastructure logs (middleware): method, path (no query string), status code, duration ms, request_id. Nothing else.
+- Business event logs: keyed by reference number (e.g. `{"event": "order_created", "reference": "AKR-20260414-0012", "request_id": "..."}`) — never contain raw PII.
+
 ## Config / Environment Rules
 
 - **Always update `config.py` and `.env` together.** Adding a new env var means adding the matching field to `Settings` in the same step — never one without the other.

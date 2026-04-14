@@ -30,3 +30,12 @@ def mock_notifications():
         "services.notification_service.send_email", new_callable=AsyncMock
     ), patch("services.notification_service.send_whatsapp", new_callable=AsyncMock):
         yield
+
+
+@pytest.fixture
+async def db():
+    from core.database import get_pool
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        yield conn

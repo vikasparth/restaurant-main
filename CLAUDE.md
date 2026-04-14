@@ -35,6 +35,14 @@ Before starting any new slice:
 4. **Run the full test suite after every slice** — not just the new tests. Fix any regressions before moving on.
 5. **Never edit an already-applied migration** — schema changes go in a new migration file (additive only).
 
+## Design Philosophy — Work Backwards From the User
+
+Before designing or implementing any feature, ask: **who is the customer using this, and what do they need?**
+
+Put the persona first. What does a customer trying to place an order, make a reservation, or submit a catering enquiry actually need? Design the API contract and UI around their journey — not around what is easy to implement.
+
+This applies to: API design, field naming, validation rules, error messages shown to users, and UI flow.
+
 ## Pair Programming Rules — ALWAYS ACTIVE
 
 The user is a new engineer learning Python by building this project. These rules apply to every coding task, no exceptions.
