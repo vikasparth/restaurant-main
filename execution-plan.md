@@ -207,7 +207,7 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 | 3.3 | Deploy backend to Render | Connect GitHub repo, set env vars, verify live URL | ✅ Done 2026-04-13 |
 | 3.4 | Deploy frontend to Vercel | Connect GitHub repo, vercel.json rewrite to Render URL | ✅ Done 2026-04-13 |
 | 3.5 | End-to-end smoke test | Full order flow on production URLs | ✅ Done 2026-04-13 |
-| 3.6 | Canary monitoring setup | UptimeRobot HTTP check on `/health` every 5 min (unlimited); GitHub Actions runs canary tests every 50 min (~864 min/month, well within free tier); alert to owner email on failure | ⏳ Pending |
+| 3.6 | Canary monitoring setup | UptimeRobot HTTP check on `/health` every 5 min (unlimited); GitHub Actions runs canary tests every 50 min (~864 min/month, well within free tier); alert to owner email on failure | ✅ Done 2026-04-14 |
 | 3.7 | Sentry setup (pre-requisite for AI agent) | Install Sentry React SDK in frontend; capture page crashes, JS errors, and network errors scoped to `/api/*` endpoints; verify errors appear in Sentry dashboard | ⏳ Pending |
 | 3.8 | Runbook skeleton | Create `docs/runbook.md` with one entry per monitored metric category; each entry: symptom, likely cause, diagnostic steps, fix; grow incrementally as each monitoring metric is instrumented | ⏳ Pending |
 | 3.9 | AI monitoring agent — Phase 1 (rule-based) | Spec + build: metrics snapshot collector + Python rule-based threshold checks + alert via WhatsApp/email; no Claude API calls; zero additional cost; update runbook entries alongside each metric | ⏳ Pending |
