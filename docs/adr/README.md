@@ -11,3 +11,4 @@ Each ADR records what changed, why, and what the consequences are.
 | [0004](0004-log-retention.md) | Log retention — pg_cron 30-day auto-delete | 2026-04-14 | Accepted |
 | [0005](0005-ai-monitoring-architecture.md) | AI monitoring agent — APScheduler + two-phase approach | 2026-04-14 | Accepted |
 | [0006](0006-notifications-feature-flag.md) | Notifications feature flag | 2026-04-14 | Accepted |
+| [0007](0007-monitoring-alert-channels.md) | Monitoring alert channels — GitHub Issues + email (not WhatsApp) | 2026-04-14 | Accepted |
