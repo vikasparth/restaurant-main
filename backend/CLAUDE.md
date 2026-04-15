@@ -42,6 +42,7 @@ When writing logs, always ask: *what does a developer (or AI agent) debugging a 
 
 ### Writing SQL in services
 - Before writing any SQL query, grep the migration files for the exact column names. Never assume — the spec and the schema often use different names (e.g. spec says `reservation_date`, schema has `reserved_date`).
+- Before writing any `settings.<field>` reference, grep `core/config.py` for the exact field name. Never construct field names dynamically (e.g. `getattr(settings, f"monitor_{name}_threshold")`) — always use explicit references. A typo silently builds the wrong attribute name and only fails at runtime.
 
 ### Config values in tests
 - Never hardcode a value in a test that the production code reads from `settings.*`.
