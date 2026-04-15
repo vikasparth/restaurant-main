@@ -28,6 +28,12 @@ When writing logs, always ask: *what does a developer (or AI agent) debugging a 
 - Infrastructure logs (middleware): method, path (no query string), status code, duration ms, request_id. Nothing else.
 - Business event logs: keyed by reference number (e.g. `{"event": "order_created", "reference": "AKR-20260414-0012", "request_id": "..."}`) — never contain raw PII.
 
+## Service Layer Rules
+
+- **Routes must not call service internals directly.** If a service has an orchestrator function (e.g. `run_monitor`), the route calls the orchestrator — not the individual functions it wraps. Bypassing the orchestrator breaks encapsulation and causes steps (like sending email) to be silently skipped.
+- Routes are responsible for: auth, input validation, calling the service layer, returning the response.
+- Services are responsible for: business logic, orchestration, external calls (DB, email, GitHub, etc.).
+
 ## Config / Environment Rules
 
 - **Always update `config.py` and `.env` together.** Adding a new env var means adding the matching field to `Settings` in the same step — never one without the other.
