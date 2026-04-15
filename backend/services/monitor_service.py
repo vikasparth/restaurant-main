@@ -222,15 +222,8 @@ async def close_github_issue() -> None:
             await client.patch(url, headers=headers, json=stateclosed)
 
 
-async def run_monitor(db) -> None:
-    """Collect snapshot, check thresholds, open/close issue, send email. Never raises."""
-    try:
-        snapshot = await collect_snapshot(db, settings.monitor_window_hours)
-        breaching = check_thresholds(snapshot)
-    except Exception:
-        logger.exception("run_monitor: failed to collect or evaluate snapshot")
-        return
-
+async def run_monitor(breaching: list[str], snapshot: dict) -> None:
+    """Orchestrate GitHub issue and email based on pre-computed snapshot. Never raises."""
     if breaching:
         try:
             issue_url = await open_or_update_github_issue(breaching, snapshot)
@@ -239,10 +232,8 @@ async def run_monitor(db) -> None:
                 subject=f"[ALERT] Aap ki Rasoi — {len(breaching)} issue(s) detected",
                 html_body=f"<p>Monitoring alert triggered.</p><p>View issue: <a href='{issue_url}'>{issue_url}</a></p>",
             )
-
         except Exception:
-            logger.exception("run_monitor: failed to open GitHub issue")
-            return
+            logger.exception("run_monitor: failed to open GitHub issue or send email")
     else:
         try:
             await close_github_issue()

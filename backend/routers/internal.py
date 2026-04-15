@@ -7,8 +7,7 @@ from services.notification_service import send_reservation_reminders
 from services.monitor_service import (
     collect_snapshot,
     check_thresholds,
-    open_or_update_github_issue,
-    close_github_issue,
+    run_monitor,
 )
 
 router = APIRouter(prefix="/api/internal")
@@ -38,10 +37,7 @@ async def trigger_monitor(
 
     snapshot = await collect_snapshot(db, settings.monitor_window_hours)
     breaching = check_thresholds(snapshot)
-    if breaching:
-        await open_or_update_github_issue(breaching, snapshot)
-    else:
-        await close_github_issue()
+    await run_monitor(breaching, snapshot)
 
     thresholds = {
         "error_rate": settings.monitor_error_rate_threshold,

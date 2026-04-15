@@ -106,11 +106,9 @@ def test_multiple_metrics_breaching_returns_all_alerts():
 @pytest.mark.asyncio
 async def test_run_monitor_breaching_opens_issue_and_sends_email():
     snapshot = make_snapshot(error_rate_w1=0.08, error_rate_w2=0.07)
-    mock_db = AsyncMock()
+    breaching = ["error_rate"]
 
     with patch(
-        "services.monitor_service.collect_snapshot", AsyncMock(return_value=snapshot)
-    ), patch(
         "services.monitor_service.open_or_update_github_issue",
         AsyncMock(return_value="https://github.com/issues/1"),
     ) as mock_open, patch(
@@ -119,7 +117,7 @@ async def test_run_monitor_breaching_opens_issue_and_sends_email():
         "services.monitor_service.close_github_issue", AsyncMock()
     ) as mock_close:
 
-        await run_monitor(mock_db)
+        await run_monitor(breaching, snapshot)
 
         mock_open.assert_called_once()
         mock_email.assert_called_once()
@@ -130,11 +128,9 @@ async def test_run_monitor_breaching_opens_issue_and_sends_email():
 @pytest.mark.asyncio
 async def test_run_monitor_healthy_closes_issue_and_skips_email():
     snapshot = make_snapshot()  # all zeros — all healthy
-    mock_db = AsyncMock()
+    breaching = []
 
     with patch(
-        "services.monitor_service.collect_snapshot", AsyncMock(return_value=snapshot)
-    ), patch(
         "services.monitor_service.close_github_issue", AsyncMock()
     ) as mock_close, patch(
         "services.monitor_service.send_email", AsyncMock()
@@ -142,31 +138,27 @@ async def test_run_monitor_healthy_closes_issue_and_skips_email():
         "services.monitor_service.open_or_update_github_issue", AsyncMock()
     ) as mock_open:
 
-        await run_monitor(mock_db)
+        await run_monitor(breaching, snapshot)
 
         mock_close.assert_called_once()
         mock_email.assert_not_called()
         mock_open.assert_not_called()
 
 
-# When DB query fails, run_monitor returns without calling GitHub or email
+# When GitHub call fails, run_monitor logs and returns cleanly
 @pytest.mark.asyncio
-async def test_run_monitor_db_failure_returns_cleanly():
-    mock_db = AsyncMock()
+async def test_run_monitor_github_failure_returns_cleanly():
+    snapshot = make_snapshot(error_rate_w1=0.08, error_rate_w2=0.07)
+    breaching = ["error_rate"]
 
     with patch(
-        "services.monitor_service.collect_snapshot",
-        AsyncMock(side_effect=Exception("DB down")),
-    ), patch(
-        "services.monitor_service.open_or_update_github_issue", AsyncMock()
+        "services.monitor_service.open_or_update_github_issue",
+        AsyncMock(side_effect=Exception("GitHub down")),
     ) as mock_open, patch(
         "services.monitor_service.send_email", AsyncMock()
-    ) as mock_email, patch(
-        "services.monitor_service.close_github_issue", AsyncMock()
-    ) as mock_close:
+    ) as mock_email:
 
-        await run_monitor(mock_db)  # must not raise
+        await run_monitor(breaching, snapshot)  # must not raise
 
-        mock_open.assert_not_called()
+        mock_open.assert_called_once()
         mock_email.assert_not_called()
-        mock_close.assert_not_called()
