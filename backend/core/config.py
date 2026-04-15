@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     # --- Feature flags ---
     notifications_enabled: bool = True
 
+    # --- Monitoring ---
+    monitor_window_hours: int = 6
+    monitor_error_rate_threshold: float = 0.05
+    monitor_latency_p95_threshold_ms: int = 2000
+    monitor_notification_failure_threshold: int = 2
+
+
     @field_validator("environment")
     @classmethod
     def validate_environment(cls, v: str) -> str:
