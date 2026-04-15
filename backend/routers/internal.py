@@ -43,17 +43,15 @@ async def trigger_monitor(
     else:
         await close_github_issue()
 
+    thresholds = {
+        "error_rate": settings.monitor_error_rate_threshold,
+        "p95_latency_ms": settings.monitor_latency_p95_threshold_ms,
+        "notification_failures": settings.monitor_notification_failure_threshold,
+    }
     metrics = {
         name: {
             **snapshot[name],
-            "threshold": getattr(
-                settings,
-                (
-                    f"monitor_{name}_threshold"
-                    if name != "p95_latency_ms"
-                    else "monitor_latency_p95_threshold_ms"
-                ),
-            ),
+            "threshold": thresholds[name],
             "breaching": name in breaching,
         }
         for name in snapshot
