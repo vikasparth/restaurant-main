@@ -8,8 +8,9 @@ record) and sends an owner email with a link to the issue. Silent when healthy.
 ---
 
 ## Schedule
-- **Times:** 9:00 and 21:00 `America/Los_Angeles` (APScheduler handles PDT/PST shift)
-- **Runs inside:** the Render FastAPI process via APScheduler — no external service needed
+- **Times:** 9:00 and 21:00 `America/Los_Angeles`
+- **Trigger:** cron-job.org calls `GET /api/internal/monitor` — no APScheduler needed
+- **Why not APScheduler:** Render free tier spins down after 15 min inactivity; an in-process scheduler would die with it. cron-job.org wakes the server via HTTP and scales forward to Phase 2/3 MCP approach without any rearchitecting.
 
 ---
 
@@ -151,10 +152,8 @@ Response shape:
 |---|---|
 | `backend/services/monitor_service.py` | New — `collect_snapshot()`, `check_thresholds()`, `open_or_update_github_issue()`, `close_github_issue()`, `run_monitor()` |
 | `backend/routers/internal.py` | Add `GET /api/internal/monitor` |
-| `backend/core/scheduler.py` | New — APScheduler instance, registers monitor job |
 | `backend/core/config.py` | Add 6 monitor + GitHub config fields |
-| `backend/main.py` | Start/stop scheduler on app lifespan |
-| `backend/tests/test_monitor.py` | New — unit tests for each threshold check |
+| `backend/tests/test_monitor.py` | New — unit tests for each threshold check and run_monitor orchestration |
 | `docs/runbook.md` | Add entries for error_rate, p95_latency, notification_failures |
 
 ---

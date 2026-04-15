@@ -265,6 +265,75 @@
 
 ---
 
+## 13. Monitoring Alert — Error Rate (`error_rate`)
+
+**Symptom:** GitHub Issue opened with label `monitoring-alert`; error rate exceeded 5% in two consecutive 6-hour windows.
+
+**Likely cause:**
+- Unhandled exception introduced by a recent deploy
+- DB connection lost causing 503s across all endpoints
+- Upstream dependency (Supabase) returning errors
+
+**Diagnostic steps:**
+1. Query `request_logs` — group 5xx responses by endpoint and time to identify which route is failing
+2. Check if the spike started after a recent deploy (`git log --oneline -5`)
+3. Call `GET /health` — if it returns 503, the DB is down (see entry 12)
+4. Check Render logs for stack traces
+
+**Fix:**
+- If after deploy: roll back and fix the unhandled exception
+- If DB down: follow entry 12
+- Alert closes automatically when error rate drops below 5% in both windows
+
+---
+
+## 14. Monitoring Alert — p95 Latency (`p95_latency_ms`)
+
+**Symptom:** GitHub Issue opened with label `monitoring-alert`; p95 response time exceeded 2000ms in two consecutive 6-hour windows.
+
+**Likely cause:**
+- DB query performance degrading (table growth, missing index)
+- DB connection pool near capacity — requests waiting for a connection
+- Render cold starts inflating p95 (free tier sleep)
+
+**Diagnostic steps:**
+1. Query `request_logs` — find the slowest endpoints (ORDER BY duration_ms DESC)
+2. Run `EXPLAIN ANALYZE` on the DB queries used by those endpoints
+3. Check DB pool settings in `core/database.py` — is `max_size` too low?
+4. Check if latency is consistent (DB issue) or only affects the first request after a gap (cold start)
+
+**Fix:**
+- If slow queries: add missing indexes or optimise the query
+- If pool exhaustion: increase `max_size` in `core/database.py`
+- If cold starts: upgrade Render to paid tier to keep instance warm
+- Alert closes automatically when p95 drops below 2000ms in both windows
+
+---
+
+## 15. Monitoring Alert — Notification Failures (`notification_failures`)
+
+**Symptom:** GitHub Issue opened with label `monitoring-alert`; more than 2 notification send failures in two consecutive 6-hour windows.
+
+**Likely cause:**
+- Twilio or Resend free tier quota exhausted
+- API credentials expired or rotated
+- Provider outage
+
+**Diagnostic steps:**
+1. Query `notification_logs` — check `provider` and `error_code` columns to identify which provider is failing
+2. Check provider dashboards:
+   - Resend: resend.com dashboard → Logs
+   - Twilio: console.twilio.com → Monitor → Errors
+3. Check Render env vars — are `RESEND_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` still set?
+
+**Fix:**
+- If quota: upgrade provider plan or set `NOTIFICATIONS_ENABLED=false` temporarily
+- If credentials expired: rotate and update in Render env vars
+- If provider outage: set `NOTIFICATIONS_ENABLED=false` until resolved (see status pages in entry 12)
+- Alert closes automatically when failure count drops below 2 in both windows
+
+---
+
 ## 12. Downstream Dependency Failures
 
 **Symptom:** Errors from Twilio, Resend, or Supabase logged in the DB.

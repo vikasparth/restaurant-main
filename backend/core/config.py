@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     monitor_latency_p95_threshold_ms: int = 2000
     monitor_notification_failure_threshold: int = 2
 
+    # --- GitHub (monitoring alerts) ---
+    github_token: str = ""
+    github_repo: str = ""
 
     @field_validator("environment")
     @classmethod

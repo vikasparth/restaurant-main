@@ -4,6 +4,12 @@ from fastapi.responses import JSONResponse
 from core.config import settings
 from core.database import get_db
 from services.notification_service import send_reservation_reminders
+from services.monitor_service import (
+    collect_snapshot,
+    check_thresholds,
+    open_or_update_github_issue,
+    close_github_issue,
+)
 
 router = APIRouter(prefix="/api/internal")
 
@@ -18,3 +24,46 @@ async def send_reminders(
 
     sent = await send_reservation_reminders(db)
     return JSONResponse(status_code=200, content={"sent": sent})
+
+
+@router.get("/monitor")
+async def trigger_monitor(
+    x_internal_token: str | None = Header(default=None),
+    db=Depends(get_db),
+):
+    if x_internal_token != settings.internal_token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    from datetime import datetime, timezone
+
+    snapshot = await collect_snapshot(db, settings.monitor_window_hours)
+    breaching = check_thresholds(snapshot)
+    if breaching:
+        await open_or_update_github_issue(breaching, snapshot)
+    else:
+        await close_github_issue()
+
+    metrics = {
+        name: {
+            **snapshot[name],
+            "threshold": getattr(
+                settings,
+                (
+                    f"monitor_{name}_threshold"
+                    if name != "p95_latency_ms"
+                    else "monitor_latency_p95_threshold_ms"
+                ),
+            ),
+            "breaching": name in breaching,
+        }
+        for name in snapshot
+    }
+    return JSONResponse(
+        status_code=200,
+        content={
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "window_hours": settings.monitor_window_hours,
+            "metrics": metrics,
+            "alerts_fired": bool(breaching),
+        },
+    )
