@@ -35,6 +35,10 @@ Before starting any new slice:
 4. **Run the full test suite after every slice** — not just the new tests. Fix any regressions before moving on.
 5. **Never edit an already-applied migration** — schema changes go in a new migration file (additive only).
 
+## Architecture Decision Records (ADR)
+
+Any decision that deviates from `docs/architecture.md` or introduces a new architectural pattern must be recorded as an ADR. See `docs/adr/README.md` for format and existing records.
+
 ## Design Philosophy — Work Backwards From the User
 
 Before designing or implementing any feature, ask: **who is the customer using this, and what do they need?**
