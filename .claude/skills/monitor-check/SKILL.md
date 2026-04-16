@@ -1,317 +1,137 @@
 # /monitor-check — Aap ki Rasoi System Health Check
 
-You are helping an on-call engineer check the health of the Aap ki Rasoi
-restaurant management system. They may be new to this system. Guide them
-clearly and calmly at every step. Never leave them without a next action.
+You are the orchestrator for an on-call health check. Your job is to fetch
+the system status, route to the right sub-skills based on what is breaching,
+synthesize findings across layers, and guide the engineer to a root cause.
 
-**Pacing rule — follow this throughout:**
-Show one logical block at a time. After each block, stop and wait for the
-engineer to respond before continuing. Do not pre-emptively show the next
-section. The engineer controls the pace.
+**Pacing rule:** One block at a time. Stop after each block and wait for the
+engineer to respond. The engineer controls the pace.
 
 ---
 
-## Step 1 — Read configuration and connect
+## Step 1 — Read config and call production endpoint
 
-Read the file `backend/.env` to find `INTERNAL_TOKEN`.
+Read `backend/.env` to find `INTERNAL_TOKEN`.
 
-The backend URL is always the production Render URL:
+Always use the production URL — never localhost:
 `https://restaurant-main.onrender.com`
 
-Do NOT use localhost. This skill checks production. If the engineer explicitly
-asks to check local dev, use `http://localhost:8000` instead.
+Make both calls:
+1. `GET /api/internal/monitor` with header `X-Internal-Token: <INTERNAL_TOKEN>`
+2. `GET /health`
 
-If `backend/.env` is not found, stop and tell the engineer:
-> "Could not read backend/.env. Ask the owner for the INTERNAL_TOKEN value."
-
-Make a GET request to `https://restaurant-main.onrender.com/api/internal/monitor`
-with the header `X-Internal-Token: <INTERNAL_TOKEN>`.
-
-- If HTTP 200: proceed to Step 2 (Live Path).
-- If any failure: proceed to Step 5 (Offline Path).
+Results:
+- Monitor 200 + health 200 → Step 2 (Live Path), report both as UP
+- Monitor 200 + health 503 → Step 2, flag DB as unreachable in summary
+- Monitor any failure → Step 4 (Offline Path)
 
 ---
 
-## Step 2 — Show the status summary (Live Path)
+## Step 2 — Show status summary
 
-Show only this block first, then stop and wait.
-
-Print:
-- Checked at: `{checked_at}` (window: last `{window_hours}` hours per window)
-- If `alerts_fired` is false: `STATUS: ALL HEALTHY`
-- If `alerts_fired` is true: `STATUS: {N} ALERT(S) ACTIVE`
+Print the infrastructure status header first:
+- **Server:** UP (Render responded) or DOWN
+- **Database:** Reachable (/health 200) or Unreachable (/health 503)
+- **Checked at:** `{checked_at}` (window: last `{window_hours}` hours per window)
+- `STATUS: ALL HEALTHY` or `STATUS: {N} ALERT(S) ACTIVE`
 
 Then the metrics table:
 
 | Metric | Window 1 | Window 2 | Threshold | Status |
 |---|---|---|---|---|
-| error_rate | {window_1} | {window_2} | {threshold} | OK / BREACHING |
-| p95_latency_ms | {window_1}ms | {window_2}ms | {threshold}ms | OK / BREACHING |
-| notification_failures | {window_1} | {window_2} | {threshold} | OK / BREACHING |
+| error_rate | {w1} | {w2} | {threshold} | OK / BREACHING |
+| p95_latency_ms | {w1}ms | {w2}ms | {threshold}ms | OK / BREACHING |
+| notification_failures | {w1} | {w2} | {threshold} | OK / BREACHING |
 
-Then ask:
-> "That is the current snapshot. Type 'next' to see the downstream
-> dependency status, or ask me about any metric you want to understand."
+Then one line noting the scope of this check:
+> "Note: this summary covers API metrics and DB connectivity. Render logs
+> are not checked automatically — see Step 3 for the manual log review option."
 
----
-
-## Step 3 — Downstream dependency status
-
-Only show this after the engineer responds.
-
-Fetch both status pages in parallel:
-- Resend (email provider): `https://status.resend.com/`
-- Twilio (WhatsApp provider): `https://status.twilio.com/`
-
-Report one line each:
-- `Resend — Operational` or `Resend — Degraded / Outage (check status.resend.com)`
-- `Twilio — Operational` or `Twilio — Degraded / Outage (check status.twilio.com)`
-
-If a page cannot be fetched: `Could not fetch [provider] status — check [url] manually.`
-
-If `alerts_fired` is false, end here with:
-> "All metrics are healthy and providers are operational. No action needed.
-> If a GitHub issue was previously open, it was closed automatically."
->
-> "Type 'next' if you want to see the full next-steps checklist, or you are done."
-
-If `alerts_fired` is true, say:
-> "Ready to walk through each alert? Type 'next' and I will take you through
-> them one at a time."
+Stop and wait. Ask:
+> "That is the current snapshot. Type 'next' to continue, or ask me
+> about any metric."
 
 ---
 
-## Step 4 — Walk through breaching metrics one at a time
+## Step 3 — Route to sub-skills and synthesize (Live Path)
 
-Only show this after the engineer responds. Present ONE metric per turn.
-After each metric, wait for the engineer to respond before showing the next.
+**Do not ask the engineer which sub-skill to load.** You decide the routing
+based on the table below. Tell the engineer what you are about to do and why,
+then ask for confirmation before loading each sub-skill.
 
-For each BREACHING metric, show this block:
+Routing table:
 
----
+| Breaching metric | Sub-skill sequence | Why |
+|---|---|---|
+| `error_rate` | monitor-web → monitor-db | Errors come from a bad deploy (web) or a DB outage — check web first as it is faster to confirm |
+| `p95_latency_ms` | monitor-db only | Latency is almost always a DB issue — slow queries, pool exhaustion, or cold starts |
+| `notification_failures` | monitor-dependencies only | Failures come from Resend/Twilio — credentials, quota, or provider outage |
+| Multiple metrics | Follow each row above in order, deduplicate sub-skills | e.g. error_rate + p95 both need monitor-db — run it once |
+| All healthy | monitor-web (deploy + log review only) | Confirm no recent bad deploy; offer manual Render log review |
 
-### error_rate (Runbook entry 13)
+**Before loading each sub-skill**, say:
+> "Next I will check the [layer] layer using the [sub-skill name] check.
+> Reason: [one sentence from the Why column above].
+> Ready to proceed?"
 
-**What this means:** More than 5% of requests are returning errors (HTTP 5xx)
-in both of the last two 6-hour windows. This is a sustained problem — not a
-brief spike.
+Wait for the engineer to confirm (yes / proceed / ok) before loading.
 
-**Most likely causes:**
-- An unhandled exception introduced by a recent deploy
-- The database (Supabase) is down or unreachable
-- A route was recently changed and is now crashing
+To load a sub-skill: read the file `.claude/skills/{name}/SKILL.md` and
+follow its instructions. Each sub-skill ends with a "Reporting back" finding
+statement — collect those findings before moving to the next sub-skill.
 
-**What to check first (Runbook entry 13):**
-1. Run `git log --oneline -5` — did errors start after a recent commit?
-2. Try `GET /health` — if it returns 503, the database is down (see Runbook entry 12)
-3. Check Render logs for stack traces
+**Synthesis step — run after all sub-skills have reported:**
 
-**Recommended fix:**
-- After a bad deploy: run `git revert HEAD` and push
-- Database down: follow Runbook entry 12
+Hold all findings in view and:
+1. Look for timing correlations (e.g. deploy time matching the metric spike)
+2. Look for causal chains (e.g. connection leak → pool exhaustion → error rate up)
+3. Look for a single root cause spanning multiple layers
 
-> "Would you like me to run `git revert HEAD` for you, or handle this manually?
-> (If manually: I will list the exact commands you need.)"
+State the conclusion plainly:
+> "Based on findings across all layers: [your conclusion]"
 
-If yes: run `git log --oneline -5`, show the commit that will be reverted, confirm
-with the engineer, then run `git revert HEAD`.
-If manually: print the exact commands step by step.
+Then present the recommended fix. After the fix, ask:
+> "Would you like me to apply this fix, or handle it manually?"
 
-After the engineer responds, ask:
-> "Understood. Type 'next' for the next alert, or ask me anything about this one."
+**Wrap-up (after all fixes addressed):**
 
----
-
-### p95_latency_ms (Runbook entry 14)
-
-**What this means:** The slowest 5% of requests are taking more than 2000ms
-(2 seconds). "p95" means 95% of all requests finish faster than this value.
-This is sustained — not a one-off spike.
-
-**Most likely causes:**
-- A slow database query (the table has grown, or an index is missing)
-- The database connection pool is running out of connections
-- Render free tier cold starts (the first request after the server sleeps is slow)
-
-**What to check first (Runbook entry 14):**
-1. Find the slowest endpoints: query `request_logs` — ORDER BY `duration_ms DESC`
-2. Run `EXPLAIN ANALYZE` on the queries those endpoints use
-3. Check `backend/core/database.py` for the `max_size` pool setting
-4. Is latency only on the first request after a quiet period? That is a cold start.
-
-**Recommended fix:**
-- Slow queries: add a database index or simplify the query
-- Pool exhaustion: increase `max_size` in `backend/core/database.py`
-- Cold starts: upgrade Render to a paid tier to keep the instance warm
-
-> "Would you like me to increase the DB pool `max_size` in `core/database.py`
-> for you, or handle this manually?"
-
-If yes: read `backend/core/database.py`, find `max_size`, increase it by 5,
-show the diff, and ask the engineer to confirm before writing.
-If manually: tell them the file and exact parameter name.
-
-After the engineer responds, ask:
-> "Type 'next' for the next alert, or ask me anything about this one."
-
----
-
-### notification_failures (Runbook entry 15)
-
-**What this means:** More than 2 email or WhatsApp notification sends failed
-in both of the last two 6-hour windows. Customers may not be receiving
-order confirmations or reservation updates.
-
-**Most likely causes:**
-- Resend or Twilio free tier quota exhausted
-- API credentials expired or rotated in Render
-- A provider outage (check Step 3 results)
-
-**What to check first (Runbook entry 15):**
-1. Review Step 3 results — is Resend or Twilio showing degraded status?
-2. Check Resend dashboard → Logs
-3. Check Twilio console → Monitor → Errors
-4. Go to Render → Environment — are `RESEND_API_KEY`, `TWILIO_ACCOUNT_SID`,
-   `TWILIO_AUTH_TOKEN` all set and non-blank?
-
-**Recommended fix:**
-- Quota exhausted or provider outage: disable notifications temporarily
-- Credentials expired: rotate them in Render env vars
-
-> "Would you like me to set `NOTIFICATIONS_ENABLED=false` in `backend/.env`
-> to disable notifications while you investigate, or handle this manually?"
-
-If yes: read `backend/.env`, set `NOTIFICATIONS_ENABLED=false`, then remind the
-engineer to also update this in Render env vars (changes to `.env` do not
-affect the live production server automatically).
-If manually: tell them the key to update in both `.env` and Render.
-
-After the engineer responds, ask:
-> "Type 'next' to continue, or ask me anything about this one."
-
----
-
-## Step 4b — After all breaching metrics
-
-Once all breaching metrics have been covered, show the GitHub issue link and
-next steps as one final block.
-
-**Open GitHub Issues:**
-If `alerts_fired` was true:
-> "A monitoring-alert issue should be open in the repo. Check:
-> `https://github.com/{GITHUB_REPO}/issues?labels=monitoring-alert`"
+If `alerts_fired` was true, include the GitHub issues link:
+> "Check open alerts: https://github.com/{GITHUB_REPO}/issues?labels=monitoring-alert"
 > (Read GITHUB_REPO from `backend/.env`)
 
-**Next Steps:**
-1. Apply (or confirm) the fixes above for each breaching metric
-2. The alerts close automatically — no manual action needed once metrics
-   drop below threshold in both windows
-3. If the issue persists after the fix, check Render logs for ongoing errors
-4. Contact the owner at `{owner_email from .env}` if you need help
+Next steps:
+1. Apply (or confirm) fixes for each breaching metric
+2. Alerts close automatically — no manual action needed once metrics recover
+3. Contact the owner at `{OWNER_EMAIL from .env}` if you need help
 
 ---
 
-## Step 5 — Offline Path (server unreachable)
+## Step 4 — Offline Path (server unreachable)
 
-State the error calmly, then show Check 1 only. Wait for the engineer to
-respond before showing the next check. Work through one check at a time.
+State the error calmly:
+> "The monitor endpoint did not respond. Received: `{error}`"
+> "Working through the offline checklist one step at a time."
 
-> "The monitor endpoint did not respond. Received: `{error detail}`"
-> "I will walk you through the troubleshooting checklist. We will go one
-> step at a time — let me know what you find after each check."
+Load `.claude/skills/monitor-web/SKILL.md` and follow Check 1 (Render status)
+and Check 2 (recent deploy) first.
 
----
+Wait for the engineer's response after each check. Based on findings:
+- If Render is down or deploy is suspect: resolve via monitor-web
+- If Render is healthy: load `.claude/skills/monitor-db/SKILL.md` for Check 1
+  (database reachable)
+- If both layers look healthy: load `.claude/skills/monitor-dependencies/SKILL.md`
 
-**Check 1 — Is the Render service awake?**
-
-> "Go to Render dashboard → Services → `restaurant-main`. What is the status?
->
-> - Green (Running): service is awake — the problem is likely in the app code
-> - Yellow (Deploying): wait 2-3 minutes, then try again
-> - Red (Failed): the service crashed — check Render logs
-> - Grey (Suspended): free tier sleep — click 'Manual Deploy' to wake it
->
-> What do you see?"
-
-Wait for the engineer to reply. Based on their answer, either resolve the issue
-or move to Check 2.
+**Escalation** (if nothing resolves it):
+> "None of the standard checks identified the cause. Next steps:
+> 1. Open a GitHub issue with label `monitoring-alert` — describe what you tried
+> 2. Contact the owner at `{OWNER_EMAIL from .env}`
+> 3. If customers are affected, consider a brief status note"
 
 ---
 
-**Check 2 — Recent bad deploy?**
+## Tone guidelines
 
-Run `git log --oneline -5` and show the output.
-
-> "Here are the last 5 commits. Does the timing of any of these match when
-> the server went down?"
-
-If yes: "Would you like me to run `git revert HEAD` to undo the last commit?
-If yes, I will show you what will be reverted before doing anything."
-
-If no: move to Check 3.
-
----
-
-**Check 3 — Is the database reachable?**
-
-> "Try calling the health endpoint:
-> `GET https://restaurant-main.onrender.com/health`
->
-> - Returns 200: the server and database are up — the issue is specific to
->   the monitoring route. Check Render logs for a stack trace.
-> - Returns 503: the database (Supabase) is down — follow Runbook entry 12.
->
-> What did it return?"
-
-Wait for the engineer to reply before continuing.
-
----
-
-**Check 4 — Are Render env vars intact?**
-
-> "Go to Render → Environment tab. Verify these variables are set and non-blank:
-> - DATABASE_URL
-> - INTERNAL_TOKEN
-> - SUPABASE_URL
-> - SUPABASE_JWT_SECRET
->
-> Are they all present?"
-
-If any are missing: "Re-enter the missing value and trigger a manual deploy.
-Let me know once the deploy completes and I will retry the health check."
-
----
-
-**Check 5 — Downstream dependency status**
-
-Fetch Resend and Twilio status pages (same as Step 3).
-
-> "Here is the current status of the notification providers:
-> {status results}
->
-> Note: a provider outage would affect notifications but would not cause the
-> monitor endpoint itself to be unreachable. Keep working through the
-> checklist above."
-
----
-
-**Escalation**
-
-If none of the checks above resolved the issue:
-
-> "None of the standard checks have identified the cause. Here is what to do next:
-> 1. Open a GitHub issue in the repo with label `monitoring-alert` — describe
->    what you tried and what each check returned
-> 2. Contact the owner at `{owner_email from .env}`
-> 3. If customers are affected (orders or reservations not working), consider
->    posting a brief status note on the restaurant's social channels"
-
----
-
-## Tone Guidelines
-
-- Use plain language. Define any technical term the first time you use it.
-- Be calm. No exclamation points, no urgency language.
-- One block at a time — never show the next section until the engineer responds.
-- Always end each block with a clear prompt for what the engineer should do next.
-- Assume the engineer is capable but unfamiliar with this specific system.
+- Plain language — define technical terms on first use
+- Calm — no exclamation points, no urgency language
+- Always end each block with a clear prompt for what to do next
+- Assume the engineer is capable but new to this system

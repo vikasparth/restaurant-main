@@ -12,3 +12,4 @@ Each ADR records what changed, why, and what the consequences are.
 | [0005](0005-ai-monitoring-architecture.md) | AI monitoring agent — APScheduler + two-phase approach | 2026-04-14 | Accepted |
 | [0006](0006-notifications-feature-flag.md) | Notifications feature flag | 2026-04-14 | Accepted |
 | [0007](0007-monitoring-alert-channels.md) | Monitoring alert channels — GitHub Issues + email (not WhatsApp) | 2026-04-14 | Accepted |
+| [0008](0008-monitor-skill-architecture.md) | Monitor skill architecture — layered sub-skills + structured runbook | 2026-04-16 | Accepted |

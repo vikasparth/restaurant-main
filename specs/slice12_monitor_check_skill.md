@@ -1,128 +1,219 @@
-# Spec — Task 3.12: `/monitor-check` Claude Code Skill
+# Spec — Task 3.12: `/monitor-check` Claude Code Skill (v2)
+
+> Supersedes the original spec. Updated after architecture review to use
+> layered sub-skills, structured per-metric runbook files, and a synthesis step.
+> See ADR-0008 for the design rationale.
+
+---
 
 ## What it is
 
-A Claude Code skill at `.claude/skills/monitor-check/SKILL.md`.  
-Invoked by typing `/monitor-check` in the IDE.  
+A set of Claude Code skill files that together form a guided on-call health
+check for the Aap ki Rasoi restaurant management system.
+
 No backend changes. No new tests. No migrations.
 
 ---
 
 ## Primary Persona
 
-A new on-call engineer — possibly their first shift, possibly 2am, possibly the
-first person besides the owner to ever look at this system. The skill must guide
-them confidently regardless of system state.
+A new on-call engineer — possibly their first shift, possibly 2am. The skill
+must guide them confidently regardless of system state. One block at a time.
+Never leave them without a next action.
 
 ---
 
-## Two Operating Paths
+## File Structure
 
-| Path | Triggered when | What Claude does |
+```
+.claude/skills/
+    monitor-check/SKILL.md          ← orchestrator (~85 lines)
+    monitor-web/SKILL.md            ← Render + deploy checks (~65 lines)
+    monitor-db/SKILL.md             ← DB health + pool + slow query checks (~60 lines)
+    monitor-dependencies/SKILL.md   ← Resend + Twilio status checks (~45 lines)
+
+docs/runbook/
+    index.md                        ← human index, replaces the flat runbook sections
+    error_rate.md                   ← metric context, root causes, fix steps
+    p95_latency_ms.md
+    notification_failures.md
+    (existing entries migrate from docs/runbook.md incrementally)
+```
+
+---
+
+## Responsibility Boundaries — No Overlap
+
+| Layer | Knows | Does NOT contain |
 |---|---|---|
-| **Live** | Endpoint returns HTTP 200 | Fetch metrics → display table → interpret → recommend fix → offer to apply |
-| **Offline** | Endpoint unreachable / non-200 | Structured guided troubleshooting — never dead-ends |
+| Orchestrator | Routing table (metric → sub-skill sequence), synthesis step | Diagnostics, fix details |
+| Sub-skills | How to investigate a layer (commands, checks, what to look for) | What the metric means, fix steps |
+| Runbook files | Metric context, root causes, fix steps, thresholds | How to run commands |
 
 ---
 
-## Live Path — Step by Step
+## Orchestrator — `/monitor-check`
 
-1. Read `.env` to find `INTERNAL_TOKEN` and determine backend URL  
-   (default: `http://localhost:8000`; if `ENVIRONMENT=production` use the Render URL from `.env`)
-2. `GET /api/internal/monitor` with header `X-Internal-Token: <token>`
-3. Print **Status Summary**: `ALL HEALTHY` or `N ALERTS ACTIVE`
-4. Print **Metrics Table** — one row per metric:
+**Step 1 — Read config and call production endpoint**
+- Read `backend/.env` for `INTERNAL_TOKEN`
+- Always call `https://restaurant-main.onrender.com/api/internal/monitor`
+- HTTP 200 → Live Path; any failure → Offline Path
 
-   | Metric | Window 1 | Window 2 | Threshold | Status |
-   |---|---|---|---|---|
-   | error_rate | ... | ... | 5% | OK / BREACHING |
-   | p95_latency_ms | ... | ... | 2000ms | OK / BREACHING |
-   | notification_failures | ... | ... | 2 | OK / BREACHING |
+**Step 2 — Show status summary and metrics table**
+- STATUS: ALL HEALTHY / N ALERT(S) ACTIVE
+- Metrics table: metric, window_1, window_2, threshold, OK/BREACHING
+- Stop and wait for engineer to respond
 
-5. **Downstream Dependency Health** — fetch public status pages:
-   - Resend: `https://status.resend.com/`
-   - Twilio: `https://status.twilio.com/`
-   - Report: Operational / Degraded / Outage for each
+**Step 3 — Route to sub-skills based on findings**
 
-6. For each **breaching** metric:
-   - Plain-language explanation of what the metric means (no jargon without explanation)
-   - Most likely causes (from runbook)
-   - Diagnostic steps — cite exact runbook entry (13 = error_rate, 14 = p95_latency_ms, 15 = notification_failures)
-   - Recommended fix — specific command or file edit
-   - **Offer:** "Would you like me to apply this fix now, or handle it manually?"
-     - If apply: execute the fix (run the command, edit the file)
-     - If manual: list the exact steps
+Routing table:
 
-7. Print **Open GitHub Issues** — check if a `monitoring-alert` issue is already open; link to it if so
+| Trigger | Sub-skill sequence |
+|---|---|
+| `error_rate` breaching | monitor-web → monitor-db |
+| `p95_latency_ms` breaching | monitor-db only |
+| `notification_failures` breaching | monitor-dependencies only |
+| Server unreachable | monitor-web → monitor-db → monitor-dependencies |
+| All healthy | Skip sub-skills — go to Step 5 (downstream status only) |
 
-8. End with **Next Steps** — numbered, calm, specific
+Work through sub-skills one at a time. After each sub-skill completes, ask
+the engineer to confirm before loading the next one.
 
----
+**Step 4 — Synthesis (cross-layer analysis)**
 
-## Offline Path — Step by Step
+After all relevant sub-skills have reported, hold all findings in view and:
+- Look for timing correlations across layers (e.g. deploy time vs metric spike)
+- Look for causal chains (e.g. connection leak → pool exhaustion → error rate up)
+- Look for a single root cause spanning multiple layers
+- State the conclusion plainly before recommending any fix
 
-Triggered when: endpoint times out, returns 4xx/5xx, or connection refused.
+**Step 5 — Downstream dependency status**
 
-1. State the error clearly: "Server did not respond (received: `<error>`)"
-2. Work through this checklist in order:
+Load `monitor-dependencies` sub-skill if not already loaded.
+If all healthy: close with summary and next steps.
+If alerts fired: include GitHub issue link and next steps.
 
-   **Check 1 — Is Render awake?**
-   - Go to Render dashboard → Services → check status
-   - If sleeping: click Manual Deploy or wait for warm-up
-   
-   **Check 2 — Recent bad deploy?**
-   - Run: `git log --oneline -5`
-   - If deploy coincides with alert: `git revert HEAD` then push
-
-   **Check 3 — Is the database reachable?**
-   - Try: `GET /health` — if 503, see runbook entry 12
-
-   **Check 4 — Are Render env vars intact?**
-   - Required: `DATABASE_URL`, `INTERNAL_TOKEN`, `SUPABASE_URL`, `SUPABASE_JWT_SECRET`
-   - Go to Render → Environment → verify all are set
-
-   **Check 5 — Downstream dependencies**
-   - Fetch Resend status: `https://status.resend.com/`
-   - Fetch Twilio status: `https://status.twilio.com/`
-
-3. **Escalation path** (if nothing resolves it):
-   - Open a GitHub Issue manually with label `monitoring-alert`
-   - Notify owner at the email in `settings.owner_email`
+**Pacing rule (applies throughout):**
+One block at a time. Stop after each block and wait for the engineer to respond.
+The engineer controls the pace.
 
 ---
 
-## Output Style Rules
+## Sub-skill: `monitor-web`
 
-- Plain language — define jargon on first use (e.g. "p95 latency means 95% of requests completed faster than this value")
-- Calm tone — no exclamation points, no urgency language
-- Always actionable — every section ends with a clear next step
-- Never leave the engineer without a path forward
-- Runbook entry cited by number for every alert
+Investigates the Render service and recent deploys. Called when `error_rate`
+breaches or server is unreachable.
 
----
+Checks (in order):
+1. Is the Render service awake? (guide engineer to dashboard — status indicators)
+2. Recent bad deploy? — run `git log --oneline -5`, ask if timing matches
+3. Offer `git revert HEAD` if confirmed bad deploy
 
-## Fix Offer Scope
+After each check: report finding clearly, ask what the engineer sees before
+moving to the next check.
 
-| Metric / Scenario | Can skill apply fix? | What it does |
-|---|---|---|
-| error_rate after bad deploy | Yes | Generates `git revert` command |
-| error_rate DB down | Partial | Opens runbook entry 12 steps |
-| p95 slow queries | Partial | Suggests `EXPLAIN ANALYZE` SQL to run |
-| p95 pool exhaustion | Yes | Edits `core/database.py` max_size |
-| notification_failures quota | Yes | Edits `.env` to set `NOTIFICATIONS_ENABLED=false` |
-| notification_failures credentials | Partial | Lists the Render env var to update |
+When root cause found: read `docs/runbook/error_rate.md` for fix details.
+Offer to apply the fix or list manual steps.
 
 ---
 
-## File to Create
+## Sub-skill: `monitor-db`
 
-`.claude/skills/monitor-check/SKILL.md`
+Investigates database health, connection pool, and slow queries. Called when
+`error_rate` or `p95_latency_ms` breaches.
+
+Checks (in order):
+1. Is the database reachable? — call `GET /health`, interpret 200 vs 503
+2. Connection pool — check `backend/core/database.py` for `max_size`
+3. Slow queries — query `request_logs` ORDER BY `duration_ms DESC`
+4. Cold start test — is latency only on the first request after a quiet period?
+
+When root cause found: read the relevant runbook file for fix details.
+- `p95_latency_ms` breach → `docs/runbook/p95_latency_ms.md`
+- `error_rate` breach (DB cause) → `docs/runbook/error_rate.md`
+
+Offer to apply fix (e.g. increase `max_size`) or list manual steps.
 
 ---
 
-## Out of Scope
+## Sub-skill: `monitor-dependencies`
 
-- No backend changes
-- No new tests
-- No migrations
-- Task 3.13 (MCP tools for deeper investigation) is a separate slice
+Investigates Resend and Twilio. Called when `notification_failures` breaches
+or as the final check in the offline path.
+
+Checks (in order):
+1. Fetch `https://resend-status.com/` — Operational / Degraded / Outage
+2. Fetch `https://status.twilio.com/` — Operational / Degraded / Outage
+3. Query `notification_logs` for recent failures — provider, error_code
+4. Guide engineer to check Render env vars for `RESEND_API_KEY`, `TWILIO_AUTH_TOKEN`
+
+When root cause found: read `docs/runbook/notification_failures.md` for fix details.
+Offer to set `NOTIFICATIONS_ENABLED=false` in `.env` or list manual steps.
+
+Note: always remind engineer that `.env` changes do not affect the live
+production server — Render env vars must be updated separately.
+
+---
+
+## Runbook File Format (per-metric)
+
+Each file in `docs/runbook/` follows this structure so sub-skills can read
+and present it directly without reformatting:
+
+```markdown
+# [Metric Name] — Runbook Entry [N]
+
+**Threshold:** [value]
+**Alert fires when:** [condition — both windows explanation]
+
+## What this means
+[Plain-language explanation, no jargon]
+
+## Most likely causes
+- [cause 1]
+- [cause 2]
+- [cause 3]
+
+## Fix steps
+### [Fix scenario 1]
+[Exact steps]
+
+### [Fix scenario 2]
+[Exact steps]
+
+## Alert auto-closes when
+[condition]
+```
+
+---
+
+## MCP Bridge (Task 3.13)
+
+Each sub-skill maps to one or more MCP tools. The orchestrator routing table
+does not change — only the sub-skills swap file reads for tool calls:
+
+| Today (sub-skill reads/asks) | 3.13 (MCP tool call) |
+|---|---|
+| `GET /health` (Step 1) | `check_health_endpoint()` |
+| `git log --oneline -5` | `get_recent_commits()` |
+| Engineer pastes Render logs manually | `get_render_logs(lines=100)` — removes manual step |
+| Query `request_logs` | `query_metrics_table(metric, window)` |
+| Fetch status pages | `check_provider_status(provider)` |
+| Read runbook file | `get_runbook_entry(metric)` |
+
+**`get_render_logs` is the key 3.13 upgrade:** once available, Render log health
+becomes part of the automatic summary in Step 2 — no manual copy-paste needed.
+The `monitor-web` Check 3 instruction switches from "ask engineer to paste logs"
+to "call get_render_logs() and analyse automatically".
+
+The synthesis step remains identical — Claude holds all tool results in context
+and reasons across them.
+
+---
+
+## Out of Scope for This Task
+
+- Splitting `docs/runbook.md` into per-file format — incremental, done alongside
+  each new metric added (not a big-bang migration)
+- MCP tool implementation — task 3.13
+- No backend changes, no tests, no migrations
