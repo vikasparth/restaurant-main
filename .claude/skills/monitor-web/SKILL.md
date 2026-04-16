@@ -56,6 +56,11 @@ If no: move to Check 3.
 
 ## Check 3 — Render logs (manual review)
 
+**Do not skip this step, even if Check 2 found no bad deploy.** Render logs
+may contain stack traces or 500 errors that are not visible in the metrics
+table. This is the only way to see application-level errors until task 3.13
+(`get_render_logs()`) is built.
+
 Render logs cannot be fetched automatically yet — this will be available
 once the MCP server is built in task 3.13 (`get_render_logs()` tool).
 
