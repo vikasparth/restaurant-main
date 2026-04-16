@@ -32,9 +32,15 @@ not a single slow request. Customers may notice the site feeling sluggish.
 4. Deploy the fix — alert closes automatically once latency recovers
 
 ### If connection pool exhaustion
+**Only consider this if slow query analysis showed no slow endpoints.** If
+slow queries exist, fix those first — increasing the pool masks the symptom
+without fixing the cause.
+
 1. Check `backend/core/database.py` — find the `max_size` parameter
-2. Increase it by 5 (e.g. 10 → 15)
-3. Deploy — watch p95 in the next monitor run
+2. Note: Supabase free tier has a ~20 connection limit. Increasing max_size
+   reduces that headroom — do not set it above 15 on the free tier
+3. Increase it by 5 (e.g. 10 → 15)
+4. Deploy — watch p95 in the next monitor run
 
 ### If cold starts
 1. Confirm by checking if latency only affects the first request after a

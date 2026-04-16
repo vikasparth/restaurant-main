@@ -27,26 +27,7 @@ Report the result:
 
 ---
 
-## Check 2 — Connection pool settings
-
-Read `backend/core/database.py` and find the `max_size` parameter in the
-connection pool configuration.
-
-Report the current value. If it is 10 or below:
-> "The connection pool max_size is {value}. Under moderate traffic this
-> can cause requests to queue waiting for a free connection, inflating
-> p95 latency."
-
-Ask:
-> "Would you like me to increase max_size by 5 (to {value + 5})?
-> I will show you the change before writing it."
-
-If yes: show the diff, wait for confirmation, then apply the edit.
-Read `docs/runbook/p95_latency_ms.md` and show the pool exhaustion fix steps.
-
----
-
-## Check 3 — Slow query analysis
+## Check 2 — Slow query analysis
 
 Run this query against the database using the DATABASE_URL from `backend/.env`:
 
@@ -56,13 +37,13 @@ import asyncio, asyncpg
 async def run():
     conn = await asyncpg.connect('<DATABASE_URL>')
     rows = await conn.fetch("""
-        SELECT endpoint, 
+        SELECT path,
                ROUND(AVG(duration_ms)) as avg_ms,
                MAX(duration_ms) as max_ms,
                COUNT(*) as requests
         FROM request_logs
         WHERE created_at > NOW() - INTERVAL '12 hours'
-        GROUP BY endpoint
+        GROUP BY path
         ORDER BY avg_ms DESC
         LIMIT 10
     """)
@@ -81,7 +62,26 @@ Read `docs/runbook/p95_latency_ms.md` and show the slow query fix steps.
 
 ---
 
+## Check 3 — Connection pool assessment
+
+Read `backend/core/database.py` and find the `max_size` parameter.
+Report the current value.
+
+Then read `docs/runbook/p95_latency_ms.md` — the pool exhaustion section
+has the decision rule for when (and whether) to increase `max_size`, including
+the Supabase connection limit constraint.
+
+Present the relevant fix steps from the runbook and ask:
+> "Would you like me to apply the pool change, or handle it manually?"
+
+If yes: show the diff, wait for confirmation, then apply the edit.
+
+---
+
 ## Check 4 — Cold start test
+
+**Only run this check if Check 2 showed no slow queries and Check 3 ruled out
+pool exhaustion.**
 
 Ask:
 > "Is the high latency consistent throughout the day, or only on the
