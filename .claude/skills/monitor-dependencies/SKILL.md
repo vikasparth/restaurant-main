@@ -11,11 +11,11 @@ what you found before moving on.
 
 ## Check 1 — Provider status pages
 
-Fetch both status pages in parallel:
-- Resend: `https://resend-status.com/`
-- Twilio: `https://status.twilio.com/`
+Call MCP tools in parallel:
+- `check_provider_status(provider="resend")`
+- `check_provider_status(provider="twilio")`
 
-Report one line each:
+Interpret the `raw_status` field from each response and report one line each:
 - `Resend — Operational` or `Resend — Degraded / Outage`
 - `Twilio — Operational` or `Twilio — Degraded / Outage`
 
@@ -28,29 +28,9 @@ If either is degraded or down:
 
 ## Check 2 — Query recent failure logs
 
-Run this query using the DATABASE_URL from `backend/.env`:
+Call MCP tool `query_notification_failures(window_hours=12)` and show the results.
 
-```python
-import asyncio, asyncpg
-
-async def run():
-    conn = await asyncpg.connect('<DATABASE_URL>')
-    rows = await conn.fetch("""
-        SELECT provider, error_code, COUNT(*) as failures
-        FROM notification_logs
-        WHERE success = false
-          AND created_at > NOW() - INTERVAL '12 hours'
-        GROUP BY provider, error_code
-        ORDER BY failures DESC
-    """)
-    for r in rows:
-        print(dict(r))
-    await conn.close()
-
-asyncio.run(run())
-```
-
-Show the results. Based on the `error_code`:
+Based on the `error_code`:
 
 - `API key is invalid` → credentials issue — move to Check 3
 - `quota exceeded` / `rate limit` → quota issue — read

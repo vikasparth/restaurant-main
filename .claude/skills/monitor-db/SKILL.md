@@ -12,14 +12,9 @@ what you found before moving on.
 
 ## Check 1 — Is the database reachable?
 
-Run:
-```
-GET https://restaurant-main.onrender.com/health
-```
-
-Report the result:
-- **200 OK**: database is reachable — move to Check 2
-- **503**: database (Supabase) is down — tell the engineer:
+Call MCP tool `check_health_endpoint()` and report the result:
+- **reachable**: database is reachable — move to Check 2
+- **unreachable**: database (Supabase) is down — tell the engineer:
   > "The database is not reachable. Follow runbook entry 12
   > (docs/runbook.md — Downstream Dependency Failures) for next steps.
   > Check the Supabase dashboard at supabase.com for outage status."
@@ -29,32 +24,9 @@ Report the result:
 
 ## Check 2 — Slow query analysis
 
-Run this query against the database using the DATABASE_URL from `backend/.env`:
+Call MCP tool `query_request_logs(window_hours=12)` and show the results as a table.
 
-```python
-import asyncio, asyncpg
-
-async def run():
-    conn = await asyncpg.connect('<DATABASE_URL>')
-    rows = await conn.fetch("""
-        SELECT path,
-               ROUND(AVG(duration_ms)) as avg_ms,
-               MAX(duration_ms) as max_ms,
-               COUNT(*) as requests
-        FROM request_logs
-        WHERE created_at > NOW() - INTERVAL '12 hours'
-        GROUP BY path
-        ORDER BY avg_ms DESC
-        LIMIT 10
-    """)
-    for r in rows:
-        print(dict(r))
-    await conn.close()
-
-asyncio.run(run())
-```
-
-Show the results as a table. If any endpoint has avg_ms > 1000:
+If any endpoint has avg_ms > 1000:
 > "These endpoints are consistently slow. The queries they run likely
 > need an index or optimisation."
 

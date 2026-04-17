@@ -1,12 +1,14 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 from uuid import UUID
+from pathlib import Path
+
 
 
 class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=Path(__file__).parent.parent / ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
@@ -51,6 +53,9 @@ class Settings(BaseSettings):
     # --- GitHub (monitoring alerts) ---
     github_token: str = ""
     github_repo: str = ""
+    github_api_base_url: str = "https://api.github.com"
+    github_api_version: str = "2022-11-28"
+
 
     # --- Render (MCP log access) ---
     render_api_key: str = ""

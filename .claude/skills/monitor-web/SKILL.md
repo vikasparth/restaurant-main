@@ -33,7 +33,7 @@ Wait for the engineer to reply before continuing.
 
 ## Check 2 — Recent bad deploy?
 
-Run `git log --oneline -5` and show the output.
+Call MCP tool `get_recent_commits()` and show the last 5 commits (sha, message, author, committed_at).
 
 Ask:
 > "Here are the last 5 commits. Does the timing of any of these match
@@ -54,32 +54,23 @@ If no: move to Check 3.
 
 ---
 
-## Check 3 — Render logs (manual review)
+## Check 3 — Render logs (automatic)
 
 **Do not skip this step, even if Check 2 found no bad deploy.** Render logs
 may contain stack traces or 500 errors that are not visible in the metrics
-table. This is the only way to see application-level errors until task 3.13
-(`get_render_logs()`) is built.
+table.
 
-Render logs cannot be fetched automatically yet — this will be available
-once the MCP server is built in task 3.13 (`get_render_logs()` tool).
+Call MCP tool `get_render_logs(lines=100)` and scan the result automatically.
 
-Ask the engineer:
-> "Would you like to review Render logs manually? If yes, go to:
-> Render dashboard → Services → `restaurant-main` → Logs
->
-> Look for any of the following in the last 30 minutes:
-> - `Exception`, `Error`, `Traceback`
-> - A route name followed by a status code (e.g. `POST /api/orders 500`)
-> - Any repeated error pattern
->
-> Paste anything suspicious here and I will help you interpret it.
-> Or type 'skip' if you want to close the check."
+Look for any of the following:
+- `Exception`, `Error`, `Traceback`
+- A route name followed by a 5xx status code (e.g. `POST /api/orders 500`)
+- Any repeated error pattern
 
-If they paste a stack trace: identify the file, line number, and error type.
+If suspicious lines are found: identify the file, line number, and error type.
 Read the relevant runbook entry and suggest the fix.
 
-If nothing found or they skip: web layer is clear.
+If nothing found: web layer is clear.
 
 ---
 

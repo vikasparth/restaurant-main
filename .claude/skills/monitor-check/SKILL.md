@@ -13,16 +13,13 @@ engineer to respond. The engineer controls the pace.
 
 Read `backend/.env` to find `INTERNAL_TOKEN`.
 
-Always use the production URL — never localhost:
-`https://restaurant-main.onrender.com`
-
-Make both calls:
-1. `GET /api/internal/monitor` with header `X-Internal-Token: <INTERNAL_TOKEN>`
-2. `GET /health`
+Make both calls in parallel:
+1. `GET https://restaurant-main.onrender.com/api/internal/monitor` with header `X-Internal-Token: <INTERNAL_TOKEN>`
+2. Call MCP tool `check_health_endpoint()` — checks `/health` automatically using the production URL from config
 
 Results:
-- Monitor 200 + health 200 → Step 2 (Live Path), report both as UP
-- Monitor 200 + health 503 → Step 2, flag DB as unreachable in summary
+- Monitor 200 + health reachable → Step 2 (Live Path), report both as UP
+- Monitor 200 + health unreachable → Step 2, flag DB as unreachable in summary
 - Monitor any failure → Step 4 (Offline Path)
 
 ---
@@ -45,7 +42,7 @@ Then the metrics table:
 
 Then one line noting the scope of this check:
 > "Note: this summary covers API metrics and DB connectivity. Render logs
-> are not checked automatically — see Step 3 for the manual log review option."
+> are fetched automatically in monitor-web Check 3."
 
 Stop and wait. Ask:
 > "That is the current snapshot. Type 'next' to continue, or ask me
