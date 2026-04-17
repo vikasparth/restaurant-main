@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     production_url: str = "https://restaurant-main.onrender.com"
 
     # --- Provider status pages ---
-    resend_status_url: str = "https://resend-status.com/api/v1/status"
+    resend_status_url: str = "https://resend-status.com/api/v2/status.json"
     twilio_status_url: str = "https://status.twilio.com/api/v2/status.json"
 
     @field_validator("environment")

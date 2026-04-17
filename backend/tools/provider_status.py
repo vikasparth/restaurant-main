@@ -1,12 +1,7 @@
 import httpx
 from core.config import settings
 
-# Twilio JSON: {"status": {"indicator": "none", "description": "All Systems Operational"}}
-# Resend JSON: {"page": {"status": "UP"}}
-_STATUS_PARSERS = {
-    "twilio": lambda data: data["status"]["description"],
-    "resend": lambda data: data["page"]["status"],
-}
+# Both use statuspage.io format: {"status": {"indicator": "none", "description": "All Systems Operational"}}
 
 
 async def check_provider_status(provider: str):
@@ -22,7 +17,7 @@ async def check_provider_status(provider: str):
         async with httpx.AsyncClient() as client:
             response = await client.get(urls[provider], timeout=10)
         data = response.json()
-        status = _STATUS_PARSERS[provider](data)
+        status = data["status"]["description"]
         return {"provider": provider, "status": status}
     except Exception as e:
         return {"provider": provider, "status": "unreachable", "error": str(e)}

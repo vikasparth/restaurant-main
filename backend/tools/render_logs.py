@@ -25,6 +25,10 @@ async def get_render_logs(lines: int = 100):
                     (l["value"] for l in entry.get("labels", []) if l["name"] == "level"),
                     "unknown",
                 ),
+                "type": next(
+                    (l["value"] for l in entry.get("labels", []) if l["name"] == "type"),
+                    "unknown",
+                ),
                 "message": entry["message"],
             }
             for entry in raw.get("logs", [])
