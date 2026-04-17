@@ -39,6 +39,26 @@ Before starting any new slice:
 
 Any decision that deviates from `docs/architecture.md` or introduces a new architectural pattern must be recorded as an ADR. See `docs/adr/README.md` for format and existing records.
 
+## Engineering Principles — ALWAYS ACTIVE
+
+Before designing any solution, consider:
+
+1. **Multiple engineers build this.** Any engineer should be able to clone the repo,
+   follow the setup steps, and be productive. Never assume the person reading the code
+   is the person who wrote it.
+
+2. **A different set of engineers operates this.** The person troubleshooting a 2am
+   incident may have never seen this codebase. Skills, runbooks, and error messages
+   must guide a capable but unfamiliar engineer to the root cause without hand-holding
+   from the original author.
+
+3. **Configuration over hardcoding.** URLs, thresholds, credentials, and feature flags
+   belong in configuration files or environment variables — never hardcoded in
+   application code, skill files, or specs. If a value could change per environment,
+   per deployment, or per engineer, it must be configurable. Use sensible defaults for
+   values that are stable but overridable; require explicit configuration only for
+   secrets and environment-specific values.
+
 ## Design Philosophy — Work Backwards From the User
 
 Before designing or implementing any feature, ask: **who is the customer using this, and what do they need?**

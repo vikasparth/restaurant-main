@@ -56,6 +56,14 @@ class Settings(BaseSettings):
     render_api_key: str = ""
     render_service_id: str = ""
     render_owner_id: str = ""
+    render_api_base_url: str = "https://api.render.com/v1"
+
+    # --- Production service URL ---
+    production_url: str = "https://restaurant-main.onrender.com"
+
+    # --- Provider status pages ---
+    resend_status_url: str = "https://resend-status.com/"
+    twilio_status_url: str = "https://status.twilio.com/"
 
     @field_validator("environment")
     @classmethod
