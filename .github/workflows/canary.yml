@@ -5,6 +5,9 @@ on:
     - cron: "*/50 * * * *"
   workflow_dispatch:
 
+permissions:
+  issues: write
+
 jobs:
   canary:
     runs-on: ubuntu-latest
