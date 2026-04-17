@@ -87,6 +87,16 @@ Hold all findings in view and:
 State the conclusion plainly:
 > "Based on findings across all layers: [your conclusion]"
 
+**For each breaching metric, read its runbook before presenting the fix:**
+
+| Breaching metric | Runbook to read |
+|---|---|
+| `error_rate` | `docs/runbook/error_rate.md` |
+| `p95_latency_ms` | `docs/runbook/p95_latency_ms.md` |
+| `notification_failures` | `docs/runbook/notification_failures.md` |
+
+Read only the runbooks for metrics that are actually breaching. Show the relevant fix steps from the runbook, cross-referenced with the sub-skill findings.
+
 Then present the recommended fix. After the fix, ask:
 > "Would you like me to apply this fix, or handle it manually?"
 

@@ -66,6 +66,32 @@ Read `docs/runbook/p95_latency_ms.md` and show the cold start fix steps.
 
 ---
 
+## Check 5 — Render logs (fallback)
+
+**Only run this check if Checks 2, 3, and 4 all found no root cause.**
+
+Do not ask the engineer to check the Render dashboard manually.
+
+**Before calling `get_render_logs()`:** check if Render logs are already in
+context from this session (look for "Render logs (fetched at ...)"). If yes,
+use those. If no, call `get_render_logs(lines=100)` now and note the result
+as "Render logs (fetched at monitor-db Check 5)".
+
+Scan for:
+- `Exception`, `Error`, `Traceback`
+- Repeated timeouts or connection reset messages
+- Any pattern correlating with the latency window
+
+If suspicious lines found: identify the pattern and suggest the fix.
+
+If nothing found:
+> "DB layer checks are exhausted — no slow queries, pool is within limits,
+> not a cold start pattern, and Render logs are clean. This may be an
+> infrastructure issue outside the application. Check Supabase and Render
+> dashboards directly."
+
+---
+
 ## Reporting back
 
 End with a clear finding statement for the orchestrator synthesis step:

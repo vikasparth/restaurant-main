@@ -24,6 +24,8 @@ If either is degraded or down:
 > of notification failures. Read docs/runbook/notification_failures.md
 > for the provider outage fix steps."
 
+If both are operational: move to Check 2 — the failure is coming from inside the application, not the provider.
+
 ---
 
 ## Check 2 — Query recent failure logs
@@ -35,8 +37,30 @@ Based on the `error_code`:
 - `API key is invalid` → credentials issue — move to Check 3
 - `quota exceeded` / `rate limit` → quota issue — read
   `docs/runbook/notification_failures.md` quota fix steps
-- Any other error → read `docs/runbook/notification_failures.md`
+- Blank or unrecognised error code → move to Check 2a
+- Any other known error → read `docs/runbook/notification_failures.md`
   and match to the appropriate fix scenario
+
+### Check 2a — Render logs fallback
+
+If error code is blank or unrecognised, do not ask the engineer to check
+the dashboard manually. Call the MCP tool directly:
+
+**Before calling `get_render_logs()`:** check if Render logs are already in
+context from this session (look for "Render logs (fetched at ...)"). If yes,
+use those. If no, call `get_render_logs(lines=100)` now and note the result
+as "Render logs (fetched at monitor-dependencies Check 2a)".
+
+Scan for notification-related exceptions:
+- Lines containing `resend`, `twilio`, `send_email`, `send_whatsapp`
+- `Exception`, `Error`, `Traceback` near notification code paths
+
+If a pattern is found: identify the error and suggest the fix.
+
+If nothing found:
+> "Both providers are operational, failure logs show no known error code,
+> and Render logs are clean. The failures may be intermittent or already
+> resolved. Monitor for recurrence over the next window."
 
 ---
 

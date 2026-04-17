@@ -5,13 +5,13 @@ async def query_request_logs(window_hours: int = 12):
     try:
         conn = await asyncpg.connect(settings.database_url)
         rows = await conn.fetch(f"""
-            SELECT path,
+            SELECT path, status_code,
                    ROUND(AVG(duration_ms)) AS avg_ms,
                    MAX(duration_ms) AS max_ms,
                    COUNT(*) AS requests
             FROM request_logs
             WHERE created_at > NOW() - INTERVAL '{window_hours} hours'
-            GROUP BY path
+            GROUP BY path, status_code
             ORDER BY avg_ms DESC
             LIMIT 10
         """)

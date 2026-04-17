@@ -258,6 +258,10 @@ Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid l
 
 ## Phase 2 — Future (not in current scope)
 
+### Nice to Have — Monitoring
+- [ ] Enhance `check_provider_status` to optionally include account-level delivery logs (Resend `GET /emails`, Twilio `GET /Messages.json`) via `include_logs: bool = False` parameter — gives provider's own view of failures, not just our DB's view
+- [ ] Add 4xx alerting thresholds (429, 404, 422, 401/403) as separate tracked metrics in the monitor service — currently these status codes are visible in `query_request_logs` output but do not trigger alerts
+
 - [ ] Stripe payment integration
 - [ ] Customer order status tracking page
 - [ ] Real geocoding for delivery radius (upgrade from zip code list — applies to both regular orders and catering)

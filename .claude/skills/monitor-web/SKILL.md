@@ -60,7 +60,10 @@ If no: move to Check 3.
 may contain stack traces or 500 errors that are not visible in the metrics
 table.
 
-Call MCP tool `get_render_logs(lines=100)` and scan the result automatically.
+**Before calling `get_render_logs()`:** check if Render logs are already in
+context from this session (look for "Render logs (fetched at ...)"). If yes,
+use those. If no, call `get_render_logs(lines=100)` now and note the result
+as "Render logs (fetched at monitor-web Check 3)".
 
 Look for any of the following:
 - `Exception`, `Error`, `Traceback`
