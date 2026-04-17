@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     github_token: str = ""
     github_repo: str = ""
 
+    # --- Render (MCP log access) ---
+    render_api_key: str = ""
+    render_service_id: str = ""
+    render_owner_id: str = ""
+
     @field_validator("environment")
     @classmethod
     def validate_environment(cls, v: str) -> str:
