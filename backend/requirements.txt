@@ -5,13 +5,13 @@
 
 # Web framework
 fastapi==0.115.6
-uvicorn[standard]==0.32.1
+uvicorn[standard]==0.44.0
 
 # Database (direct asyncpg connection to Supabase Postgres)
 asyncpg==0.30.0
 
 # Data validation
-pydantic==2.10.3
+pydantic==2.11.7
 pydantic-settings==2.7.0
 email-validator==2.2.0
 

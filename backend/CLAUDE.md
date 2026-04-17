@@ -34,6 +34,16 @@ When writing logs, always ask: *what does a developer (or AI agent) debugging a 
 - Routes are responsible for: auth, input validation, calling the service layer, returning the response.
 - Services are responsible for: business logic, orchestration, external calls (DB, email, GitHub, etc.).
 
+## Adding New Packages to requirements.txt
+
+When adding a new package:
+1. `pip install <package>` in the venv — pip silently upgrades existing packages to satisfy dependencies.
+2. Run `pip show <package>` immediately after and check the `Requires:` field.
+3. For every dependency listed there, check the version now installed in the venv (`pip show <dep>`) and update `requirements.txt` to match.
+4. Verify locally: `pip install -r requirements.txt` must complete with no conflicts before committing.
+
+**Why this matters:** pip upgrades packages in the venv automatically but does not update `requirements.txt`. Render installs fresh from `requirements.txt`, so pinned versions that were silently upgraded locally will cause a build conflict on Render.
+
 ## Config / Environment Rules
 
 - **Always update `config.py` and `.env` together.** Adding a new env var means adding the matching field to `Settings` in the same step — never one without the other.
