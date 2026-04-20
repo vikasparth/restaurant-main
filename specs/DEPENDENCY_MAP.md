@@ -53,6 +53,24 @@ The only difference between slices is the table name and the response fields.
 
 ---
 
+## Monitoring & Observability Layer (always available — no slice dependency needed)
+
+| Service / Tool | Full signature | Purpose |
+|---|---|---|
+| Request logging | Middleware auto-logs every request — no manual call needed | Populates `request_logs` table (path, method, status_code, duration_ms, request_id) |
+| Notification logging | `async def _log_notification(provider, channel, event_type, reference, success, error_code)` in `services/notification_service.py` | Populates `notification_logs` table — call after every Resend/Twilio attempt |
+| Monitor snapshot | `async def collect_snapshot(db, window_hours) -> dict` in `services/monitor_service.py` — returns `error_rate`, `p95_latency_ms`, `notification_failures` per window | Used by `/api/internal/monitor` endpoint |
+| MCP tool — request logs | `async def query_request_logs(window_hours) -> list` in `tools/db_queries.py` | Groups by path + status_code, used by monitor-db skill |
+| MCP tool — notification failures | `async def query_notification_failures(window_hours) -> list` in `tools/db_queries.py` | Groups by provider + error_code, used by monitor-dependencies skill |
+| MCP tool — health | `async def check_health_endpoint() -> dict` in `tools/health_check.py` | Checks production `/health` |
+| MCP tool — render logs | `async def get_render_logs(lines) -> list` in `tools/render_logs.py` | Fetches Render production logs |
+| MCP tool — commits | `async def get_recent_commits(count) -> list` in `tools/github_commits.py` | Fetches recent GitHub commits |
+| MCP tool — provider status | `async def check_provider_status(provider) -> dict` in `tools/provider_status.py` | Checks Resend/Twilio status pages |
+
+**Rule:** Any new slice that sends notifications must call `_log_notification` after every send attempt. Request logging is automatic via middleware.
+
+---
+
 ## Where to Find Signatures
 
 Each spec has a **"Signatures exposed to later slices"** block in its Dependencies section.

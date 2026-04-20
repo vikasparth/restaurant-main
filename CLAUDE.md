@@ -34,6 +34,7 @@ Before starting any new slice:
 3. **Write tests before implementation** (TDD) — all tests must fail first, then be made green.
 4. **Run the full test suite after every slice** — not just the new tests. Fix any regressions before moving on.
 5. **Never edit an already-applied migration** — schema changes go in a new migration file (additive only).
+6. **Update `specs/DEPENDENCY_MAP.md` after completing any new slice** — add every new service function, tool, or pattern the slice exposes so future slices can find and reuse them. This is not optional.
 
 ## Architecture Decision Records (ADR)
 
