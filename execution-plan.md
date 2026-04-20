@@ -258,6 +258,21 @@ Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid l
 
 ## Phase 2 — Future (not in current scope)
 
+### Two-Team Ownership Setup (frontend team + backend team, independent codebases)
+
+**Goal:** Work backwards from this reality — a frontend team owns `lovable_project`, a backend team owns `restaurant_main_project`. They integrate via a published API contract. Neither team should need to read the other team's source code to do their job.
+
+**What breaks today without this:**
+- Frontend assumes field names by reading Python source or by memory — breaks silently when backend refactors
+- No shared contract means integration failures are discovered in production, not in CI
+- A new frontend engineer has no rules, no Claude guidance, and no defined boundary
+
+**Changes required:**
+- [ ] Export `openapi.json` from FastAPI and commit it to the backend repo — add `scripts/export_openapi.py` so any engineer can regenerate it; this file is the single source of truth for the API contract
+- [ ] Add rule to `backend/CLAUDE.md`: any change to a public endpoint shape, field name, or status code requires regenerating and committing `openapi.json` before merging — contract changes are visible in git diff, not buried in implementation
+- [ ] Create `lovable_project/CLAUDE.md` — frontend-only Claude rules: read the API contract from `../restaurant_main_project/openapi.json`, never hand-write TypeScript types that duplicate the spec, never call endpoints not listed in the spec, mock the backend using the spec during development
+- [ ] Split root `CLAUDE.md` so org-wide rules (git conventions, ADR process, engineering principles) are clearly separated from backend-specific rules — each team's Claude reads only what applies to them
+
 ### Nice to Have — Monitoring
 - [ ] Enhance `check_provider_status` to optionally include account-level delivery logs (Resend `GET /emails`, Twilio `GET /Messages.json`) via `include_logs: bool = False` parameter — gives provider's own view of failures, not just our DB's view
 - [ ] Add 4xx alerting thresholds (429, 404, 422, 401/403) as separate tracked metrics in the monitor service — currently these status codes are visible in `query_request_logs` output but do not trigger alerts
