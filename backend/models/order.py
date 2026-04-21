@@ -1,14 +1,16 @@
 from __future__ import annotations
 from typing import Literal
-from pydantic import BaseModel, EmailStr, Field, UUID4, model_validator
+from pydantic import BaseModel, EmailStr, Field, UUID4, model_validator, ConfigDict
 
 
 class OrderItemRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     menu_item_id: str = Field(..., min_length=1)
     quantity: int = Field(..., ge=1)
 
 
 class OrderCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     idempotency_key: UUID4
     customer_name: str = Field(..., min_length=1)
     customer_email: EmailStr

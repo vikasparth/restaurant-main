@@ -72,6 +72,24 @@ When adding a new package:
 
 ---
 
+## Pydantic Model Config Rules
+
+- **All request models must use `extra="forbid"`** — this turns silent data loss (typo'd optional fields silently dropped) into a loud 422 error.
+- **Response models and third-party wrapper models use the default (`extra="ignore"`)** — external APIs add new fields in minor versions; breaking on unknown fields would be fragile.
+- Always import `ConfigDict` from `pydantic` and set `model_config` as the first line inside the class, before any fields.
+
+```python
+# ✅ request model — strict
+class OrderCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ...
+
+# ✅ third-party response wrapper — resilient
+class StripeWebhookPayload(BaseModel):
+    # extra="ignore" is the default — no config needed
+    ...
+```
+
 ## Exception Handling Rules
 
 - **Always use `except Exception as e`** — never bare `except Exception:`. Without `as e` the error is invisible in the debugger and in logs.

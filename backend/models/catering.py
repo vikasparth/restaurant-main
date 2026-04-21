@@ -1,13 +1,15 @@
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class CateringItemRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     item_id: str
     trays: int = Field(..., ge=1)
 
 
 class CateringCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     idempotency_key: UUID
     customer_name: str
     customer_email: str

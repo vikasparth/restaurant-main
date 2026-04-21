@@ -1,7 +1,8 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, ConfigDict
 
 
 class DeliveryValidateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     zip_code: str
 
     @field_validator("zip_code")

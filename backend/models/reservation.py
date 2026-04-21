@@ -1,8 +1,8 @@
 from __future__ import annotations
-from pydantic import BaseModel, EmailStr, Field, UUID4
-
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, UUID4
 
 class ReservationCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     idempotency_key: UUID4
     customer_name: str = Field(..., min_length=1)
     customer_email: EmailStr | None = None

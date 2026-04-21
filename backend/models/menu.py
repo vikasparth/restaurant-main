@@ -1,7 +1,8 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class MenuItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     id: str
     name: str
     description: str
@@ -19,6 +20,7 @@ class MenuItem(BaseModel):
 
 
 class MenuCategory(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str
     items: list[MenuItem]
 
