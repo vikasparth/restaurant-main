@@ -12,7 +12,8 @@ async def health_check():
         async with pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
         return {"status": "ok"}
-    except Exception:
+    except Exception as e:
+        print(f"[health] database unreachable: {e}")
         return JSONResponse(
             status_code=503,
             content={"status": "unavailable"},

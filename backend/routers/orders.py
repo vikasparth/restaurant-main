@@ -18,7 +18,8 @@ async def order_create(request: Request, body: OrderCreateRequest, db=Depends(ge
         return result
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
+        print(f"[orders] unexpected error: {e}")
         return JSONResponse(
             status_code=503,
             content={

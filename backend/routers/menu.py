@@ -13,7 +13,8 @@ async def get_menu(db=Depends(get_db)):
     try:
         rows = await menu_service.get_menu_items(db)
         return menu_service.group_by_category(rows)
-    except Exception:
+    except Exception as e:
+        print(f"[menu] unexpected error: {e}")
         return JSONResponse(
             status_code=503,
             content={

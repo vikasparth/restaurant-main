@@ -18,7 +18,8 @@ async def catering_create(
     try:
         config = await get_restaurant_config(db)
         return await create_catering_order(db, body, config)
-    except Exception:
+    except Exception as e:
+        print(f"[catering] unexpected error: {e}")
         return JSONResponse(
             status_code=503,
             content={

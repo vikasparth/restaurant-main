@@ -15,7 +15,8 @@ async def validate_delivery_zip(request: DeliveryValidateRequest, db=Depends(get
         if result:
             return DeliveryValidateResponse(is_covered=True, city=result["city"])
         return DeliveryValidateResponse(is_covered=False, city=None)
-    except Exception:
+    except Exception as e:
+        print(f"[delivery] unexpected error: {e}")
         return JSONResponse(
             status_code=503,
             content={

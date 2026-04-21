@@ -21,7 +21,8 @@ async def reservation_create(
         return result
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
+        print(f"[reservations] unexpected error: {e}")
         return JSONResponse(
             status_code=503,
             content={
