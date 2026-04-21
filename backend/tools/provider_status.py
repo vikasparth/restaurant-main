@@ -11,7 +11,11 @@ async def check_provider_status(provider: str):
     }
 
     if provider not in urls:
-        return {"provider": provider, "status": "error", "error": f"Unknown provider: {provider}"}
+        return {
+            "provider": provider,
+            "status": "error",
+            "error": f"Unknown provider: {provider}",
+        }
 
     try:
         async with httpx.AsyncClient() as client:

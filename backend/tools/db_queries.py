@@ -1,6 +1,7 @@
 import asyncpg
 from core.config import settings
 
+
 async def query_request_logs(window_hours: int = 12):
     try:
         conn = await asyncpg.connect(settings.database_url)
@@ -19,6 +20,7 @@ async def query_request_logs(window_hours: int = 12):
         return [dict(r) for r in rows]
     except Exception as e:
         return {"status": "error", "error": str(e)}
+
 
 async def query_notification_failures(window_hours: int = 12):
     try:

@@ -4,7 +4,6 @@ from uuid import UUID
 from pathlib import Path
 
 
-
 class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
@@ -55,7 +54,6 @@ class Settings(BaseSettings):
     github_repo: str = ""
     github_api_base_url: str = "https://api.github.com"
     github_api_version: str = "2022-11-28"
-
 
     # --- Render (MCP log access) ---
     render_api_key: str = ""
