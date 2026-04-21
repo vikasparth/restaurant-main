@@ -22,11 +22,19 @@ async def get_render_logs(lines: int = 100):
             {
                 "timestamp": entry["timestamp"],
                 "level": next(
-                    (l["value"] for l in entry.get("labels", []) if l["name"] == "level"),
+                    (
+                        label["value"]
+                        for label in entry.get("labels", [])
+                        if label["name"] == "level"
+                    ),
                     "unknown",
                 ),
                 "type": next(
-                    (l["value"] for l in entry.get("labels", []) if l["name"] == "type"),
+                    (
+                        label["value"]
+                        for label in entry.get("labels", [])
+                        if label["name"] == "type"
+                    ),
                     "unknown",
                 ),
                 "message": entry["message"],
