@@ -208,7 +208,7 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 | 3.4 | Deploy frontend to Vercel | Connect GitHub repo, vercel.json rewrite to Render URL | ✅ Done 2026-04-13 |
 | 3.5 | End-to-end smoke test | Full order flow on production URLs | ✅ Done 2026-04-13 |
 | 3.6 | Canary monitoring setup | UptimeRobot HTTP check on `/health` every 5 min (unlimited); GitHub Actions runs canary tests every 50 min (~864 min/month, well within free tier); alert to owner email on failure | ✅ Done 2026-04-14 |
-| 3.7 | Sentry setup (pre-requisite for AI agent) | Install Sentry React SDK in frontend; capture page crashes, JS errors, and network errors scoped to `/api/*` endpoints; verify errors appear in Sentry dashboard | ✅ Done 2026-04-14 |
+| 3.7 | Sentry setup (pre-requisite for AI agent) | Install Sentry React SDK in frontend; capture page crashes, JS errors, and network errors scoped to `/api/*` endpoints; verify errors appear in Sentry dashboard | ⏳ Pending — marked done incorrectly, Sentry package not found in lovable_project |
 | 3.8 | Runbook skeleton | Create `docs/runbook.md` with one entry per monitored metric category; each entry: symptom, likely cause, diagnostic steps, fix; grow incrementally as each monitoring metric is instrumented | ✅ Done 2026-04-14 |
 | 3.9 | Request logging middleware | FastAPI middleware that logs every request (endpoint, method, status code, duration ms) to a `request_logs` DB table; foundation for error rate, latency, throttling, and request count metrics | ✅ Done 2026-04-14 |
 | 3.10 | Notification failure logging | Log Twilio/Resend call results (success/failure, provider, error code) to a `notification_logs` DB table; enables outbound throttling and downstream failure metrics | ✅ Done 2026-04-14 |
@@ -216,6 +216,8 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 | 3.12 | Claude Code Skill — `/monitor-check` | IDE-side skill that calls `/api/internal/monitor`, passes metrics snapshot to Claude using existing Claude Code session (covered by Claude Pro — no API billing); on-demand analysis only | ✅ Done 2026-04-16 |
 | 3.13 | AI monitoring agent — Phase 2 (MCP) | MCP server (`backend/mcp_server.py`) with 6 tools: `check_health_endpoint`, `get_render_logs`, `get_recent_commits`, `query_request_logs`, `query_notification_failures`, `check_provider_status`; registered via `.claude/settings.json`; sub-skills updated to call MCP tools instead of manual steps — Render log review now automatic | ✅ Done 2026-04-16 — ✅ Follow-up resolved 2026-04-16: all sub-skills updated to MCP tool calls; config.py fixed to use `Path(__file__).parent.parent / ".env"` so MCP server loads correct env from any working directory; tools verified working end-to-end via Claude CLI (`health` reachable, Render logs returning real data) — ⚠️ Open: MCP server not connecting in VSCode extension (v2.1.112) — extension appears to ignore `mcpServers` stdio config in `settings.json`; workaround is to run `claude --mcp-config .claude/settings.json` from project root in terminal; needs investigation when VSCode extension is updated |
 | 3.14 | Sentry backend SDK (Phase 2 observability) | Install `sentry-sdk[fastapi]`; auto-capture unhandled exceptions with request context (URL, method, correlation ID); correlates with frontend Sentry project; zero additional cost on free tier | ⏳ Pending |
+| 3.15 | Two-team ownership setup | Export `openapi.json`, add contract rules to CLAUDE.md files, create `lovable_project/CLAUDE.md` — see Phase 2 — Two-Team Ownership Setup section for full detail | ⏳ Pending |
+| 3.16 | GraphQL gateway layer | Frontend-owned gateway (Apollo Server or GraphQL Mesh) sitting in front of REST API; schema validation at coding time, build time, CI, and runtime — see Phase 2 — GraphQL Layer section for full detail | ⏳ Pending |
 
 ---
 
@@ -258,20 +260,11 @@ Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid l
 
 ## Phase 2 — Future (not in current scope)
 
-### Two-Team Ownership Setup (frontend team + backend team, independent codebases)
-
-**Goal:** Work backwards from this reality — a frontend team owns `lovable_project`, a backend team owns `restaurant_main_project`. They integrate via a published API contract. Neither team should need to read the other team's source code to do their job.
-
-**What breaks today without this:**
-- Frontend assumes field names by reading Python source or by memory — breaks silently when backend refactors
-- No shared contract means integration failures are discovered in production, not in CI
-- A new frontend engineer has no rules, no Claude guidance, and no defined boundary
-
-**Changes required:**
-- [ ] Export `openapi.json` from FastAPI and commit it to the backend repo — add `scripts/export_openapi.py` so any engineer can regenerate it; this file is the single source of truth for the API contract
-- [ ] Add rule to `backend/CLAUDE.md`: any change to a public endpoint shape, field name, or status code requires regenerating and committing `openapi.json` before merging — contract changes are visible in git diff, not buried in implementation
-- [ ] Create `lovable_project/CLAUDE.md` — frontend-only Claude rules: read the API contract from `../restaurant_main_project/openapi.json`, never hand-write TypeScript types that duplicate the spec, never call endpoints not listed in the spec, mock the backend using the spec during development
-- [ ] Split root `CLAUDE.md` so org-wide rules (git conventions, ADR process, engineering principles) are clearly separated from backend-specific rules — each team's Claude reads only what applies to them
+| Task | Detail | Status |
+|---|---|---|
+| 3.15 — Two-team ownership | `docs/phase2/two-team-ownership.md` | ⏳ Pending |
+| 3.16 — GraphQL gateway | `docs/phase2/graphql-gateway.md` | ⏳ Pending |
+| Agentic workflows | `docs/phase2/agentic-workflows.md` | Nice to have — evaluate use cases first |
 
 ### Nice to Have — Monitoring
 - [ ] Enhance `check_provider_status` to optionally include account-level delivery logs (Resend `GET /emails`, Twilio `GET /Messages.json`) via `include_logs: bool = False` parameter — gives provider's own view of failures, not just our DB's view
