@@ -28,7 +28,7 @@ Never leave them without a next action.
 ```
 .claude/skills/
     monitor-check/SKILL.md          ← orchestrator (~85 lines)
-    monitor-web/SKILL.md            ← Render + deploy checks (~65 lines)
+    monitor-server/SKILL.md            ← Render + deploy checks (~65 lines)
     monitor-db/SKILL.md             ← DB health + pool + slow query checks (~60 lines)
     monitor-dependencies/SKILL.md   ← Resend + Twilio status checks (~45 lines)
 
@@ -70,10 +70,10 @@ Routing table:
 
 | Trigger | Sub-skill sequence |
 |---|---|
-| `error_rate` breaching | monitor-web → monitor-db |
+| `error_rate` breaching | monitor-server → monitor-db |
 | `p95_latency_ms` breaching | monitor-db only |
 | `notification_failures` breaching | monitor-dependencies only |
-| Server unreachable | monitor-web → monitor-db → monitor-dependencies |
+| Server unreachable | monitor-server → monitor-db → monitor-dependencies |
 | All healthy | Skip sub-skills — go to Step 5 (downstream status only) |
 
 Work through sub-skills one at a time. After each sub-skill completes, ask
@@ -99,7 +99,7 @@ The engineer controls the pace.
 
 ---
 
-## Sub-skill: `monitor-web`
+## Sub-skill: `monitor-server`
 
 Investigates the Render service and recent deploys. Called when `error_rate`
 breaches or server is unreachable.
@@ -203,7 +203,7 @@ does not change — only the sub-skills swap file reads for tool calls:
 
 **`get_render_logs` is the key 3.13 upgrade:** once available, Render log health
 becomes part of the automatic summary in Step 2 — no manual copy-paste needed.
-The `monitor-web` Check 3 instruction switches from "ask engineer to paste logs"
+The `monitor-server` Check 3 instruction switches from "ask engineer to paste logs"
 to "call get_render_logs() and analyse automatically".
 
 The synthesis step remains identical — Claude holds all tool results in context

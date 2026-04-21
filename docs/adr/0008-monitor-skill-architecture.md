@@ -35,7 +35,7 @@ Replace the monolithic skill with a layered architecture:
 
 ### Layer 2 — Focused sub-skills (one per infrastructure layer)
 Each ~45–65 lines. Contains only investigation procedure for its layer:
-- `monitor-web` — Render service status, recent deploys, git log
+- `monitor-server` — Render service status, recent deploys, git log
 - `monitor-db` — /health endpoint, connection pool, slow query analysis
 - `monitor-dependencies` — Resend and Twilio status pages and credential checks
 

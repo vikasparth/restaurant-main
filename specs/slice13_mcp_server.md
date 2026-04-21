@@ -78,9 +78,9 @@ Calls `GET {settings.render_api_base_url}/logs` with:
 
 Returns: list of log lines (timestamp, message, level).
 
-Used by: monitor-web (Check 3) — replaces manual engineer copy-paste.
+Used by: monitor-server (Check 3) — replaces manual engineer copy-paste.
 
-**Key upgrade:** once available, monitor-web Check 3 switches from
+**Key upgrade:** once available, monitor-server Check 3 switches from
 "ask engineer to paste logs" to "call get_render_logs() and analyse
 automatically."
 
@@ -94,7 +94,7 @@ Calls GitHub API:
 
 Returns: list of `{ sha, message, author, committed_at }`.
 
-Used by: monitor-web (Check 2) — replaces `git log --oneline -5`.
+Used by: monitor-server (Check 2) — replaces `git log --oneline -5`.
 
 **Why remote instead of local git:** other engineers on the team may not
 have the repo checked out locally. Render deploys from the remote — the
@@ -166,8 +166,8 @@ Used by: monitor-dependencies (Check 1) — replaces WebFetch calls.
 | Sub-skill | Before (3.12) | After (3.13) |
 |---|---|---|
 | monitor-check Step 1 | `curl /health` | `check_health_endpoint()` |
-| monitor-web Check 2 | `git log --oneline -5` | `get_recent_commits()` |
-| monitor-web Check 3 | Ask engineer to paste logs | `get_render_logs()` — automatic |
+| monitor-server Check 2 | `git log --oneline -5` | `get_recent_commits()` |
+| monitor-server Check 3 | Ask engineer to paste logs | `get_render_logs()` — automatic |
 | monitor-db Check 1 | `curl /health` | `check_health_endpoint()` |
 | monitor-db Check 2 | asyncpg script | `query_request_logs()` |
 | monitor-dependencies Check 1 | WebFetch status pages | `check_provider_status()` |

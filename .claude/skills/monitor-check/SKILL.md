@@ -42,7 +42,7 @@ Then the metrics table:
 
 Then one line noting the scope of this check:
 > "Note: this summary covers API metrics and DB connectivity. Render logs
-> are fetched automatically in monitor-web Check 3."
+> are fetched automatically in monitor-server Check 3."
 
 Stop and wait. Ask:
 > "That is the current snapshot. Type 'next' to continue, or ask me
@@ -60,11 +60,11 @@ Routing table:
 
 | Breaching metric | Sub-skill sequence | Why |
 |---|---|---|
-| `error_rate` | monitor-web → monitor-db | Errors come from a bad deploy (web) or a DB outage — check web first as it is faster to confirm |
+| `error_rate` | monitor-server → monitor-db | Errors come from a bad deploy (web) or a DB outage — check web first as it is faster to confirm |
 | `p95_latency_ms` | monitor-db only | Latency is almost always a DB issue — slow queries, pool exhaustion, or cold starts |
 | `notification_failures` | monitor-dependencies only | Failures come from Resend/Twilio — credentials, quota, or provider outage |
 | Multiple metrics | Follow each row above in order, deduplicate sub-skills | e.g. error_rate + p95 both need monitor-db — run it once |
-| All healthy | monitor-web (deploy + log review only) | Confirm no recent bad deploy; offer manual Render log review |
+| All healthy | monitor-server (deploy + log review only) | Confirm no recent bad deploy; offer manual Render log review |
 
 **Before loading each sub-skill**, say:
 > "Next I will check the [layer] layer using the [sub-skill name] check.
@@ -119,11 +119,11 @@ State the error calmly:
 > "The monitor endpoint did not respond. Received: `{error}`"
 > "Working through the offline checklist one step at a time."
 
-Load `.claude/skills/monitor-web/SKILL.md` and follow Check 1 (Render status)
+Load `.claude/skills/monitor-server/SKILL.md` and follow Check 1 (Render status)
 and Check 2 (recent deploy) first.
 
 Wait for the engineer's response after each check. Based on findings:
-- If Render is down or deploy is suspect: resolve via monitor-web
+- If Render is down or deploy is suspect: resolve via monitor-server
 - If Render is healthy: load `.claude/skills/monitor-db/SKILL.md` for Check 1
   (database reachable)
 - If both layers look healthy: load `.claude/skills/monitor-dependencies/SKILL.md`
