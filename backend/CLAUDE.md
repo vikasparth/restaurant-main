@@ -72,6 +72,23 @@ When adding a new package:
 
 ---
 
+## Exception Handling Rules
+
+- **Always use `except Exception as e`** — never bare `except Exception:`. Without `as e` the error is invisible in the debugger and in logs.
+- **Always log the exception before returning a generic response** — `print(f"[router_name] unexpected error: {e}")`. Without this a 503 in production leaves no trace in Render logs — the only signal is a status code with no root cause.
+- **Never swallow exceptions silently in service calls** — if a service raises, let it propagate to the router where it gets logged and handled consistently.
+
+```python
+# ✅ correct pattern
+except Exception as e:
+    print(f"[menu] unexpected error: {e}")
+    return JSONResponse(status_code=503, content={...})
+
+# ❌ wrong — error invisible in debugger and Render logs
+except Exception:
+    return JSONResponse(status_code=503, content={...})
+```
+
 ## Pre-Commit Checklist (Backend)
 Before every commit touching backend code, ALL of the following must pass:
 
