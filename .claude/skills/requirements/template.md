@@ -68,6 +68,11 @@
 ### Compatibility
 - [Devices, browsers, integrations]
 
+### Cost & Dependencies
+| Item | Type | Cost implication | Approved? |
+|---|---|---|---|
+| [service/tool] | [paid API / infrastructure / lock-in] | [cost note] | Yes / No / TBD |
+
 ---
 
 ## 5. Operational Behaviour
