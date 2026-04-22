@@ -218,6 +218,7 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 | 3.14 | Sentry backend SDK (Phase 2 observability) | Install `sentry-sdk[fastapi]`; auto-capture unhandled exceptions with request context (URL, method, correlation ID); correlates with frontend Sentry project; zero additional cost on free tier | ⏳ Pending |
 | 3.15 | Two-team ownership setup | Export `openapi.json`, add contract rules to CLAUDE.md files, create `lovable_project/CLAUDE.md` — see Phase 2 — Two-Team Ownership Setup section for full detail | ⏳ Pending |
 | 3.16 | GraphQL gateway layer | Frontend-owned gateway (Apollo Server or GraphQL Mesh) sitting in front of REST API; schema validation at coding time, build time, CI, and runtime — see Phase 2 — GraphQL Layer section for full detail | ⏳ Pending |
+| 3.17 | Homepage dynamic content | Replace static "Meal of the Day" and "Latest Offers" in `Index.tsx` with real API data. Requires: backend endpoints for featured item and promotions/offers, DB tables for promotions, and frontend API calls. Known TypeScript gap: 2 type errors in `Index.tsx` (`src/data/menu` MenuItem not assignable to `src/types/menu` MenuItem) will be fixed in this slice. | ⏳ Pending |
 
 ---
 
@@ -255,6 +256,25 @@ Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid l
 ### What canary tests do NOT test
 - Full browser flow (that's Playwright/Selenium — Phase 2 if needed)
 - Email/WhatsApp delivery (tested manually after each slice)
+
+---
+
+## Developer Tooling Track
+
+> This track runs in parallel with product slices. See full detail in `docs/developer-tooling.md`.
+
+| # | Item | Status |
+|---|---|---|
+| DT-1 | Pre-commit hooks — frontend (Husky + lint-staged) | ✅ Done 2026-04-21 |
+| DT-2 | Pre-commit hooks — backend (Black + Flake8) | ✅ Done 2026-04-21 |
+| DT-3 | Local dev setup README | ✅ Done 2026-04-21 |
+| DT-4 | Skill: `/requirements` with guardrails and draft/sign-off | ✅ Done 2026-04-21 |
+| DT-5 | Skill: `/review` — codebase review before any new feature | ✅ Done 2026-04-21 — ⏳ Not yet tested |
+| DT-6 | Skill: `/design` | ⏳ Pending |
+| DT-7 | Skill: `/spec` | ⏳ Pending |
+| DT-8 | Skill: `/execution-plan` | ⏳ Pending |
+| DT-9 | CI pipeline — GitHub Actions (pytest + RTL + Vitest on PR) | ⏳ Pending |
+| DT-10 | Unit + integration tests — menu slice (backend + frontend) | ⏳ Pending |
 
 ---
 
