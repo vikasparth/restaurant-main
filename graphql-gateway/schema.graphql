@@ -1,0 +1,27 @@
+type MenuItem {
+id: String!
+name: String!
+description: String!
+price: Float!
+category: String!
+image_url: String!
+is_vegetarian: Boolean!
+is_available: Boolean!
+catering_available: Boolean!
+catering_price_per_tray: Float
+allergens: [String!]!
+display_order: Int!
+}
+
+type MenuCategory {
+name: String!
+items: [MenuItem!]!
+}
+
+type MenuResponse {
+categories: [MenuCategory!]!
+}
+
+type Query {
+menu: MenuResponse!
+}
