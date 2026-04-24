@@ -2,7 +2,7 @@ import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
 import { readFileSync } from "fs";
 
-const typeDefs = readFileSync("./schema.graphql", "utf-8");
+const typeDefs = readFileSync("./schemas/menu.graphql", "utf-8");
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 const API_PATHS = {
