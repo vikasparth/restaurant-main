@@ -292,6 +292,10 @@ Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid l
 | 3.16.6 — Step 5: CI validator | `graphql-gateway/scripts/validate-schema.js` | ⏳ Pending |
 | 3.16.7 — Step 6: Sentry SDK | Add Sentry Node.js SDK to gateway | ⏳ Pending |
 | 3.16.8 — Step 7: Migrate Menu components | Swap REST calls for Apollo `useQuery` | ⏳ Pending |
+| 3.16.9 — Feature folder migration | Migrate `src/features/menu/` structure as part of GraphQL migration | 🔄 In Progress |
+
+### Feature Folder Migration Convention
+Migrate one feature at a time to `src/features/[feature]/` — only when that feature moves to GraphQL. See `src/docs/feature-migration-guide.md` for steps and rollback plan.
 | Agentic workflows | `docs/phase2/agentic-workflows.md` | Nice to have — evaluate use cases first |
 
 ### Nice to Have — Monitoring
