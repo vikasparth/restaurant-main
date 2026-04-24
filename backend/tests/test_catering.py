@@ -1,5 +1,5 @@
 # Tests for Slice 5 — Catering Orders
-# Spec: specs/slice5_catering.md
+# Spec: backend/specs/slice5_catering.md
 # TDD: all tests written first — they will all FAIL until the endpoint is built.
 #
 # Run with: pytest tests/test_catering.py -v

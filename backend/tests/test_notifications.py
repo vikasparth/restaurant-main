@@ -1,5 +1,5 @@
 # Tests for Slice 6 — Notifications
-# Spec: specs/slice6_notifications.md
+# Spec: backend/specs/slice6_notifications.md
 # TDD: all tests written first — they will all FAIL until the services are built.
 #
 # Run with: pytest tests/test_notifications.py -v

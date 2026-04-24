@@ -1,5 +1,5 @@
 # Tests for Slice 3 — Orders
-# Spec: specs/slice3_orders.md
+# Spec: backend/specs/slice3_orders.md
 # TDD: all tests written first — they will all FAIL until the orders endpoint is built.
 #
 # Run with: pytest tests/test_orders.py -v

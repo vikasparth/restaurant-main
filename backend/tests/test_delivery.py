@@ -1,5 +1,5 @@
 # Tests for Slice 2 — Delivery Validation (Read)
-# Spec: specs/slice1_menu.md
+# Spec: backend/specs/slice1_menu.md
 # TDD: all tests written first — they will all FAIL until the menu endpoint is built.
 #
 # Run with: pytest tests/test_menu.py -v

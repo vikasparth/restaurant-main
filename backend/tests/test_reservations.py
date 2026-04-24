@@ -1,5 +1,5 @@
 # Tests for Slice 4 — Reservations
-# Spec: specs/slice4_reservations.md
+# Spec: backend/specs/slice4_reservations.md
 # TDD: all tests written first — they will all FAIL until the endpoint is built.
 #
 # Run with: pytest tests/test_reservations.py -v
