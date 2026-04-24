@@ -283,7 +283,15 @@ Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid l
 | Task | Detail | Status |
 |---|---|---|
 | 3.15 — Two-team ownership | `docs/phase2/two-team-ownership.md` | ⏳ Pending |
-| 3.16 — GraphQL gateway | `src/docs/graphql-gateway.md` | ⏳ Pending |
+| 3.16 — GraphQL gateway | `src/docs/graphql-gateway.md` | 🔄 In Progress |
+| 3.16.1 — Architecture decisions | Option B (hand-written schema), `graphql-gateway/` at repo root, dual Vercel deploy | ✅ Done |
+| 3.16.2 — Step 1: Apollo Server setup | `graphql-gateway/package.json` — in progress | 🔄 In Progress |
+| 3.16.3 — Step 2: Menu schema | `graphql-gateway/schema.graphql` | ⏳ Pending |
+| 3.16.4 — Step 3: Menu resolvers | `graphql-gateway/resolvers/menu.ts` | ⏳ Pending |
+| 3.16.5 — Step 4: graphql-codegen | Generates `src/__generated__/types.ts` | ⏳ Pending |
+| 3.16.6 — Step 5: CI validator | `graphql-gateway/scripts/validate-schema.js` | ⏳ Pending |
+| 3.16.7 — Step 6: Sentry SDK | Add Sentry Node.js SDK to gateway | ⏳ Pending |
+| 3.16.8 — Step 7: Migrate Menu components | Swap REST calls for Apollo `useQuery` | ⏳ Pending |
 | Agentic workflows | `docs/phase2/agentic-workflows.md` | Nice to have — evaluate use cases first |
 
 ### Nice to Have — Monitoring
