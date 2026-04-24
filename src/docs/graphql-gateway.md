@@ -93,15 +93,28 @@ Frontend team hand-writes `schema.graphql` — they are not bound to the REST AP
 
 ---
 
+## Repository Structure (decided)
+
+```
+restaurant_main_project/
+  backend/        ← Python/FastAPI → Render
+  src/            ← React app → Vercel (existing project, Root Directory: src/)
+  graphql-gateway/        ← Apollo Server/Node.js → Vercel (second project, Root Directory: graphql-gateway/)
+  docs/           ← shared docs
+  .github/        ← shared CI
+```
+
+Both Vercel projects connect to the same GitHub repo — a single push to `main` deploys both. No separate git workflow needed. Future repo separation: `git filter-repo --subdirectory-filter gateway` extracts the gateway cleanly.
+
 ## Implementation Plan — Menu (first feature)
 
 Incremental — Menu migrates to GraphQL while Orders/Catering/Reservations remain on REST. No backend changes required.
 
-- [ ] **Step 1** — Set up Apollo Server inside `src/gateway/` — Node.js server deployed as a Vercel function
-- [ ] **Step 2** — Write `src/gateway/schema.graphql` — Menu types only (MenuItem, Category, MenuResponse)
-- [ ] **Step 3** — Write Menu resolvers in `src/gateway/resolvers/menu.ts` — call existing backend REST endpoints; annotate each resolver with the OpenAPI path it maps to
-- [ ] **Step 4** — Add `graphql-codegen` to build pipeline — generates `src/__generated__/types.ts` from `schema.graphql`; build fails on schema mismatch
-- [ ] **Step 5** — Write `src/scripts/validate-schema.js` — CI validator that checks `schema.graphql` fields against `openapi.json`; add to CI pipeline
+- [ ] **Step 1** — Set up Apollo Server inside `graphql-gateway/` — own `package.json`, deployed as a Vercel Node.js function from Root Directory `graphql-gateway/`
+- [ ] **Step 2** — Write `graphql-gateway/schema.graphql` — Menu types only (MenuItem, Category, MenuResponse)
+- [ ] **Step 3** — Write Menu resolvers in `graphql-gateway/resolvers/menu.ts` — call existing backend REST endpoints; annotate each resolver with the OpenAPI path it maps to
+- [ ] **Step 4** — Add `graphql-codegen` to build pipeline — generates `src/__generated__/types.ts` from `graphql-gateway/schema.graphql`; build fails on schema mismatch
+- [ ] **Step 5** — Write `graphql-gateway/scripts/validate-schema.js` — CI validator that checks `schema.graphql` fields against `openapi.json`; add to CI pipeline
 - [ ] **Step 6** — Add Sentry Node.js SDK to the gateway from day one — captures resolver crashes and failed REST calls
 - [ ] **Step 7** — Migrate Menu React components to Apollo `useQuery` — remove direct `menuService.ts` REST calls from components
 
@@ -109,9 +122,9 @@ Incremental — Menu migrates to GraphQL while Orders/Catering/Reservations rema
 
 ## What Changes — Frontend (`src/`)
 
-- [ ] Add Apollo Server gateway inside `src/gateway/` — resolvers call backend REST endpoints via `openapi.json` contract
+- [ ] Add Apollo Server gateway inside `src/graphql-gateway/` — resolvers call backend REST endpoints via `openapi.json` contract
 - [ ] **Add Sentry Node.js SDK to the gateway from day one** — captures resolver crashes, failed REST calls, and which GraphQL query triggered them
-- [ ] Define `src/gateway/schema.graphql` — hand-written by frontend team, committed as the stable reference
+- [ ] Define `src/graphql-gateway/schema.graphql` — hand-written by frontend team, committed as the stable reference
 - [ ] Add `graphql-codegen` to build — TypeScript types generated from `schema.graphql`; build fails on schema mismatch
 - [ ] Add `graphql-inspector` to CI — breaks on breaking schema changes between PRs
 - [ ] Add custom validator `src/scripts/validate-schema.js` to CI — checks `schema.graphql` fields against `openapi.json`
