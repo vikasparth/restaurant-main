@@ -9,6 +9,7 @@ backend/.env
 # Node
 node_modules/
 dist/
+src/__generated__/
 
 # Misc
 memory/
