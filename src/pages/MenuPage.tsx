@@ -1,36 +1,38 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Plus } from "lucide-react";
-import { fetchMenu } from "@/services/menuService";
-import type { MenuResponse, MenuItem } from "@/types/menu";
+import { useMenu } from "@/features/menu/hooks/useMenu";
+import type { MenuItem } from "@/features/menu/types";
 import { useCart } from "@/context/CartContext";
 import FoodItemModal from "@/components/FoodItemModal";
 
 const MenuPage = () => {
-  const [menuData, setMenuData] = useState<MenuResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: menuData, loading, error } = useMenu();
   const [activeCategory, setActiveCategory] = useState("all");
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const { addItem } = useCart();
 
-  useEffect(() => {
-    fetchMenu()
-      .then(setMenuData)
-      .catch(() => setError("Failed to load menu. Please try again later."))
-      .finally(() => setLoading(false));
-  }, []);
-
   const allItems = menuData?.categories.flatMap((c) => c.items) ?? [];
-  const filtered = activeCategory === "all" ? allItems : allItems.filter((i) => i.category === activeCategory);
+  const filtered =
+    activeCategory === "all" ? allItems : allItems.filter((i) => i.category === activeCategory);
   const categoryNames = menuData?.categories.map((c) => c.name) ?? [];
 
-  if (loading) return <div className="container py-12 text-center text-muted-foreground">Loading menu…</div>;
-  if (error) return <div className="container py-12 text-center text-destructive">{error}</div>;
+  if (loading)
+    return <div className="container py-12 text-center text-muted-foreground">Loading menu…</div>;
+  if (error)
+    return (
+      <div className="container py-12 text-center text-destructive">
+        Failed to load menu. Please try again later.
+      </div>
+    );
 
   return (
     <div className="container py-12">
-      <h1 className="text-center font-serif text-4xl font-bold text-foreground">Aap ki Rasoi Mein</h1>
-      <p className="mx-auto mt-2 max-w-lg text-center text-muted-foreground">Explore our authentic Indian dishes, crafted with love and traditional spices</p>
+      <h1 className="text-center font-serif text-4xl font-bold text-foreground">
+        Aap ki Rasoi Mein
+      </h1>
+      <p className="mx-auto mt-2 max-w-lg text-center text-muted-foreground">
+        Explore our authentic Indian dishes, crafted with love and traditional spices
+      </p>
 
       {/* Categories */}
       <div className="mt-8 flex flex-wrap justify-center gap-2">

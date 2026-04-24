@@ -1,24 +1,11 @@
 import { ApolloServer } from "@apollo/server";
 import { startStandaloneServer } from "@apollo/server/standalone";
 import { readFileSync } from "fs";
+import { menuResolvers } from "./resolvers/menu.js";
 
 const typeDefs = readFileSync("./schemas/menu.graphql", "utf-8");
 
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
-const API_PATHS = {
-  menu: "/api/menu",
-} as const;
-
-const resolvers = {
-  Query: {
-    menu: async () => {
-      const response = await fetch(`${BACKEND_URL}${API_PATHS.menu}`);
-      return response.json();
-    },
-  },
-};
-
-const server = new ApolloServer({ typeDefs, resolvers });
+const server = new ApolloServer({ typeDefs, resolvers: menuResolvers });
 
 const { url } = await startStandaloneServer(server, {
   listen: { port: 4000 },

@@ -1,43 +1,98 @@
 import { Link } from "react-router-dom";
 import { Star, ArrowRight } from "lucide-react";
 import heroFood from "@/assets/hero-food.jpg";
-import { menuItems, RESTAURANT_INFO } from "@/data/menu";
+import { RESTAURANT_INFO } from "@/data/menu";
+import { useMenu } from "@/features/menu/hooks/useMenu";
 import { useCart } from "@/context/CartContext";
 
 const reviews = [
-  { name: "Priya S.", rating: 5, text: "The best butter chicken I've ever had outside of India! Tastes just like my grandmother's cooking." },
-  { name: "James M.", rating: 5, text: "Authentic flavors, generous portions. The biryani is absolutely divine. Will definitely come back!" },
-  { name: "Anita K.", rating: 5, text: "Finally found a place that makes real dal makhani. The naan is perfectly fluffy too!" },
-  { name: "David L.", rating: 4, text: "Wonderful experience. The staff is incredibly warm and the food is consistently excellent." },
-  { name: "Meera R.", rating: 5, text: "The catering for our Diwali party was phenomenal. Every dish was a hit with our guests!" },
+  {
+    name: "Priya S.",
+    rating: 5,
+    text: "The best butter chicken I've ever had outside of India! Tastes just like my grandmother's cooking.",
+  },
+  {
+    name: "James M.",
+    rating: 5,
+    text: "Authentic flavors, generous portions. The biryani is absolutely divine. Will definitely come back!",
+  },
+  {
+    name: "Anita K.",
+    rating: 5,
+    text: "Finally found a place that makes real dal makhani. The naan is perfectly fluffy too!",
+  },
+  {
+    name: "David L.",
+    rating: 4,
+    text: "Wonderful experience. The staff is incredibly warm and the food is consistently excellent.",
+  },
+  {
+    name: "Meera R.",
+    rating: 5,
+    text: "The catering for our Diwali party was phenomenal. Every dish was a hit with our guests!",
+  },
 ];
 
 const offers = [
-  { id: "butter-chicken", title: "Butter Chicken Special", desc: "Our signature dish at a special price this week", discount: "15% OFF" },
-  { id: "biryani", title: "Biryani Feast", desc: "Order biryani and get free naan bread", discount: "FREE NAAN" },
-  { id: "gulab-jamun", title: "Sweet Treats", desc: "Complimentary gulab jamun with orders over $30", discount: "FREE DESSERT" },
+  {
+    id: "butter-chicken",
+    title: "Butter Chicken Special",
+    desc: "Our signature dish at a special price this week",
+    discount: "15% OFF",
+  },
+  {
+    id: "samosa",
+    title: "Samosa Special",
+    desc: "Complimentary samosa with orders over $25",
+    discount: "FREE SAMOSA",
+  },
+  {
+    id: "gulab-jamun",
+    title: "Sweet Treats",
+    desc: "Complimentary gulab jamun with orders over $30",
+    discount: "FREE DESSERT",
+  },
 ];
 
 const Index = () => {
   const { addItem } = useCart();
-  const mealOfDay = menuItems.find((i) => i.id === "biryani")!;
+  const { data } = useMenu();
+  const allItems = data?.categories.flatMap((c) => c.items) ?? [];
+  const mealOfDay = allItems.find((i) => i.id === "biryani");
 
   return (
     <div>
       {/* Hero */}
       <section className="relative h-[70vh] min-h-[500px] overflow-hidden">
-        <img src={heroFood} alt="Indian food spread" className="absolute inset-0 h-full w-full object-cover" width={1920} height={1080} />
+        <img
+          src={heroFood}
+          alt="Indian food spread"
+          className="absolute inset-0 h-full w-full object-cover"
+          width={1920}
+          height={1080}
+        />
         <div className="absolute inset-0 bg-foreground/50" />
         <div className="container relative flex h-full flex-col items-center justify-center text-center">
-          <h1 className="font-serif text-5xl font-bold text-background md:text-7xl animate-fade-in">Aap ki Rasoi</h1>
-          <p className="mt-4 max-w-lg text-lg text-background/90 animate-fade-in" style={{ animationDelay: "0.2s" }}>
+          <h1 className="font-serif text-5xl font-bold text-background md:text-7xl animate-fade-in">
+            Aap ki Rasoi
+          </h1>
+          <p
+            className="mt-4 max-w-lg text-lg text-background/90 animate-fade-in"
+            style={{ animationDelay: "0.2s" }}
+          >
             Home-like food, away from home
           </p>
           <div className="mt-8 flex gap-4 animate-fade-in" style={{ animationDelay: "0.4s" }}>
-            <Link to="/menu" className="rounded-md bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors">
+            <Link
+              to="/menu"
+              className="rounded-md bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors"
+            >
               View Menu
             </Link>
-            <Link to="/order" className="rounded-md border border-background/30 bg-background/10 px-6 py-3 text-sm font-semibold text-background backdrop-blur hover:bg-background/20 transition-colors">
+            <Link
+              to="/order"
+              className="rounded-md border border-background/30 bg-background/10 px-6 py-3 text-sm font-semibold text-background backdrop-blur hover:bg-background/20 transition-colors"
+            >
               Order Online
             </Link>
           </div>
@@ -46,49 +101,85 @@ const Index = () => {
 
       {/* Welcome */}
       <section className="container py-20 text-center">
-        <h2 className="font-serif text-3xl font-bold text-foreground md:text-4xl">Welcome to Our Kitchen</h2>
+        <h2 className="font-serif text-3xl font-bold text-foreground md:text-4xl">
+          Welcome to Our Kitchen
+        </h2>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-          At Aap ki Rasoi, we believe every meal should feel like home. Our recipes have been passed down through generations, 
-          using the finest spices and freshest ingredients to bring you the authentic taste of Indian home cooking. 
-          Whether you're craving a comforting dal or a festive biryani, every dish is made with love — just like maa ke haath ka khana.
+          At Aap ki Rasoi, we believe every meal should feel like home. Our recipes have been passed
+          down through generations, using the finest spices and freshest ingredients to bring you
+          the authentic taste of Indian home cooking. Whether you're craving a comforting dal or a
+          festive biryani, every dish is made with love — just like maa ke haath ka khana.
         </p>
       </section>
 
       {/* Meal of the Day */}
-      <section className="bg-secondary py-16">
-        <div className="container">
-          <h2 className="text-center font-serif text-3xl font-bold text-foreground">Meal of the Day</h2>
-          <div className="mx-auto mt-8 flex max-w-3xl flex-col items-center gap-8 md:flex-row">
-            <img src={mealOfDay.image} alt={mealOfDay.name} className="h-64 w-64 rounded-xl object-cover shadow-lg" loading="lazy" width={512} height={512} />
-            <div>
-              <h3 className="font-serif text-2xl font-bold text-foreground">{mealOfDay.name}</h3>
-              <p className="mt-2 text-muted-foreground">{mealOfDay.description}</p>
-              <p className="mt-3 text-2xl font-bold text-primary">${mealOfDay.price.toFixed(2)}</p>
-              <button
-                onClick={() => addItem(mealOfDay)}
-                className="mt-4 rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors"
-              >
-                Add to Cart
-              </button>
+      {mealOfDay && (
+        <section className="bg-secondary py-16">
+          <div className="container">
+            <h2 className="text-center font-serif text-3xl font-bold text-foreground">
+              Meal of the Day
+            </h2>
+            <div className="mx-auto mt-8 flex max-w-3xl flex-col items-center gap-8 md:flex-row">
+              <img
+                src={mealOfDay.image_url}
+                alt={mealOfDay.name}
+                className="h-64 w-64 rounded-xl object-cover shadow-lg"
+                loading="lazy"
+                width={512}
+                height={512}
+              />
+              <div>
+                <h3 className="font-serif text-2xl font-bold text-foreground">{mealOfDay.name}</h3>
+                <p className="mt-2 text-muted-foreground">{mealOfDay.description}</p>
+                <p className="mt-3 text-2xl font-bold text-primary">
+                  ${mealOfDay.price.toFixed(2)}
+                </p>
+                <button
+                  onClick={() => addItem(mealOfDay)}
+                  className="mt-4 rounded-md bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors"
+                >
+                  Add to Cart
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Latest Offers */}
       <section className="container py-20">
         <h2 className="text-center font-serif text-3xl font-bold text-foreground">Latest Offers</h2>
         <div className="mt-8 grid gap-6 md:grid-cols-3">
           {offers.map((offer) => {
-            const item = menuItems.find((i) => i.id === offer.id)!;
+            const item = allItems.find((i) => i.id === offer.id);
+            if (!item) {
+              console.warn(
+                `[Index] Offer item not found in menu: id="${offer.id}" title="${offer.title}"`
+              );
+              return null;
+            }
             return (
-              <div key={offer.id} className="group overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-lg">
+              <div
+                key={offer.id}
+                className="group overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-lg"
+              >
                 <div className="relative">
-                  <img src={item.image} alt={offer.title} className="h-48 w-full object-cover transition-transform group-hover:scale-105" loading="lazy" width={512} height={512} />
-                  <span className="absolute right-3 top-3 rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">{offer.discount}</span>
+                  <img
+                    src={item.image_url}
+                    alt={offer.title}
+                    className="h-48 w-full object-cover transition-transform group-hover:scale-105"
+                    loading="lazy"
+                    width={512}
+                    height={512}
+                  />
+                  <span className="absolute right-3 top-3 rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">
+                    {offer.discount}
+                  </span>
                 </div>
                 <div className="p-5">
-                  <h3 className="font-serif text-lg font-semibold text-foreground">{offer.title}</h3>
+                  <h3 className="font-serif text-lg font-semibold text-foreground">
+                    {offer.title}
+                  </h3>
                   <p className="mt-1 text-sm text-muted-foreground">{offer.desc}</p>
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-lg font-bold text-primary">${item.price.toFixed(2)}</span>
@@ -109,7 +200,9 @@ const Index = () => {
       {/* Reviews */}
       <section className="bg-secondary py-20">
         <div className="container">
-          <h2 className="text-center font-serif text-3xl font-bold text-foreground">What Our Customers Say</h2>
+          <h2 className="text-center font-serif text-3xl font-bold text-foreground">
+            What Our Customers Say
+          </h2>
           <div className="mt-8 grid gap-6 md:grid-cols-3 lg:grid-cols-5">
             {reviews.map((r, i) => (
               <div key={i} className="rounded-xl border border-border bg-background p-5">
@@ -144,11 +237,24 @@ const Index = () => {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-foreground">Contact</h3>
-                <p>Phone: <a href={`tel:${RESTAURANT_INFO.phone}`} className="hover:text-primary">{RESTAURANT_INFO.phone}</a></p>
-                <p>Email: <a href={`mailto:${RESTAURANT_INFO.email}`} className="hover:text-primary">{RESTAURANT_INFO.email}</a></p>
+                <p>
+                  Phone:{" "}
+                  <a href={`tel:${RESTAURANT_INFO.phone}`} className="hover:text-primary">
+                    {RESTAURANT_INFO.phone}
+                  </a>
+                </p>
+                <p>
+                  Email:{" "}
+                  <a href={`mailto:${RESTAURANT_INFO.email}`} className="hover:text-primary">
+                    {RESTAURANT_INFO.email}
+                  </a>
+                </p>
               </div>
             </div>
-            <Link to="/reservation" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:opacity-80">
+            <Link
+              to="/reservation"
+              className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:opacity-80"
+            >
               Make a Reservation <ArrowRight className="h-4 w-4" />
             </Link>
           </div>

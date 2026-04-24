@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
-import type { MenuItem } from "@/types/menu";
+import type { MenuItem } from "@/features/menu/types";
 import { toast } from "sonner";
 
 export interface CartItem {
@@ -47,9 +47,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setItems((prev) => prev.filter((ci) => ci.item.id !== id));
       return;
     }
-    setItems((prev) =>
-      prev.map((ci) => (ci.item.id === id ? { ...ci, quantity: qty } : ci))
-    );
+    setItems((prev) => prev.map((ci) => (ci.item.id === id ? { ...ci, quantity: qty } : ci)));
   }, []);
 
   const clearCart = useCallback(() => setItems([]), []);
@@ -59,7 +57,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <CartContext.Provider
-      value={{ items, addItem, removeItem, updateQuantity, clearCart, totalItems, totalPrice, isCartOpen, setIsCartOpen }}
+      value={{
+        items,
+        addItem,
+        removeItem,
+        updateQuantity,
+        clearCart,
+        totalItems,
+        totalPrice,
+        isCartOpen,
+        setIsCartOpen,
+      }}
     >
       {children}
     </CartContext.Provider>

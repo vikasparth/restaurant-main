@@ -1,6 +1,9 @@
 import * as Sentry from "@sentry/react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
+import { apolloClient } from "./lib/apolloClient.ts";
+import { ApolloProvider } from "@apollo/client/react";
+
 import "./index.css";
 
 Sentry.init({
@@ -8,4 +11,8 @@ Sentry.init({
   environment: import.meta.env.MODE,
 });
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <ApolloProvider client={apolloClient}>
+    <App />
+  </ApolloProvider>
+);
