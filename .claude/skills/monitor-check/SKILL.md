@@ -91,9 +91,9 @@ State the conclusion plainly:
 
 | Breaching metric | Runbook to read |
 |---|---|
-| `error_rate` | `docs/runbook/error_rate.md` |
-| `p95_latency_ms` | `docs/runbook/p95_latency_ms.md` |
-| `notification_failures` | `docs/runbook/notification_failures.md` |
+| `error_rate` | `backend/docs/runbook/error_rate.md` |
+| `p95_latency_ms` | `backend/docs/runbook/p95_latency_ms.md` |
+| `notification_failures` | `backend/docs/runbook/notification_failures.md` |
 
 Read only the runbooks for metrics that are actually breaching. Show the relevant fix steps from the runbook, cross-referenced with the sub-skill findings.
 

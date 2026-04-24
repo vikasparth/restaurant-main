@@ -110,7 +110,7 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| 2.3.1 | Spec | `specs/slice3_orders.md` — 18 tests defined, business rules captured, signed off | ✅ Done 2026-04-09 |
+| 2.3.1 | Spec | `backend/specs/slice3_orders.md` — 18 tests defined, business rules captured, signed off | ✅ Done 2026-04-09 |
 | 2.3.2 | Automated tests | `tests/test_orders.py` — 18 tests written, all failing (TDD Step 1) | ✅ Done 2026-04-09 |
 | 2.3.3 | Pydantic model | `models/order.py` — `OrderItemRequest`, `OrderCreateRequest`, `OrderCreateResponse` | ✅ Done 2026-04-09 |
 | 2.3.4 | Order service | `services/order_service.py` — validate hours, zip, min order, items; save order + items; idempotency | ✅ Done 2026-04-09 |
@@ -127,7 +127,7 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| 2.4.1 | Spec | `specs/slice4_reservations.md` — 10 tests defined, business rules captured, signed off | ✅ Done 2026-04-10 |
+| 2.4.1 | Spec | `backend/specs/slice4_reservations.md` — 10 tests defined, business rules captured, signed off | ✅ Done 2026-04-10 |
 | 2.4.2 | Automated tests | `tests/test_reservations.py` — 10 tests written, all failing (TDD Step 1) | ✅ Done 2026-04-10 |
 | 2.4.3 | Pydantic model | `models/reservation.py` — `ReservationCreateRequest`, `ReservationCreateResponse` | ✅ Done 2026-04-10 |
 | 2.4.4 | Reservation service | `services/reservation_service.py` — validate time, party size, idempotency, save to DB | ✅ Done 2026-04-12 |
@@ -209,7 +209,7 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 | 3.5 | End-to-end smoke test | Full order flow on production URLs | ✅ Done 2026-04-13 |
 | 3.6 | Canary monitoring setup | UptimeRobot HTTP check on `/health` every 5 min (unlimited); GitHub Actions runs canary tests every 50 min (~864 min/month, well within free tier); alert to owner email on failure | ✅ Done 2026-04-14 |
 | 3.7 | Sentry setup (pre-requisite for AI agent) | Install Sentry React SDK in frontend; capture page crashes, JS errors, and network errors scoped to `/api/*` endpoints; verify errors appear in Sentry dashboard | ⏳ Pending — marked done incorrectly, Sentry package not found in lovable_project |
-| 3.8 | Runbook skeleton | Create `docs/runbook.md` with one entry per monitored metric category; each entry: symptom, likely cause, diagnostic steps, fix; grow incrementally as each monitoring metric is instrumented | ✅ Done 2026-04-14 |
+| 3.8 | Runbook skeleton | Create `backend/docs/runbook.md` with one entry per monitored metric category; each entry: symptom, likely cause, diagnostic steps, fix; grow incrementally as each monitoring metric is instrumented | ✅ Done 2026-04-14 |
 | 3.9 | Request logging middleware | FastAPI middleware that logs every request (endpoint, method, status code, duration ms) to a `request_logs` DB table; foundation for error rate, latency, throttling, and request count metrics | ✅ Done 2026-04-14 |
 | 3.10 | Notification failure logging | Log Twilio/Resend call results (success/failure, provider, error code) to a `notification_logs` DB table; enables outbound throttling and downstream failure metrics | ✅ Done 2026-04-14 |
 | 3.11 | AI monitoring agent — Phase 1 (rule-based) | Spec + build: metrics snapshot collector + Python rule-based threshold checks (two consecutive 6h windows); open GitHub Issue on breach, send owner email with issue link, auto-close on recovery; no Claude API calls; zero variable cost; update runbook entries alongside each metric. Trigger: cron-job.org → GET /api/internal/monitor (no APScheduler — Render free tier spins down, cron-job.org is more reliable and scales to Phase 2/3 MCP approach) | ✅ Done 2026-04-15 — ⚠️ Follow-up: second live test (with window/threshold overrides) returned 200 but no issue created and no email sent. Needs investigation — check Render logs around that request, verify GITHUB_TOKEN/GITHUB_REPO are set in Render, check if `alerts_fired` was true in the response |

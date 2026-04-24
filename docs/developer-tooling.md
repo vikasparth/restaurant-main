@@ -75,7 +75,7 @@ Skills are stored in `.claude/skills/` and committed to the repository so all en
 ### Skill: `/spec` ⏳ Pending
 - **Purpose:** Write per-slice technical spec an engineer implements against
 - **Gate:** Reads approved design doc + calls `/review` before drafting
-- **Output:** `specs/[sliceN_name].draft.md` → `[sliceN_name].md` on sign-off
+- **Output:** `backend/specs/[sliceN_name].draft.md` → `[sliceN_name].md` on sign-off
 
 ### Skill: `/execution-plan` ⏳ Pending
 - **Purpose:** Break approved design into ordered slices with dependencies

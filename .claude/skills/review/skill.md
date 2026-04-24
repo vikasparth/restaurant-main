@@ -40,7 +40,7 @@ Once you have the domain and intent, search the codebase using the domain keywor
 - Note any shared utilities, base classes, mixins, hooks, or helpers that are domain-agnostic but could be relevant
 
 ### Dependency Map
-- Always read `specs/DEPENDENCY_MAP.md` — it tracks every service function, tool, and pattern exposed by completed slices. This is the most reliable record of what has been intentionally built.
+- Always read `backend/specs/DEPENDENCY_MAP.md` — it tracks every service function, tool, and pattern exposed by completed slices. This is the most reliable record of what has been intentionally built.
 
 ### Documentation
 - If the user provided doc locations, read those first

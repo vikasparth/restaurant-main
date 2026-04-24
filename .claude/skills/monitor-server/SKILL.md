@@ -47,7 +47,7 @@ If yes:
 > the engineer, then run `git revert HEAD`.
 > Remind them to push and trigger a new Render deploy afterward.
 >
-> Then read `docs/runbook/error_rate.md` and show the fix steps for
+> Then read `backend/docs/runbook/error_rate.md` and show the fix steps for
 > the deploy scenario.
 
 If no: move to Check 3.

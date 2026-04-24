@@ -15,7 +15,7 @@ diagnostics, fix steps, and downstream checks. Two problems surfaced during revi
    also load upfront — compounding the bloat.
 
 2. **Duplication:** Diagnostic content (causes, fix steps) was embedded in the
-   skill file and also existed in `docs/runbook.md`. Two places to maintain.
+   skill file and also existed in `backend/docs/runbook.md`. Two places to maintain.
 
 A secondary concern was raised: if sub-skills investigate layers in isolation,
 how does the system identify cross-layer patterns (e.g. a deploy causing both
@@ -45,12 +45,12 @@ orchestrator + one sub-skill (~150 lines). Worst case (all metrics breaching)
 loads all four files (~275 lines vs 317 today).
 
 ### Layer 3 — Structured per-metric runbook files
-Sub-skills read `docs/runbook/{metric_name}.md` only after identifying the root
+Sub-skills read `backend/docs/runbook/{metric_name}.md` only after identifying the root
 cause layer. Runbook files contain: metric definition, threshold, likely causes,
 and fix steps — written for both human engineers and agents to read directly.
 
 The metric name in the monitor API response maps directly to the runbook filename
-(`error_rate` → `docs/runbook/error_rate.md`). No parsing required.
+(`error_rate` → `backend/docs/runbook/error_rate.md`). No parsing required.
 
 ### Synthesis step
 After all relevant sub-skills report, the orchestrator instructs Claude to review
@@ -92,5 +92,5 @@ vs prose), not structurally different.
 - Sub-skills are reusable across metrics (monitor-db used by both error_rate
   and p95_latency_ms paths)
 - Cross-layer pattern detection is explicit (synthesis step) rather than implicit
-- Migration of `docs/runbook.md` to per-file format is incremental — done
+- Migration of `backend/docs/runbook.md` to per-file format is incremental — done
   alongside each new metric, not a big-bang rewrite

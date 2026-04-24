@@ -21,7 +21,7 @@ Interpret the `raw_status` field from each response and report one line each:
 
 If either is degraded or down:
 > "This provider is experiencing issues. This is likely the root cause
-> of notification failures. Read docs/runbook/notification_failures.md
+> of notification failures. Read backend/docs/runbook/notification_failures.md
 > for the provider outage fix steps."
 
 If both are operational: move to Check 2 — the failure is coming from inside the application, not the provider.
@@ -36,9 +36,9 @@ Based on the `error_code`:
 
 - `API key is invalid` → credentials issue — move to Check 3
 - `quota exceeded` / `rate limit` → quota issue — read
-  `docs/runbook/notification_failures.md` quota fix steps
+  `backend/docs/runbook/notification_failures.md` quota fix steps
 - Blank or unrecognised error code → move to Check 2a
-- Any other known error → read `docs/runbook/notification_failures.md`
+- Any other known error → read `backend/docs/runbook/notification_failures.md`
   and match to the appropriate fix scenario
 
 ### Check 2a — Render logs fallback
@@ -78,7 +78,7 @@ If any are missing or blank:
 > "That is the root cause. Re-enter the correct value in Render and
 > trigger a manual deploy."
 
-Read `docs/runbook/notification_failures.md` and show the credentials fix steps.
+Read `backend/docs/runbook/notification_failures.md` and show the credentials fix steps.
 
 ---
 

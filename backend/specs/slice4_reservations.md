@@ -82,7 +82,7 @@ The frontend already collects all the fields — this slice wires it to a real A
 
 | File | Action |
 |---|---|
-| `specs/slice4_reservations.md` | This file |
+| `backend/specs/slice4_reservations.md` | This file |
 | `backend/tests/test_reservations.py` | New — 10 TDD tests |
 | `backend/models/reservation.py` | New — Pydantic models |
 | `backend/services/reservation_service.py` | New — business logic |

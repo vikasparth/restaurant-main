@@ -87,7 +87,7 @@
 ## Dependencies on Other Slices
 
 ⚠️ BEFORE FILLING THIS SECTION:
-1. Read `specs/DEPENDENCY_MAP.md` — find this slice in the Quick Reference table
+1. Read `backend/specs/DEPENDENCY_MAP.md` — find this slice in the Quick Reference table
 2. Open each listed dependency's spec file
 3. Copy the exact "Signatures exposed" block from each dependency below
 

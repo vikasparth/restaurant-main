@@ -16,7 +16,7 @@ Call MCP tool `check_health_endpoint()` and report the result:
 - **reachable**: database is reachable — move to Check 2
 - **unreachable**: database (Supabase) is down — tell the engineer:
   > "The database is not reachable. Follow runbook entry 12
-  > (docs/runbook.md — Downstream Dependency Failures) for next steps.
+  > (backend/docs/runbook.md — Downstream Dependency Failures) for next steps.
   > Check the Supabase dashboard at supabase.com for outage status."
   Stop here — do not proceed to Check 2.
 
@@ -30,7 +30,7 @@ If any endpoint has avg_ms > 1000:
 > "These endpoints are consistently slow. The queries they run likely
 > need an index or optimisation."
 
-Read `docs/runbook/p95_latency_ms.md` and show the slow query fix steps.
+Read `backend/docs/runbook/p95_latency_ms.md` and show the slow query fix steps.
 
 ---
 
@@ -39,7 +39,7 @@ Read `docs/runbook/p95_latency_ms.md` and show the slow query fix steps.
 Read `backend/core/database.py` and find the `max_size` parameter.
 Report the current value.
 
-Then read `docs/runbook/p95_latency_ms.md` — the pool exhaustion section
+Then read `backend/docs/runbook/p95_latency_ms.md` — the pool exhaustion section
 has the decision rule for when (and whether) to increase `max_size`, including
 the Supabase connection limit constraint.
 
@@ -62,7 +62,7 @@ Ask:
 If only on first request:
 > "This is a Render free tier cold start. The server sleeps after 15
 > minutes of inactivity and the first request pays a warm-up cost."
-Read `docs/runbook/p95_latency_ms.md` and show the cold start fix steps.
+Read `backend/docs/runbook/p95_latency_ms.md` and show the cold start fix steps.
 
 ---
 

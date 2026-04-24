@@ -74,7 +74,7 @@ The only difference between slices is the table name and the response fields.
 ## Where to Find Signatures
 
 Each spec has a **"Signatures exposed to later slices"** block in its Dependencies section.
-When the table above says "pull from Slice 1", go to `specs/slice1_menu.md` → Dependencies → copy those signatures into the new spec.
+When the table above says "pull from Slice 1", go to `backend/specs/slice1_menu.md` → Dependencies → copy those signatures into the new spec.
 
 **Process when starting a new spec:**
 1. Check the Quick Reference table above for this slice
