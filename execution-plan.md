@@ -283,7 +283,7 @@ Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid l
 | Task | Detail | Status |
 |---|---|---|
 | 3.15 — Two-team ownership | `docs/phase2/two-team-ownership.md` | ⏳ Pending |
-| 3.16 — GraphQL gateway | `docs/phase2/graphql-gateway.md` | ⏳ Pending |
+| 3.16 — GraphQL gateway | `src/docs/graphql-gateway.md` | ⏳ Pending |
 | Agentic workflows | `docs/phase2/agentic-workflows.md` | Nice to have — evaluate use cases first |
 
 ### Nice to Have — Monitoring

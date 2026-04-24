@@ -74,13 +74,47 @@ If a backend canary fails — backend team's problem. If a GraphQL canary fails 
 
 ---
 
+## Schema Authoring Approach — Option B (decided)
+
+Frontend team hand-writes `schema.graphql` — they are not bound to the REST API's shape. Resolvers map REST fields to GraphQL fields explicitly. This gives the frontend team full control over naming, composition, and schema evolution independent of the REST API.
+
+**Alternative considered and rejected:** GraphQL Mesh (auto-generate schema from `openapi.json`) — eliminated drift risk but gave the frontend team no control over schema shape and created 1:1 coupling to REST naming.
+
+### Validation chain (Option B)
+
+| When | Tool | What it catches |
+|---|---|---|
+| Coding session | Claude reads `openapi.json` + `schema.graphql` before writing any resolver | Field mapping mismatches before code is written |
+| CI (per PR) | Custom validator script (`src/scripts/validate-schema.js`) | GraphQL field in `schema.graphql` has no matching field in `openapi.json` |
+| CI (per PR) | `graphql-inspector` | Breaking changes to `schema.graphql` between PRs — React consumers protected |
+| Runtime | GraphQL canaries | REST contract changed under a live resolver |
+
+**Custom validator design:** Node.js script that parses `openapi.json` (response schemas per endpoint) and `schema.graphql` (types + fields). Each resolver carries an annotation marking which OpenAPI path it maps to. Script checks every GraphQL field resolves to a real OpenAPI field — exits non-zero on mismatch, failing CI.
+
+---
+
+## Implementation Plan — Menu (first feature)
+
+Incremental — Menu migrates to GraphQL while Orders/Catering/Reservations remain on REST. No backend changes required.
+
+- [ ] **Step 1** — Set up Apollo Server inside `src/gateway/` — Node.js server deployed as a Vercel function
+- [ ] **Step 2** — Write `src/gateway/schema.graphql` — Menu types only (MenuItem, Category, MenuResponse)
+- [ ] **Step 3** — Write Menu resolvers in `src/gateway/resolvers/menu.ts` — call existing backend REST endpoints; annotate each resolver with the OpenAPI path it maps to
+- [ ] **Step 4** — Add `graphql-codegen` to build pipeline — generates `src/__generated__/types.ts` from `schema.graphql`; build fails on schema mismatch
+- [ ] **Step 5** — Write `src/scripts/validate-schema.js` — CI validator that checks `schema.graphql` fields against `openapi.json`; add to CI pipeline
+- [ ] **Step 6** — Add Sentry Node.js SDK to the gateway from day one — captures resolver crashes and failed REST calls
+- [ ] **Step 7** — Migrate Menu React components to Apollo `useQuery` — remove direct `menuService.ts` REST calls from components
+
+---
+
 ## What Changes — Frontend (`src/`)
 
-- [ ] Add GraphQL gateway (Apollo Server or GraphQL Mesh) inside `src/` — resolvers call backend REST endpoints via `openapi.json` contract
+- [ ] Add Apollo Server gateway inside `src/gateway/` — resolvers call backend REST endpoints via `openapi.json` contract
 - [ ] **Add Sentry Node.js SDK to the gateway from day one** — captures resolver crashes, failed REST calls, and which GraphQL query triggered them
-- [ ] Define `schema.graphql` in `src/` — auto-generated from gateway types, committed as the stable reference
+- [ ] Define `src/gateway/schema.graphql` — hand-written by frontend team, committed as the stable reference
 - [ ] Add `graphql-codegen` to build — TypeScript types generated from `schema.graphql`; build fails on schema mismatch
 - [ ] Add `graphql-inspector` to CI — breaks on breaking schema changes between PRs
+- [ ] Add custom validator `src/scripts/validate-schema.js` to CI — checks `schema.graphql` fields against `openapi.json`
 - [ ] Add GraphQL layer canaries — scheduled GraphQL queries against live gateway; alert on failure
 - [ ] Update `src/CLAUDE.md` with two rules for Claude Code:
   1. Never hand-write TypeScript types for API responses — always import from `__generated__/types`
