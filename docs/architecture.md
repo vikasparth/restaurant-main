@@ -1,6 +1,6 @@
 # Architecture — Aap ki Rasoi Backend
 **Status: APPROVED — Signed off by Vikas, 2026-04-06**
-**Last updated: 2026-04-06**
+**Last updated: 2026-04-25**
 **Reference:** See `docs/requirements.md` for full functional requirements. See `execution-plan.md` for build order.
 
 ---
@@ -54,47 +54,112 @@
 
 ---
 
-## 4. System Architecture Diagram
+## 4. System Architecture
 
+**Last diagram update:** 2026-04-25 — GraphQL gateway layer added; auth, notifications, and observability annotated.
+
+### 4.1 Architecture Overview
+
+```mermaid
+flowchart TD
+    Browser([Customer Browser])
+
+    subgraph vercel ["Vercel (free)"]
+        FE["React App\nApollo Client"]
+        GW["GraphQL Gateway\nApollo Server · Node.js"]
+    end
+
+    subgraph render ["Render.com"]
+        BE["FastAPI Backend\nPython · slowapi rate limiting"]
+    end
+
+    subgraph supabase_group ["Supabase (free)"]
+        DB[("PostgreSQL\nbusiness data\nrequest_logs · notification_logs")]
+        SupaAuth["Supabase Auth\nJWT issuer"]
+    end
+
+    subgraph notif_group ["Notifications"]
+        Email["Resend\nEmail"]
+        WA["Twilio\nWhatsApp"]
+    end
+
+    subgraph observability_group ["Observability"]
+        Sentry["Sentry\nnot yet active — Phase 2\nfrontend · gateway · backend"]
+        Uptime["UptimeRobot\nGET /health every 5 min"]
+        Canary["GitHub Actions\npytest canary every 50 min"]
+    end
+
+    Cron["cron-job.org\ndaily 9am PT"]
+
+    Browser -->|HTTPS| FE
+    FE -->|"GraphQL query / mutation\nPOST /graphql"| GW
+    GW -->|"No auth — public routes\n/api/menu · /api/orders\n/api/reservations · /api/catering"| BE
+    GW -. "Supabase JWT required\n/api/admin/* — Phase 2, not yet active" .-> BE
+    Cron -->|"X-Internal-Token header\nPOST /api/internal/send-reminders"| BE
+    SupaAuth -. "JWT secret via env\nverify_jwt built — not yet applied" .-> BE
+    BE -->|asyncpg direct connection| DB
+    BE -->|"order / reservation\n/ catering confirmed"| Email
+    BE -->|"order / reservation\n/ catering confirmed"| WA
+    Uptime -->|"GET /health"| BE
+    Canary -->|"pytest canary suite"| BE
+    FE -.-> Sentry
+    GW -.-> Sentry
+    BE -.-> Sentry
 ```
-Customer Browser
-      │
-      │  HTTPS
-      ▼
-┌─────────────────────┐
-│   React Frontend    │  ← Vercel (free)
-│  (Vite + TypeScript)│
-└──────────┬──────────┘
-           │ REST API calls (HTTPS)
-           ▼
-┌─────────────────────┐
-│   FastAPI Backend   │  ← Render.com
-│     (Python)        │
-│                     │
-│  /health            │
-│  /api/menu          │
-│  /api/orders        │
-│  /api/reservations  │
-│  /api/catering      │
-│  /api/delivery/     │
-│    validate         │
-│  /api/admin/*       │  ← JWT protected
-└──────┬──────┬───────┘
-       │      │
-       │      │ Notifications
-       │      ├──────────────► Resend (Email)
-       │      └──────────────► Twilio (WhatsApp)
-       │
-       │ Direct SQL (asyncpg)
-       ▼
-┌─────────────────────┐
-┌─────────────────────┐
-│  Supabase Postgres  │  ← Supabase (free)
-│  (Database + Auth)  │
-└─────────────────────┘
-       ▲
-       │ Daily cron ping
-cron-job.org ──────────► /api/reservations/send-reminders
+
+**Auth model summary:**
+
+| Route group | Auth mechanism | Status |
+|---|---|---|
+| `/api/menu`, `/api/orders`, `/api/reservations`, `/api/catering` | None — public guest checkout | Active |
+| `/api/internal/send-reminders`, `/api/internal/monitor` | `X-Internal-Token` header (shared secret) | Active |
+| `/api/admin/*` | Supabase JWT — `verify_jwt` dependency | Built, Phase 2 |
+
+---
+
+### 4.2 End-to-End Request Sequence — Order Placement
+
+This sequence shows the full path for the most complete flow in the system: a customer placing an order. It covers every active layer — GraphQL gateway, business validation, database writes, notifications, and logging.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant FE as React · OrderPage
+    participant APC as Apollo Client
+    participant GW as GraphQL Gateway
+    participant BE as FastAPI Backend
+    participant RL as slowapi Rate Limiter
+    participant DB as Supabase PostgreSQL
+    participant Email as Resend
+    participant WA as Twilio WhatsApp
+    participant Sentry as Sentry (Phase 2)
+
+    User->>FE: clicks Place Order
+    FE->>APC: useMutation(CREATE_ORDER, { variables })
+    APC->>GW: POST /graphql · createOrder(input: { ... })
+    GW->>BE: POST /api/orders · { customer, items, schedule, ... }
+    BE->>RL: check rate limit (20 req/min per IP)
+    RL-->>BE: allowed
+    BE->>DB: validate menu_item_ids are active
+    DB-->>BE: items valid
+    BE->>DB: fetch restaurant_config (hours, timezone, fees)
+    DB-->>BE: config
+    BE->>BE: validate scheduled time within operating hours
+    BE->>DB: INSERT order + order_items · generate reference number
+    DB-->>BE: AKR-20260425-0042
+    BE->>DB: INSERT request_log (method, path, status, duration_ms, request_id)
+    BE->>Email: send customer confirmation (items, total, reference, schedule)
+    Email-->>BE: sent
+    BE->>DB: INSERT notification_log (channel=email, status=sent, reference)
+    BE->>WA: send owner WhatsApp alert (full order details)
+    WA-->>BE: sent
+    BE->>DB: INSERT notification_log (channel=whatsapp, status=sent, reference)
+    BE-->>GW: { reference_number, status, subtotal, delivery_fee, total }
+    GW-->>APC: { data: { createOrder: { reference_number, ... } } }
+    APC-->>FE: { data, loading: false }
+    FE-->>User: Order Confirmed · AKR-20260425-0042
+
+    Note over FE,Sentry: Sentry captures unhandled errors at all three layers (Phase 2 — not yet active)
 ```
 
 ---
