@@ -23,9 +23,10 @@
 2. Add `resolvers/[feature].ts` — annotate each resolver with the `API_PATHS` key it uses
 3. Add path to `API_PATHS` in `index.ts`
 4. Add codegen entry in `codegen.ts`
-5. Run `npm run codegen` — verify `src/__generated__/[feature].ts` is generated
-6. Run `npm start` — verify server starts without errors
-7. Send a test query in Apollo Sandbox — verify the resolver returns real data
+5. For every new GraphQL type that maps directly to a backend model, add an entry to `graphql-gateway/scripts/validate-config.js` — gateway-only types (e.g. wrapper/grouping types) are intentionally excluded
+6. Run `npm run codegen` — verify `src/__generated__/[feature].ts` is generated
+7. Run `npm start` — verify server starts without errors
+8. Send a test query in Apollo Sandbox — verify the resolver returns real data
 
 ## Contract Rules
 
