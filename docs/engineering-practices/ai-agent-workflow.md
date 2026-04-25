@@ -186,6 +186,25 @@ flowchart TD
 
 ---
 
+## Implementation Constraint — Selective Context Loading
+
+The outer loop diagram shows what needs to happen, not that one agent loads everything simultaneously. Loading Sentry logs + source files + historical issues + documentation in one pass will hit context limits on complex incidents and degrade reasoning quality.
+
+The rule: **start lean, load incrementally, stop when the root cause is found.**
+
+```
+Load only the error summary
+  → points to a service — load only that service's source file
+  → points to a recent commit — load only that diff
+  → root cause found — generate fix for that file only
+```
+
+Simple incidents stay cheap. Complex ones load more only if needed. See [`docs/phase2/agentic-workflows.md`](../phase2/agentic-workflows.md) for the full context window design rules, agent guardrails (security, blast radius, cost caps), and the operational incident loop design.
+
+> **Note:** Splitting into multiple specialised agents is not the solution to context bloat. It adds coordination overhead and lossy handoff between agents. Disciplined incremental context loading by one agent is the right approach — as documented in `agentic-workflows.md`.
+
+---
+
 ## Note on Future Repo Split
 
 When frontend and backend move to separate repositories, each team copies this file and updates the CI tool names in the inner loop diagram for their stack. The two-loop structure, signal sources, investigation phase, and agent behaviour rules apply equally to both teams.
