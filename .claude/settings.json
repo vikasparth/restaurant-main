@@ -4,7 +4,7 @@
       "type": "stdio",
       "command": "backend/venv/Scripts/python.exe",
       "args": ["backend/mcp_server.py"],
-      "cwd": "c:\\Users\\vikas\\web-projects\\restaurant_main_project"
+      "cwd": "C:\\Users\\vikas\\web-projects\\restaurant_main_project"
     }
   }
 }

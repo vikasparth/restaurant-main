@@ -19,8 +19,8 @@ async def get_recent_commits(count: int = 5):
 
         return [
             {
-                "sha": c["sha"][:7],
-                "message": c["commit"]["message"].splitlines()[0],
+                "sha": c["sha"][:7],  # short SHA — 7 chars matches what GitHub UI displays
+                "message": c["commit"]["message"].splitlines()[0],  # subject line only — commit messages have subject + blank line + body
                 "author": c["commit"]["author"]["name"],
                 "committed_at": c["commit"]["author"]["date"],
             }

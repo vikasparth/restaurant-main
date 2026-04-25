@@ -112,6 +112,11 @@ You MUST:
 - Avoid deeply nested code — prefer early returns and guard clauses.
 - Delete dead code; do not comment it out.
 
+### Comments
+- Comment the **WHY**, never the WHAT. Code already says what it does — a comment restating it is noise.
+- Add a comment only when a competent engineer reading cold would be confused or make a wrong assumption without it: a non-obvious value, a hidden constraint, a subtle invariant, or a workaround that looks like it could be simplified but can't.
+- Format: short inline comment on the relevant line — `# reason why, not what`.
+
 ### API & Services
 - All API calls go through a dedicated service layer (not directly in components).
 - Validate inputs at API boundaries.
