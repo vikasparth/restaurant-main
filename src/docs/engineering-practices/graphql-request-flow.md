@@ -33,18 +33,37 @@ GraphQL uses POST for everything. The GET vs POST distinction only appears in th
 
 ## Example 1 — Query (menu fetch)
 
-React asks for data. Gateway calls a GET endpoint on the backend.
+React asks for data. Full path from browser open to menu rendered on screen.
 
 ```mermaid
 sequenceDiagram
+    actor User
     participant B as Browser
-    participant GW as Gateway
-    participant BE as FastAPI
+    participant Vercel as Vercel (file server)
+    participant APC as Apollo Client (browser)
+    participant GW as GraphQL Gateway
+    participant BE as FastAPI Backend
+    participant DB as Supabase PostgreSQL
 
-    B->>GW: POST /graphql · { query: "{ menu { categories { name } } }" }
+    User->>B: types your URL
+    B->>Vercel: GET /
+    Vercel-->>B: index.html + React JS bundle
+    Note over B: React boots inside the browser tab — Vercel's job is done
+
+    User->>B: clicks Menu link
+    Note over B: React Router handles navigation — no server request
+    B->>APC: MenuPage renders · useQuery(GET_MENU) fires
+    Note over APC: cache miss — not fetched before
+    APC->>GW: POST /graphql · { query: "{ menu { categories { name items { ... } } } }" }
     GW->>BE: GET /api/menu
+    BE->>DB: SELECT * FROM menu_items WHERE is_available = true
+    DB-->>BE: rows
     BE-->>GW: 200 { categories: [...] }
-    GW-->>B: { data: { menu: { categories: [...] } } }
+    GW->>GW: filter — keep only fields React asked for
+    GW-->>APC: { data: { menu: { categories: [...] } } }
+    APC->>APC: store result in cache
+    APC-->>B: { data, loading: false }
+    B-->>User: menu renders on screen
 ```
 
 **Frontend code:**
@@ -68,18 +87,39 @@ Query: {
 
 ## Example 2 — Mutation (place order)
 
-React sends data. Gateway calls a POST endpoint on the backend.
+React sends data. Full path from page load to order confirmation on screen.
 
 ```mermaid
 sequenceDiagram
+    actor User
     participant B as Browser
-    participant GW as Gateway
-    participant BE as FastAPI
+    participant Vercel as Vercel (file server)
+    participant APC as Apollo Client (browser)
+    participant GW as GraphQL Gateway
+    participant BE as FastAPI Backend
+    participant DB as Supabase PostgreSQL
+    participant Email as Resend
+    participant WA as Twilio WhatsApp
 
-    B->>GW: POST /graphql · { mutation: "createOrder(input: { ... })" }
+    User->>B: opens order page
+    B->>Vercel: GET /
+    Vercel-->>B: index.html + React JS bundle
+    Note over B: React boots inside the browser tab — Vercel's job is done
+    Note over B: user fills in name, items, date, time
+
+    User->>B: clicks Place Order
+    B->>APC: useMutation fires · createOrder({ variables: { input: {...} } })
+    Note over APC: mutations always skip cache — goes to network
+    APC->>GW: POST /graphql · { mutation: "createOrder(input: { ... })" }
     GW->>BE: POST /api/orders · { customer, items, schedule }
-    BE-->>GW: 201 { reference_number, status, total }
-    GW-->>B: { data: { createOrder: { reference_number, ... } } }
+    BE->>DB: validate items · fetch config · INSERT order
+    DB-->>BE: order saved · reference_number generated
+    BE->>Email: send confirmation email
+    BE->>WA: send owner WhatsApp alert
+    BE-->>GW: { reference_number, status, subtotal, total }
+    GW-->>APC: { data: { createOrder: { reference_number, ... } } }
+    APC-->>B: { data, loading: false }
+    B-->>User: Order Confirmed screen · AKR-20260425-0042
 ```
 
 **Frontend code:**
@@ -126,31 +166,38 @@ End-to-end view including caching behaviour and the browser/server boundary.
 ```mermaid
 sequenceDiagram
     actor User
-    participant Comp as React Component
-    participant Hook as useMutation hook
+    participant Vercel as Vercel (file server)
+    participant B as Browser · React
     participant APC as Apollo Client (browser)
-    participant GW as Apollo Server (gateway)
-    participant BE as FastAPI Backend
+    participant GW as Apollo Server · Gateway
+    participant BE as FastAPI Backend · Render
+    participant DB as Supabase PostgreSQL
+    participant Email as Resend
+    participant WA as Twilio WhatsApp
 
-    Note over User,APC: Runs in the user's browser tab
-    Note over GW: Runs on Vercel Node.js
-    Note over BE: Runs on Render Python
+    Note over Vercel,B: Page load — happens once per visit
+    User->>B: opens order page
+    B->>Vercel: GET /
+    Vercel-->>B: index.html + React JS bundle
+    Note over B: React boots — Vercel's job is done
+    Note over B: user fills form
 
-    User->>Comp: clicks Place Order
-    Comp->>Hook: useMutation(CREATE_ORDER)
-    Hook-->>Comp: [createOrder fn, { loading, data }]
-    Comp->>Hook: createOrder({ variables: { input: {...} } })
-    Hook->>APC: execute mutation
+    Note over B,WA: Order submission
+    User->>B: clicks Place Order
+    B->>APC: useMutation fires · createOrder({ variables })
     Note over APC: mutations skip cache — always hits network
     APC->>GW: POST /graphql · { mutation createOrder(input: {...}) }
     GW->>GW: parse · find Mutation.createOrder resolver
     GW->>BE: POST /api/orders · { customer, items, schedule }
-    BE-->>GW: { reference_number, status, total }
+    BE->>DB: validate items · fetch config · INSERT order
+    DB-->>BE: saved · reference_number generated
+    BE->>Email: send confirmation email
+    BE->>WA: send owner WhatsApp alert
+    BE-->>GW: { reference_number, status, subtotal, total }
     GW->>GW: filter to fields React asked for
     GW-->>APC: { data: { createOrder: { reference_number, ... } } }
-    APC-->>Hook: { data, loading: false }
-    Hook-->>Comp: { reference_number }
-    Comp-->>User: Order Confirmed screen
+    APC-->>B: { data, loading: false }
+    B-->>User: Order Confirmed · AKR-20260425-0042
 ```
 
 ---
