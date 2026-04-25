@@ -2,12 +2,6 @@ name: CI
 
 on:
   pull_request:
-    paths:
-      - "src/**"
-      - "graphql-gateway/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/**"
 
 
 concurrency:
