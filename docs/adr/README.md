@@ -13,3 +13,4 @@ Each ADR records what changed, why, and what the consequences are.
 | [0006](0006-notifications-feature-flag.md) | Notifications feature flag | 2026-04-14 | Accepted |
 | [0007](0007-monitoring-alert-channels.md) | Monitoring alert channels — GitHub Issues + email (not WhatsApp) | 2026-04-14 | Accepted |
 | [0008](0008-monitor-skill-architecture.md) | Monitor skill architecture — layered sub-skills + structured runbook | 2026-04-16 | Accepted |
+| [0009](0009-graphql-inspector-ci-approach.md) | GraphQL Inspector CI — double checkout instead of official GitHub Action | 2026-04-25 | Accepted |
