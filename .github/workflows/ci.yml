@@ -1,14 +1,6 @@
 name: CI
 
 on:
-  push:
-    paths:
-      - "src/**"
-      - "graphql-gateway/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/**"
-
   pull_request:
     paths:
       - "src/**"
