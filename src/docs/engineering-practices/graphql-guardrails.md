@@ -2,7 +2,7 @@
 
 **Scope:** Frontend engineers and the GraphQL gateway (`graphql-gateway/`).
 **Last updated:** 2026-04-24
-**Status:** Schema validator and graphql-inspector are planned (execution-plan items 3.16.7 and 3.16.8). This document describes the target state.
+**Status:** Both layers implemented and active in CI.
 
 ---
 
@@ -30,7 +30,7 @@ flowchart LR
 
 **When it runs:** As a step in GitHub Actions CI on every PR that changes `graphql-gateway/schemas/` or `openapi.json`.
 
-**Script location:** `graphql-gateway/scripts/validate-schema.js` *(to be created)*
+**Script location:** `graphql-gateway/scripts/validate-schema.js`
 
 **What it catches:**
 - A field added to the GraphQL schema but not yet in the backend
@@ -64,6 +64,8 @@ flowchart LR
 - Semantic changes (field renamed to mean something different but same type)
 - Backend behaviour changes that don't affect the schema
 
+**CI implementation:** Uses the `@graphql-inspector/cli` package via a double-checkout pattern — `main` is checked out into `temp-main/` so glob patterns work against local filesystem paths. The official GitHub Action was considered but rejected because it does not support glob patterns (issue open since 2021). See [ADR-0009](../../../docs/adr/0009-graphql-inspector-ci-approach.md) for the full decision.
+
 ---
 
 ## How Both Wire into CI
@@ -82,17 +84,15 @@ flowchart TD
 
 ---
 
-## Current State (2026-04-24)
+## Current State (2026-04-25)
 
 | Item | Status |
 |---|---|
 | `menu.graphql` schema (hand-written) | ✅ Done |
 | Gateway resolver reads from backend | ✅ Done |
 | Frontend `useMenu` hook | ✅ Done |
-| Schema validator script | ⏳ Planned — 3.16.7 |
-| graphql-inspector in CI | ⏳ Planned — 3.16.8 |
-
-Until the validator is in place, schema drift is caught only during manual testing. The validator closes this gap.
+| Schema validator script | ✅ Done — `graphql-gateway/scripts/validate-schema.js` |
+| graphql-inspector in CI | ✅ Done — double-checkout pattern (see ADR-0009) |
 
 ---
 

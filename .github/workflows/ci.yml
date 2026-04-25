@@ -20,6 +20,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout main branch for schema comparison
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: temp-main
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -30,6 +36,12 @@ jobs:
 
       - name: Validate GraphQL schema
         run: node graphql-gateway/scripts/validate-schema.js
+
+      - name: Check for breaking GraphQL schema changes
+        run: |
+          npx @graphql-inspector/cli diff \
+            "temp-main/graphql-gateway/schemas/**/*.graphql" \
+            "graphql-gateway/schemas/**/*.graphql"
 
       - name: Build
         run: npm run build
