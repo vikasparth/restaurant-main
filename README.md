@@ -126,3 +126,4 @@ Tests are not run pre-commit — they run in CI on pull request.
 3. Frontend: http://localhost:8080 → should load the restaurant website and display the menu
 
 If the menu does not load, check that both servers are running and the `.env` database credentials are correct.
+# test
