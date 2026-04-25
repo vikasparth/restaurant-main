@@ -35,18 +35,16 @@ GraphQL uses POST for everything. The GET vs POST distinction only appears in th
 
 React asks for data. Gateway calls a GET endpoint on the backend.
 
-```
-Browser                    Gateway                   FastAPI
-   │                          │                          │
-   │  POST /graphql            │                          │
-   │  { query: "{ menu }" }   │                          │
-   │─────────────────────────►│                          │
-   │                          │  GET /api/menu           │
-   │                          │─────────────────────────►│
-   │                          │  200 { categories: [] }  │
-   │                          │◄─────────────────────────│
-   │  { data: { menu: {} } }  │                          │
-   │◄─────────────────────────│                          │
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant GW as Gateway
+    participant BE as FastAPI
+
+    B->>GW: POST /graphql · { query: "{ menu { categories { name } } }" }
+    GW->>BE: GET /api/menu
+    BE-->>GW: 200 { categories: [...] }
+    GW-->>B: { data: { menu: { categories: [...] } } }
 ```
 
 **Frontend code:**
@@ -72,22 +70,16 @@ Query: {
 
 React sends data. Gateway calls a POST endpoint on the backend.
 
-```
-Browser                    Gateway                   FastAPI
-   │                          │                          │
-   │  POST /graphql            │                          │
-   │  { mutation:             │                          │
-   │    createOrder({...}) }  │                          │
-   │─────────────────────────►│                          │
-   │                          │  POST /api/orders        │
-   │                          │  { customer, items... }  │
-   │                          │─────────────────────────►│
-   │                          │  201 { reference_number }│
-   │                          │◄─────────────────────────│
-   │  { data: {               │                          │
-   │    createOrder: {        │                          │
-   │      reference_number }} │                          │
-   │◄─────────────────────────│                          │
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant GW as Gateway
+    participant BE as FastAPI
+
+    B->>GW: POST /graphql · { mutation: "createOrder(input: { ... })" }
+    GW->>BE: POST /api/orders · { customer, items, schedule }
+    BE-->>GW: 201 { reference_number, status, total }
+    GW-->>B: { data: { createOrder: { reference_number, ... } } }
 ```
 
 **Frontend code:**
