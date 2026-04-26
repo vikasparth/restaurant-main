@@ -6,6 +6,10 @@ const config: CodegenConfig = {
       schema: "./graphql-gateway/schemas/menu.graphql",
       plugins: ["typescript", "typescript-operations"],
     },
+    "./src/__generated__/orders.ts": {
+      schema: "./graphql-gateway/schemas/orders.graphql",
+      plugins: ["typescript", "typescript-operations"],
+    },
   },
 };
 
