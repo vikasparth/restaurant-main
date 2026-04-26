@@ -39,16 +39,18 @@ React asks for data. Full path from browser open to menu rendered on screen.
 sequenceDiagram
     actor User
     participant B as Browser
-    participant Vercel as Vercel (file server)
+    participant VCDN as Vercel CDN (static files)
     participant APC as Apollo Client (browser)
-    participant GW as GraphQL Gateway
-    participant BE as FastAPI Backend
+    participant GW as GraphQL Gateway (Vercel Node.js)
+    participant BE as FastAPI Backend (Render)
     participant DB as Supabase PostgreSQL
 
+    Note over VCDN,GW: Both hosted on Vercel — different roles
+
     User->>B: types your URL
-    B->>Vercel: GET /
-    Vercel-->>B: index.html + React JS bundle
-    Note over B: React boots inside the browser tab — Vercel's job is done
+    B->>VCDN: GET /
+    VCDN-->>B: index.html + React JS bundle
+    Note over B: React boots inside the browser tab
 
     User->>B: clicks Menu link
     Note over B: React Router handles navigation — no server request
@@ -93,18 +95,20 @@ React sends data. Full path from page load to order confirmation on screen.
 sequenceDiagram
     actor User
     participant B as Browser
-    participant Vercel as Vercel (file server)
+    participant VCDN as Vercel CDN (static files)
     participant APC as Apollo Client (browser)
-    participant GW as GraphQL Gateway
-    participant BE as FastAPI Backend
+    participant GW as GraphQL Gateway (Vercel Node.js)
+    participant BE as FastAPI Backend (Render)
     participant DB as Supabase PostgreSQL
     participant Email as Resend
     participant WA as Twilio WhatsApp
 
+    Note over VCDN,GW: Both hosted on Vercel — different roles
+
     User->>B: opens order page
-    B->>Vercel: GET /
-    Vercel-->>B: index.html + React JS bundle
-    Note over B: React boots inside the browser tab — Vercel's job is done
+    B->>VCDN: GET /
+    VCDN-->>B: index.html + React JS bundle
+    Note over B: React boots inside the browser tab
     Note over B: user fills in name, items, date, time
 
     User->>B: clicks Place Order
@@ -166,20 +170,22 @@ End-to-end view including caching behaviour and the browser/server boundary.
 ```mermaid
 sequenceDiagram
     actor User
-    participant Vercel as Vercel (file server)
+    participant VCDN as Vercel CDN (static files)
     participant B as Browser · React
     participant APC as Apollo Client (browser)
-    participant GW as Apollo Server · Gateway
-    participant BE as FastAPI Backend · Render
+    participant GW as GraphQL Gateway (Vercel Node.js)
+    participant BE as FastAPI Backend (Render)
     participant DB as Supabase PostgreSQL
     participant Email as Resend
     participant WA as Twilio WhatsApp
 
-    Note over Vercel,B: Page load — happens once per visit
+    Note over VCDN,GW: Both hosted on Vercel — different roles
+
+    Note over VCDN,B: Page load — happens once per visit
     User->>B: opens order page
-    B->>Vercel: GET /
-    Vercel-->>B: index.html + React JS bundle
-    Note over B: React boots — Vercel's job is done
+    B->>VCDN: GET /
+    VCDN-->>B: index.html + React JS bundle
+    Note over B: React boots inside the browser tab
     Note over B: user fills form
 
     Note over B,WA: Order submission
