@@ -8,4 +8,7 @@ export const BACKEND_URL = process.env.BACKEND_URL;
 
 export const API_PATHS = {
   menu: "/api/menu",
+  orders: "/api/orders",
+  reservations: "/api/reservations",
+  deliveryValidate: "/api/delivery/validate",
 } as const;

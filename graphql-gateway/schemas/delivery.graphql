@@ -1,0 +1,12 @@
+input ValidateZipInput {
+  zip_code: String!
+}
+
+type DeliveryValidateResponse {
+  is_covered: Boolean!
+  city: String
+}
+
+type Query{
+    validateZip(input: ValidateZipInput!): DeliveryValidateResponse!
+}

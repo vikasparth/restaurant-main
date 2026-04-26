@@ -1,0 +1,33 @@
+input OrderItemInput{
+menu_item_id: String!
+quantity: Int!
+}
+
+input CreateOrderInput{
+idempotency_key: String!
+customer_name: String!
+customer_email: String!
+customer_phone: String!
+order_type: String!
+scheduled_date: String!
+scheduled_time: String!
+items: [OrderItemInput!]!
+delivery_address: String
+delivery_zip: String
+special_instructions: String
+}
+
+type OrderResponse{
+reference_number: String!
+status: String!
+order_type: String!
+scheduled_date: String!
+scheduled_time: String!
+subtotal: Float!
+delivery_fee: Float!
+total: Float!
+}
+
+type Mutation {
+createOrder(input: CreateOrderInput!): OrderResponse!
+}
