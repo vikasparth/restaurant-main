@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 import { toast } from "sonner";
 import WhatsAppButton from "@/components/WhatsAppButton";
-import { validateZip } from "@/services/deliveryService";
+import { useValidateZip } from "@/features/delivery/hooks/useValidateZip";
 import { useCreateOrder } from "@/features/orders/hooks/useCreateOrder";
 
 const timeSlots = [
@@ -45,6 +45,7 @@ const OrderPage = () => {
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [createOrder, { data, loading }] = useCreateOrder();
+  const [validateZip] = useValidateZip();
 
   const deliveryFee = mode === "delivery" ? 4.99 : 0;
   const grandTotal = totalPrice + deliveryFee;
@@ -53,10 +54,12 @@ const OrderPage = () => {
     if (!zip.trim()) return;
     setZipStatus("checking");
     try {
-      const result = await validateZip(zip);
-      if (result.is_covered) {
+      const { data: zipData } = await validateZip({
+        variables: { input: { zip_code: zip.trim() } },
+      });
+      if (zipData?.validateZip.is_covered) {
         setZipStatus("covered");
-        setZipCity(result.city);
+        setZipCity(zipData.validateZip.city ?? null);
       } else {
         setZipStatus("not_covered");
         setZipCity(null);
@@ -139,6 +142,10 @@ const OrderPage = () => {
                 <span>${order.delivery_fee.toFixed(2)}</span>
               </div>
             )}
+            <div className="flex justify-between font-semibold text-foreground border-t border-border pt-1">
+              <span>Status</span>
+              <span>{order.status}</span>
+            </div>
             <div className="flex justify-between font-semibold text-foreground border-t border-border pt-1">
               <span>Total</span>
               <span>${order.total.toFixed(2)}</span>

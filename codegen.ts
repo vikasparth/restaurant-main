@@ -10,6 +10,14 @@ const config: CodegenConfig = {
       schema: "./graphql-gateway/schemas/orders.graphql",
       plugins: ["typescript", "typescript-operations"],
     },
+    "./src/__generated__/reservations.ts": {
+      schema: "./graphql-gateway/schemas/reservations.graphql",
+      plugins: ["typescript", "typescript-operations"],
+    },
+    "./src/__generated__/delivery.ts": {
+      schema: "./graphql-gateway/schemas/delivery.graphql",
+      plugins: ["typescript", "typescript-operations"],
+    },
   },
 };
 

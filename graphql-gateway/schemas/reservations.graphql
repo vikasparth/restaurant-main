@@ -1,0 +1,25 @@
+
+input CreateReservationInput{
+  idempotency_key: String!
+  customer_name: String!
+  customer_email: String
+  customer_phone: String!
+  party_size: Int!
+  reserved_date: String!  # "YYYY-MM-DD"
+  reserved_time: String!  # "HH:MM"
+  notes: String
+}
+
+type ReservationResponse {
+  reference_number: String!
+  status: String!
+  party_size: Int!
+  reserved_date: String!
+  reserved_time: String!
+}
+
+type Mutation{
+    createReservation(input: CreateReservationInput!): ReservationResponse!
+}
+
+
