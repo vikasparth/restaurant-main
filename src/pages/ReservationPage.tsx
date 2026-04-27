@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import { useCreateReservation } from "@/features/reservations/hooks/useCreateReservation";
+import { logger } from "@/lib/logger";
 
 const timeSlots = [
   "11:00",
@@ -61,7 +62,8 @@ const ReservationPage = () => {
         },
       });
       toast.success("Reservation confirmed!");
-    } catch {
+    } catch (e) {
+      logger.error("[reservations] failed to create reservation", e);
       toast.error("Something went wrong. Please try again.");
     }
   };
@@ -110,12 +112,13 @@ const ReservationPage = () => {
           <Popover>
             <PopoverTrigger asChild>
               <button
+                aria-label="Select reservation date"
                 className={cn(
                   "flex w-full items-center gap-2 rounded-md border border-input bg-background px-3 py-2.5 text-sm",
                   !date && "text-muted-foreground"
                 )}
               >
-                <CalendarIcon className="h-4 w-4" />
+                <CalendarIcon className="h-4 w-4" aria-hidden="true" />
                 {date ? format(date, "PPP") : "Select a date"}
               </button>
             </PopoverTrigger>
@@ -134,10 +137,19 @@ const ReservationPage = () => {
 
         {/* Time */}
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">Time *</label>
+          <label
+            htmlFor="reservation-time"
+            className="mb-1.5 block text-sm font-medium text-foreground"
+          >
+            Time *
+          </label>
           <div className="relative">
-            <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Clock
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
             <select
+              id="reservation-time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
               className="w-full appearance-none rounded-md border border-input bg-background py-2.5 pl-9 pr-3 text-sm"
@@ -154,10 +166,14 @@ const ReservationPage = () => {
 
         {/* Guests */}
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">
+          <label
+            htmlFor="reservation-guests"
+            className="mb-1.5 block text-sm font-medium text-foreground"
+          >
             Number of Guests *
           </label>
           <select
+            id="reservation-guests"
             value={guests}
             onChange={(e) => setGuests(e.target.value)}
             className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm"
@@ -172,8 +188,14 @@ const ReservationPage = () => {
 
         {/* Name */}
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">Full Name *</label>
+          <label
+            htmlFor="reservation-name"
+            className="mb-1.5 block text-sm font-medium text-foreground"
+          >
+            Full Name *
+          </label>
           <input
+            id="reservation-name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -185,8 +207,14 @@ const ReservationPage = () => {
 
         {/* Phone */}
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">Phone *</label>
+          <label
+            htmlFor="reservation-phone"
+            className="mb-1.5 block text-sm font-medium text-foreground"
+          >
+            Phone *
+          </label>
           <input
+            id="reservation-phone"
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
@@ -198,8 +226,14 @@ const ReservationPage = () => {
 
         {/* Email */}
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">Email</label>
+          <label
+            htmlFor="reservation-email"
+            className="mb-1.5 block text-sm font-medium text-foreground"
+          >
+            Email
+          </label>
           <input
+            id="reservation-email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -210,10 +244,14 @@ const ReservationPage = () => {
 
         {/* Notes */}
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">
+          <label
+            htmlFor="reservation-notes"
+            className="mb-1.5 block text-sm font-medium text-foreground"
+          >
             Special Requests
           </label>
           <textarea
+            id="reservation-notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
@@ -224,6 +262,7 @@ const ReservationPage = () => {
 
         <button
           type="submit"
+          aria-label="Confirm Reservation"
           disabled={loading}
           className="w-full rounded-md bg-primary py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors disabled:opacity-50"
         >

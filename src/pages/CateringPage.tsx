@@ -6,6 +6,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import { fetchMenu } from "@/features/menu/services/menuService";
 import { createCateringOrder } from "@/services/cateringService";
@@ -140,6 +141,7 @@ const CateringPage = () => {
       } else if (code === "ZIP_NOT_COVERED") {
         toast.error("Sorry, we don't deliver to that zip code.");
       } else {
+        logger.error("[catering] failed to create catering order", err);
         toast.error("Something went wrong. Please try again.");
       }
     } finally {
@@ -224,18 +226,20 @@ const CateringPage = () => {
               </p>
               <div className="mt-3 flex items-center gap-3">
                 <button
+                  aria-label={`Remove tray of ${item.name}`}
                   onClick={() => removeTray(item.id)}
                   className="flex h-8 w-8 items-center justify-center rounded border border-border hover:bg-secondary"
                   disabled={trays === 0}
                 >
-                  <Minus className="h-4 w-4" />
+                  <Minus className="h-4 w-4" aria-hidden="true" />
                 </button>
                 <span className="w-6 text-center font-medium">{trays}</span>
                 <button
+                  aria-label={`Add tray of ${item.name}`}
                   onClick={() => addTray(item.id)}
                   className="flex h-8 w-8 items-center justify-center rounded border border-border hover:bg-secondary"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -271,10 +275,14 @@ const CateringPage = () => {
           {/* Contact details */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">
+              <label
+                htmlFor="catering-name"
+                className="mb-1.5 block text-sm font-medium text-foreground"
+              >
                 Full Name *
               </label>
               <input
+                id="catering-name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -283,8 +291,14 @@ const CateringPage = () => {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Phone *</label>
+              <label
+                htmlFor="catering-phone"
+                className="mb-1.5 block text-sm font-medium text-foreground"
+              >
+                Phone *
+              </label>
               <input
+                id="catering-phone"
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -294,8 +308,14 @@ const CateringPage = () => {
             </div>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Email *</label>
+            <label
+              htmlFor="catering-email"
+              className="mb-1.5 block text-sm font-medium text-foreground"
+            >
+              Email *
+            </label>
             <input
+              id="catering-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -306,10 +326,14 @@ const CateringPage = () => {
 
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="sm:col-span-2">
-              <label className="mb-1.5 block text-sm font-medium text-foreground">
+              <label
+                htmlFor="catering-address"
+                className="mb-1.5 block text-sm font-medium text-foreground"
+              >
                 Delivery Address *
               </label>
               <input
+                id="catering-address"
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
@@ -318,8 +342,14 @@ const CateringPage = () => {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Zip Code *</label>
+              <label
+                htmlFor="catering-zip"
+                className="mb-1.5 block text-sm font-medium text-foreground"
+              >
+                Zip Code *
+              </label>
               <input
+                id="catering-zip"
                 type="text"
                 value={zipCode}
                 onChange={(e) => setZipCode(e.target.value)}
@@ -335,12 +365,13 @@ const CateringPage = () => {
               <Popover>
                 <PopoverTrigger asChild>
                   <button
+                    aria-label="Select event date"
                     className={cn(
                       "flex w-full items-center gap-2 rounded-md border border-input bg-background px-3 py-2.5 text-sm",
                       !date && "text-muted-foreground"
                     )}
                   >
-                    <CalendarIcon className="h-4 w-4" />
+                    <CalendarIcon className="h-4 w-4" aria-hidden="true" />
                     {date ? format(date, "PPP") : "Select date"}
                   </button>
                 </PopoverTrigger>
@@ -357,10 +388,19 @@ const CateringPage = () => {
               </Popover>
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Time *</label>
+              <label
+                htmlFor="catering-time"
+                className="mb-1.5 block text-sm font-medium text-foreground"
+              >
+                Time *
+              </label>
               <div className="relative">
-                <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Clock
+                  className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 <select
+                  id="catering-time"
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
                   className="w-full appearance-none rounded-md border border-input bg-background py-2.5 pl-9 pr-3 text-sm"
@@ -377,10 +417,14 @@ const CateringPage = () => {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">
+            <label
+              htmlFor="catering-instructions"
+              className="mb-1.5 block text-sm font-medium text-foreground"
+            >
               Special Instructions
             </label>
             <textarea
+              id="catering-instructions"
               value={specialInstructions}
               onChange={(e) => setSpecialInstructions(e.target.value)}
               rows={3}
@@ -394,6 +438,7 @@ const CateringPage = () => {
           </p>
 
           <button
+            aria-label="Place Catering Order"
             onClick={handleOrder}
             disabled={submitting}
             className="w-full rounded-md bg-primary py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors disabled:opacity-50"

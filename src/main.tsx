@@ -9,6 +9,17 @@ import "./index.css";
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
   environment: import.meta.env.MODE,
+  beforeBreadcrumb(breadcrumb, hint) {
+    // Tailwind class names make auto-generated selectors unreadable — prefer aria-label or id
+    if (breadcrumb.category?.startsWith("ui.")) {
+      const target = hint?.event?.target as HTMLElement | undefined;
+      const label = target?.getAttribute("aria-label") ?? target?.id;
+      if (label) {
+        breadcrumb.message = label;
+      }
+    }
+    return breadcrumb;
+  },
 });
 
 createRoot(document.getElementById("root")!).render(

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import { useValidateZip } from "@/features/delivery/hooks/useValidateZip";
 import { useCreateOrder } from "@/features/orders/hooks/useCreateOrder";
+import { logger } from "@/lib/logger";
 
 const timeSlots = [
   "11:00",
@@ -113,8 +114,9 @@ const OrderPage = () => {
       });
       clearCart();
       toast.success("Order placed successfully!");
-    } catch {
+    } catch (e) {
       toast.error("Something went wrong. Please try again.");
+      logger.error("[orders] failed to create order", e);
     }
   };
 
@@ -169,15 +171,17 @@ const OrderPage = () => {
       <div className="mt-8 flex rounded-lg border border-border bg-secondary p-1">
         <button
           onClick={() => setMode("pickup")}
+          aria-pressed={mode === "pickup"}
           className={cn(
             "flex flex-1 items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-colors",
             mode === "pickup" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"
           )}
         >
-          <Store className="h-4 w-4" /> Pickup
+          <Store className="h-4 w-4" aria-hidden="true" /> Pickup
         </button>
         <button
           onClick={() => setMode("delivery")}
+          aria-pressed={mode === "delivery"}
           className={cn(
             "flex flex-1 items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-colors",
             mode === "delivery"
@@ -185,7 +189,7 @@ const OrderPage = () => {
               : "text-muted-foreground"
           )}
         >
-          <Truck className="h-4 w-4" /> Delivery
+          <Truck className="h-4 w-4" aria-hidden="true" /> Delivery
         </button>
       </div>
 
@@ -217,6 +221,7 @@ const OrderPage = () => {
                 <p className="text-sm text-primary">${(ci.item.price * ci.quantity).toFixed(2)}</p>
               </div>
               <select
+                aria-label={`Quantity for ${ci.item.name}`}
                 value={ci.quantity}
                 onChange={(e) => updateQuantity(ci.item.id, Number(e.target.value))}
                 className="rounded border border-input bg-background px-2 py-1 text-sm"
@@ -228,6 +233,7 @@ const OrderPage = () => {
                 ))}
               </select>
               <button
+                aria-label={`Remove ${ci.item.name}`}
                 onClick={() => removeItem(ci.item.id)}
                 className="text-xs text-destructive hover:underline"
               >
@@ -242,8 +248,14 @@ const OrderPage = () => {
       <div className="mt-6 space-y-4">
         <h2 className="font-serif text-lg font-semibold text-foreground">Your Details</h2>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-foreground">Name *</label>
+          <label
+            htmlFor="customer-name"
+            className="mb-1.5 block text-sm font-medium text-foreground"
+          >
+            Name *
+          </label>
           <input
+            id="customer-name"
             type="text"
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
@@ -253,8 +265,14 @@ const OrderPage = () => {
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Email *</label>
+            <label
+              htmlFor="customer-email"
+              className="mb-1.5 block text-sm font-medium text-foreground"
+            >
+              Email *
+            </label>
             <input
+              id="customer-email"
               type="email"
               value={customerEmail}
               onChange={(e) => setCustomerEmail(e.target.value)}
@@ -263,8 +281,14 @@ const OrderPage = () => {
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Phone *</label>
+            <label
+              htmlFor="customer-phone"
+              className="mb-1.5 block text-sm font-medium text-foreground"
+            >
+              Phone *
+            </label>
             <input
+              id="customer-phone"
               type="tel"
               value={customerPhone}
               onChange={(e) => setCustomerPhone(e.target.value)}
@@ -284,8 +308,14 @@ const OrderPage = () => {
         {mode === "delivery" && (
           <div className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Zip Code *</label>
+              <label
+                htmlFor="delivery-zip"
+                className="mb-1.5 block text-sm font-medium text-foreground"
+              >
+                Zip Code *
+              </label>
               <input
+                id="delivery-zip"
                 type="text"
                 value={zip}
                 onChange={(e) => {
@@ -309,10 +339,14 @@ const OrderPage = () => {
               )}
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">
+              <label
+                htmlFor="delivery-address"
+                className="mb-1.5 block text-sm font-medium text-foreground"
+              >
                 Delivery Address *
               </label>
               <input
+                id="delivery-address"
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
@@ -334,7 +368,7 @@ const OrderPage = () => {
                     !date && "text-muted-foreground"
                   )}
                 >
-                  <CalendarIcon className="h-4 w-4" />
+                  <CalendarIcon className="h-4 w-4" aria-hidden="true" />
                   {date ? format(date, "PPP") : "Select date"}
                 </button>
               </PopoverTrigger>
@@ -351,10 +385,19 @@ const OrderPage = () => {
             </Popover>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Time *</label>
+            <label
+              htmlFor="scheduled-time"
+              className="mb-1.5 block text-sm font-medium text-foreground"
+            >
+              Time *
+            </label>
             <div className="relative">
-              <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Clock
+                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
               <select
+                id="scheduled-time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
                 className="w-full appearance-none rounded-md border border-input bg-background py-2.5 pl-9 pr-3 text-sm"
@@ -390,6 +433,7 @@ const OrderPage = () => {
             <span className="text-primary">${grandTotal.toFixed(2)}</span>
           </div>
           <button
+            aria-label="Place Order"
             onClick={handleOrder}
             disabled={loading}
             className="mt-3 w-full rounded-md bg-primary py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-colors disabled:opacity-50"

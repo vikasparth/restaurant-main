@@ -64,6 +64,42 @@ const payload = {
 - Use custom hooks to encapsulate stateful logic.
 - Avoid inline styles; use Tailwind classes or CSS modules consistently.
 
+## Error Logging — Required in Every Catch Block
+Every catch block that handles a user-facing operation must log to Sentry via `logger.ts`.
+
+```ts
+import { logger } from "@/lib/logger";
+
+} catch (e) {
+  logger.error("[orders] failed to create order", e);
+  toast.error("Something went wrong. Please try again.");
+}
+```
+
+Rules:
+- Message format: `[feature] failed to <operation>` — same pattern as the backend
+- Always pass the original exception as the second argument — Sentry needs it for the stack trace
+- Only log to Sentry for **unknown** errors — expected business errors (e.g. zip not covered) are handled in the UI and do not need Sentry
+- In development `logger.error` calls `console.error`; in production it calls `Sentry.captureException()`
+
+## Accessibility (ARIA) — Required on Every Page
+Every page and component must follow these rules. Accessible names serve three purposes: screen readers, readable Sentry breadcrumbs, and Playwright E2E test selectors.
+
+> `src/main.tsx` has a `beforeBreadcrumb` hook that reads `aria-label` then `id` for all UI events. Without these attributes, Sentry breadcrumbs fall back to unreadable Tailwind class selectors. ARIA must be wired for breadcrumbs to be useful.
+
+| Element | Rule |
+|---|---|
+| `<input>` / `<select>` / `<textarea>` with a visible label | Use `htmlFor`/`id` pair — visual proximity alone is not sufficient |
+| `<input>` / `<select>` without a visible label | Add `aria-label` |
+| `<button>` with static descriptive text (e.g. "Submit") | No `aria-label` needed — text is the accessible name |
+| `<button>` with dynamic text (e.g. loading states: "Place Order" / "Placing Order…") | Add `aria-label` with the stable name — text content changes but the label stays fixed |
+| `<button>` whose text is ambiguous without context (e.g. "Remove") | Add `aria-label` to make it specific (e.g. `aria-label="Remove Butter Chicken"`) |
+| `<button>` with icon only | Add `aria-label` |
+| Toggle buttons that communicate active state | Add `aria-pressed={boolean}` |
+| Decorative icons (Lucide or otherwise) | Add `aria-hidden="true"` |
+
+**Never** use `data-sentry-element` or `data-testid` as substitutes — fix the underlying naming instead.
+
 ## Pre-Commit Checklist (Frontend)
 Before every commit touching frontend code, ALL of the following must pass:
 
