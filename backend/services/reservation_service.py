@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
 
@@ -8,6 +9,8 @@ from core.errors import error_response
 from core.timezone import now_in_restaurant_time
 from services.notification_service import notify_reservation
 from services.reference_service import generate_reference_number
+
+logger = logging.getLogger(__name__)
 
 
 def validate_reservation_time(
@@ -118,6 +121,10 @@ async def create_reservation(db, payload, config: dict) -> JSONResponse:
     )
 
     # Step 5 — fire notifications (failures are logged, never block the response)
+    logger.info(
+        "[reservations] reservation confirmed — reference: %s", reference_number,
+        extra={"event": "reservation_confirmed", "reference": reference_number},
+    )
     await notify_reservation(
         {
             "reference_number": reference_number,
