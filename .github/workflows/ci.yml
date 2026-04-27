@@ -29,7 +29,12 @@ jobs:
         run: npm ci
 
       - name: Validate GraphQL schema
-        run: node graphql-gateway/scripts/validate-schema.js
+        # Run against every schema file so new features are not silently skipped.
+        # Previously this ran only against menu.graphql (the default), so orders/reservations/delivery were never checked.
+        run: |
+          for schema in graphql-gateway/schemas/*.graphql; do
+            SCHEMA_PATH=$schema node graphql-gateway/scripts/validate-schema.js
+          done
 
       - name: Check for breaking GraphQL schema changes
         run: |
