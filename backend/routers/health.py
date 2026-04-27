@@ -1,7 +1,10 @@
+import logging
+
 from fastapi import APIRouter
 from core.database import get_pool
 from fastapi.responses import JSONResponse
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -13,7 +16,7 @@ async def health_check():
             await conn.fetchval("SELECT 1")
         return {"status": "ok"}
     except Exception as e:
-        print(f"[health] database unreachable: {e}")
+        logger.exception("[health] database unreachable")
         return JSONResponse(
             status_code=503,
             content={"status": "unavailable"},
