@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from core.database import get_db
@@ -6,6 +8,7 @@ from services.config_service import get_restaurant_config
 from services.order_service import create_order
 from core.rate_limit import limiter
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 
 
@@ -19,7 +22,7 @@ async def order_create(request: Request, body: OrderCreateRequest, db=Depends(ge
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[orders] unexpected error: {e}")
+        logger.exception("[orders] unexpected error")
         return JSONResponse(
             status_code=503,
             content={

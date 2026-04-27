@@ -2,6 +2,16 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Validate GraphQL Schema",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/graphql-gateway/scripts/validate-schema.js",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "SCHEMA_PATH": "graphql-gateway/schemas/menu.graphql"
+      }
+    },
+    {
       "name": "FastAPI — Debug Backend",
       "type": "debugpy",
       "request": "launch",

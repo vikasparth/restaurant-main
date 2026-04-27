@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
@@ -5,6 +7,7 @@ from core.database import get_db
 from models.delivery import DeliveryValidateRequest, DeliveryValidateResponse
 import services.delivery_service as delivery_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 
 
@@ -16,7 +19,7 @@ async def validate_delivery_zip(request: DeliveryValidateRequest, db=Depends(get
             return DeliveryValidateResponse(is_covered=True, city=result["city"])
         return DeliveryValidateResponse(is_covered=False, city=None)
     except Exception as e:
-        print(f"[delivery] unexpected error: {e}")
+        logger.exception("[delivery] unexpected error:")
         return JSONResponse(
             status_code=503,
             content={

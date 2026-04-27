@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
 
@@ -10,6 +11,8 @@ from services.notification_service import notify_order
 from services.delivery_service import validate_zip
 from services.menu_service import validate_menu_items
 from services.reference_service import generate_reference_number
+
+logger = logging.getLogger(__name__)
 
 
 def validate_scheduled_time(
@@ -207,6 +210,10 @@ async def create_order(db, payload, config: dict) -> JSONResponse:
         )
 
     # Step 9 — fire notifications (failures are logged, never block the response)
+    logger.info(
+        "[orders] order created — reference: %s", reference_number,
+        extra={"event": "order_created", "reference": reference_number},
+    )
     await notify_order(
         {
             "reference_number": reference_number,

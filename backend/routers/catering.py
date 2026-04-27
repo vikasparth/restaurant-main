@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
@@ -8,7 +10,7 @@ from services.config_service import get_restaurant_config
 from core.rate_limit import limiter
 
 router = APIRouter(prefix="/api")
-
+logger = logging.getLogger(__name__)
 
 @router.post("/catering")
 @limiter.limit("20/minute")
@@ -19,7 +21,7 @@ async def catering_create(
         config = await get_restaurant_config(db)
         return await create_catering_order(db, body, config)
     except Exception as e:
-        print(f"[catering] unexpected error: {e}")
+        logger.exception("[catering] unexpected error")
         return JSONResponse(
             status_code=503,
             content={

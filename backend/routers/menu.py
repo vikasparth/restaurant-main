@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
@@ -6,6 +8,7 @@ from models.menu import MenuResponse
 import services.menu_service as menu_service
 
 router = APIRouter(prefix="/api")
+logger = logging.getLogger(__name__)
 
 
 @router.get("/menu", response_model=MenuResponse)
@@ -14,7 +17,7 @@ async def get_menu(db=Depends(get_db)):
         rows = await menu_service.get_menu_items(db)
         return menu_service.group_by_category(rows)
     except Exception as e:
-        print(f"[menu] unexpected error: {e}")
+        logger.exception("[menu] unexpected error")
         return JSONResponse(
             status_code=503,
             content={

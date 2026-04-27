@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
@@ -7,6 +9,7 @@ from services.config_service import get_restaurant_config
 from services.reservation_service import create_reservation
 from core.rate_limit import limiter
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 
 
@@ -22,7 +25,7 @@ async def reservation_create(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[reservations] unexpected error: {e}")
+        logger.exception("[reservations] unexpected error")
         return JSONResponse(
             status_code=503,
             content={

@@ -1,3 +1,4 @@
+import logging
 from datetime import date, datetime, timedelta
 
 from fastapi.responses import JSONResponse
@@ -8,6 +9,8 @@ from core.timezone import now_in_restaurant_time
 from services.delivery_service import validate_zip
 from services.reference_service import generate_reference_number
 from services.notification_service import notify_catering
+
+logger = logging.getLogger(__name__)
 
 
 async def fetch_catering_items(db, items: list) -> list[dict]:
@@ -177,6 +180,10 @@ async def create_catering_order(db, payload, config: dict) -> JSONResponse:
         )
 
     # --- Fire notifications (failures are logged, never block the response) ---
+    logger.info(
+        "[catering] catering order created — reference: %s", reference_number,
+        extra={"event": "catering_order_created", "reference": reference_number},
+    )
     await notify_catering(
         {
             "reference_number": reference_number,

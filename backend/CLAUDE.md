@@ -93,13 +93,16 @@ class StripeWebhookPayload(BaseModel):
 ## Exception Handling Rules
 
 - **Always use `except Exception as e`** — never bare `except Exception:`. Without `as e` the error is invisible in the debugger and in logs.
-- **Always log the exception before returning a generic response** — `print(f"[router_name] unexpected error: {e}")`. Without this a 503 in production leaves no trace in Render logs — the only signal is a status code with no root cause.
+- **Always log the exception before returning a generic response** — `logger.exception("[router_name] unexpected error")`. This captures the full stack trace and `request_id` automatically. Without this a 503 in production leaves no trace — the only signal is a status code with no root cause. See `docs/engineering-practices/logging-strategy.md` for the full logging strategy.
 - **Never swallow exceptions silently in service calls** — if a service raises, let it propagate to the router where it gets logged and handled consistently.
 
 ```python
 # ✅ correct pattern
+import logging
+logger = logging.getLogger(__name__)
+
 except Exception as e:
-    print(f"[menu] unexpected error: {e}")
+    logger.exception("[menu] unexpected error")
     return JSONResponse(status_code=503, content={...})
 
 # ❌ wrong — error invisible in debugger and Render logs
