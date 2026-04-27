@@ -162,9 +162,90 @@ Controlled by `setup_logging()` in `core/logging.py` — no code changes needed.
 
 ---
 
-## Sentry (coming)
+## Frontend Error Monitoring — Sentry
 
-Sentry will be added as part of task 3.7 / 3.14 / 3.16.9. It will automatically
+Sentry captures frontend errors that would otherwise be invisible — no user report,
+no log, no alert.
+
+### The Diagnostic Bar
+
+The purpose of Sentry is not just to know an error happened. It is to give a
+developer or agent enough information to diagnose the root cause and write a fix,
+without needing the user's machine or the codebase author.
+
+Every captured event must answer:
+- **What broke** — which operation, which component
+- **Why** — error message and stack trace pointing to the exact line
+- **Under what conditions** — breadcrumbs showing what the user did before the error
+- **How to reproduce** — browser, OS, page URL
+
+### logger.ts — Explicit Error Reporting
+
+```ts
+logger.error("Failed to submit order — mutation error", e);
+```
+
+- The message must name the operation — not just `"error"` or `"something failed"`
+- Always pass the original exception as the second argument — Sentry needs it for the real stack trace
+- In development: `console.error`. In production: `Sentry.captureException()`
+
+**Bad:** `logger.error("Error", e)`
+
+**Good:** `logger.error("Failed to submit order — mutation error", e)`
+
+### Breadcrumb Configuration — beforeBreadcrumb Hook
+
+Sentry auto-generates UI click breadcrumbs using CSS selectors. With Tailwind, every
+element has many utility classes — selectors become unreadable walls like
+`button.mt-3.w-full.rounded-md.bg-primary...` instead of `Place Order`.
+
+The `beforeBreadcrumb` hook in `src/main.tsx` fixes this by reading `aria-label` or
+`id` when present:
+
+```ts
+beforeBreadcrumb(breadcrumb, hint) {
+  // Tailwind class names make auto-generated selectors unreadable — prefer aria-label or id
+  if (breadcrumb.category?.startsWith("ui.")) {
+    const target = hint?.event?.target as HTMLElement | undefined;
+    const label = target?.getAttribute("aria-label") ?? target?.id;
+    if (label) {
+      breadcrumb.message = label;
+    }
+  }
+  return breadcrumb;
+}
+```
+
+Priority: `aria-label` → `id` → Sentry's default class selector (fallback).
+
+**This is why ARIA must be wired correctly on all interactive elements.** A button
+without `aria-label` or `id` produces an unreadable breadcrumb. A button with
+`aria-label="Place Order"` produces a breadcrumb that reads `Place Order`.
+
+**Principle:** Configure tools to read web standards — never add tool-specific
+attributes (`data-sentry-element`) to HTML to feed a monitoring tool.
+
+### Reference Scenario: Silent Order Failure
+
+A user fills the order form and clicks Submit. The GraphQL mutation succeeds — but
+the success handler reads `response.createOrder.confirmationNumber` when the actual
+GraphQL field is `response.createOrder.reference`. A `TypeError` is thrown silently.
+The user sees nothing. No confirmation, no error message. The developer has no idea
+it happened.
+
+Sentry captures: stack trace pointing to the exact line in `OrderForm.tsx`,
+breadcrumbs showing the full user journey (*navigated to /orders → filled form →
+clicked Submit → crash*), browser, OS, and page URL.
+
+A developer reading only the Sentry report can conclude: *"Line X in `OrderForm.tsx`
+reads `confirmationNumber` — the actual field is `reference`. Fix the field access."*
+The fix is derivable from the Sentry output alone. That is the bar.
+
+---
+
+## Backend Error Monitoring — Sentry (coming)
+
+Sentry will be added to the Python backend as part of task 3.14. It will automatically
 capture every `logger.exception()` call with full stack trace and request context.
 No changes to existing log calls will be needed — Sentry integrates with the
 standard Python `logging` module via a log handler.

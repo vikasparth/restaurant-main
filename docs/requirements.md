@@ -1,7 +1,7 @@
 # Requirements Document — Aap ki Rasoi
 **Version: 1.0**
 **Status: APPROVED — Signed off by Vikas, 2026-04-06**
-**Last updated: 2026-04-06**
+**Last updated: 2026-04-27**
 **Reference:** See `docs/architecture.md` for technical design decisions.
 
 ---
@@ -243,6 +243,16 @@ All of the following are stored in the database and editable by the owner. Nothi
 | CST-01 | Monthly infrastructure cost must be ~$0 during Phase 1 |
 | CST-02 | Only costs incurred on usage: Twilio (~$0.005/WhatsApp message) |
 | CST-03 | Domain (~$10–15/year) required before go-live — not a monthly cost |
+
+### 4.7 Accessibility
+| ID | Requirement |
+|---|---|
+| ACC-01 | All form inputs must be programmatically associated with their visible labels via `htmlFor`/`id` pairs — visual proximity is not sufficient |
+| ACC-02 | All interactive elements without visible descriptive text (icon-only buttons, unlabelled selects) must have an `aria-label` |
+| ACC-03 | Where a button's visible text is ambiguous without context (e.g. "Remove"), `aria-label` must make it specific (e.g. "Remove Butter Chicken") |
+| ACC-04 | Toggle controls that communicate active state must use `aria-pressed` |
+| ACC-05 | Decorative icons must carry `aria-hidden="true"` so screen readers skip them |
+| ACC-06 | Accessible names must be human-readable and operation-specific — they serve three purposes: screen readers, Sentry breadcrumbs, and Playwright E2E test selectors (`getByRole`, `getByLabelText`) |
 
 ---
 
