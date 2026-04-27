@@ -117,3 +117,13 @@ When the backend was originally built, logging was added inconsistently and with
 This gap only surfaced when the user prompted a review of the backend code during a later session. A logging strategy should be established before implementation begins, not retrofitted after the fact. The fix required updating six routers, adding success event logs to three core services, updating `backend/CLAUDE.md`, and creating `docs/engineering-practices/logging-strategy.md` to define layer rules, log structure, and PII guidelines for engineers and GenAI agents.
 
 **Guardrail created:** Before implementing any backend feature, the logging strategy doc (`docs/engineering-practices/logging-strategy.md`) defines what must be logged and where. Every router must use `logger.exception()` for failures; every core business service must log a success event with reference number and structured `extra` fields when a record is created.
+
+---
+
+## Accessibility — ARIA Omitted from UI and Requirements
+
+The frontend UI was being built without ARIA attributes. When the gap surfaced during Sentry breadcrumb debugging — where button identifiers were unreadable walls of Tailwind classes — the initial recommendation was to add `data-sentry-element` attributes to fix the monitoring problem. The user pushed back: coupling HTML to a specific monitoring tool is the wrong solution. The right solution is ARIA, a web standard that exists independently of any tool.
+
+The deeper problem was that accessibility had no presence in the requirements document and no rules in `src/CLAUDE.md`. Without those guardrails, any page built by an engineer or AI agent would have the same gaps — inaccessible to screen readers, unselectable by Playwright, and producing unreadable Sentry breadcrumbs. Retrofitting ARIA across a full application is significantly more expensive than wiring it up correctly from the start.
+
+**Guardrail created:** Added an Accessibility section to `src/CLAUDE.md` defining ARIA rules for every element type, and added ACC-01 through ACC-06 to `docs/requirements.md` as non-functional requirements. The rule: use proper ARIA (`htmlFor`/`id` pairs, `aria-label`, `aria-pressed`, `aria-hidden`) — never tool-specific attributes like `data-sentry-element` or `data-testid` as substitutes.

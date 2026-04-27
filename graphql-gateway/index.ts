@@ -5,6 +5,14 @@ import { menuResolvers } from "./resolvers/menu.js";
 import { orderResolvers } from "./resolvers/orders.js";
 import { reservationResolvers } from "./resolvers/reservations.js";
 import { deliveryValidationResolvers } from "./resolvers/delivery.js";
+import * as Sentry from "@sentry/node";
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV ?? "development",
+  });
+}
 
 const typeDefs = [
   readFileSync("./schemas/menu.graphql", "utf-8"),

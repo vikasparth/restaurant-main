@@ -41,6 +41,7 @@ flowchart LR
 |---|---|
 | [branching-strategy.md](branching-strategy.md) | Feature branch workflow, naming, draft PRs, commit batching, branch protection rules |
 | [ai-agent-workflow.md](ai-agent-workflow.md) | Full development-to-production sequence diagram with all guardrail layers |
+| [logging-strategy.md](logging-strategy.md) | Backend logging layers (routers, services, downstream), log structure, PII rules, frontend Sentry setup and diagnostic bar |
 
 ---
 
