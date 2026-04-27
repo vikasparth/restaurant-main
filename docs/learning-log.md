@@ -107,3 +107,13 @@ runtime for the gateway — and both must be visible in the diagram.
 
 **Principle enforced:** When a platform hosts multiple things, represent each role
 separately. Never collapse two responsibilities into one participant.
+
+---
+
+## Logging — No Consistent Strategy During Original Backend Implementation
+
+When the backend was originally built, logging was added inconsistently and without a deliberate strategy. Routers got `print()` as a quick fix to ensure *something* appeared in Render logs on failure — and this was even codified in `backend/CLAUDE.md` as the correct pattern. Downstream services (email, WhatsApp, notifications) got a proper `logger`, but the core business services — `order_service`, `reservation_service`, `catering_service` — had no logging at all. There was no audit trail for when an order was created, a reservation confirmed, or a catering order submitted.
+
+This gap only surfaced when the user prompted a review of the backend code during a later session. A logging strategy should be established before implementation begins, not retrofitted after the fact. The fix required updating six routers, adding success event logs to three core services, updating `backend/CLAUDE.md`, and creating `docs/engineering-practices/logging-strategy.md` to define layer rules, log structure, and PII guidelines for engineers and GenAI agents.
+
+**Guardrail created:** Before implementing any backend feature, the logging strategy doc (`docs/engineering-practices/logging-strategy.md`) defines what must be logged and where. Every router must use `logger.exception()` for failures; every core business service must log a success event with reference number and structured `extra` fields when a record is created.
