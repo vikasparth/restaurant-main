@@ -2,7 +2,7 @@
 
 **Status: DRAFT**
 **Last updated: 2026-04-28**
-**Reference:** See `docs/agent-architecture.md` for design decisions and access matrix.
+**Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions and access matrix.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
 ---
