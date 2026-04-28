@@ -135,3 +135,13 @@ The frontend UI was being built without ARIA attributes. When the gap surfaced d
 The deeper problem was that accessibility had no presence in the requirements document and no rules in `src/CLAUDE.md`. Without those guardrails, any page built by an engineer or AI agent would have the same gaps — inaccessible to screen readers, unselectable by Playwright, and producing unreadable Sentry breadcrumbs. Retrofitting ARIA across a full application is significantly more expensive than wiring it up correctly from the start.
 
 **Guardrail created:** Added an Accessibility section to `src/CLAUDE.md` defining ARIA rules for every element type, and added ACC-01 through ACC-06 to `docs/requirements.md` as non-functional requirements. The rule: use proper ARIA (`htmlFor`/`id` pairs, `aria-label`, `aria-pressed`, `aria-hidden`) — never tool-specific attributes like `data-sentry-element` or `data-testid` as substitutes.
+
+---
+
+## Technical Debt — Defaulting to Legacy Standards Instead of Fixing Root Cause
+
+When the GraphQL gateway returned 404 on Vercel, the AI diagnosed the problem as poor ESM support and switched the entire gateway from ESM to CommonJS to resolve the symptom. The actual root cause was a one-line tsconfig mismatch — `"type": "module"` in `package.json` paired with `"module": "CommonJS"` in `tsconfig.json`. The correct fix was setting `"module": "NodeNext"` and `"moduleResolution": "NodeNext"`, which is the proper pairing for ESM TypeScript and which Vercel supports correctly. The CommonJS workaround was never tested against the ESM path; it was reached for because it was familiar, not because ESM was genuinely unsupported.
+
+Leaving CommonJS unchallenged would have compounded over time. The Node.js ecosystem is progressively dropping CommonJS — packages like `node-fetch` v3 are already ESM-only. CommonJS also lacks tree-shaking, inflating cold-start bundle sizes in serverless functions, and does not enforce strict module resolution semantics that catch import errors at compile time. The user caught this and pushed for an ESM fix, which worked on the first attempt once the tsconfig was corrected.
+
+**Guardrail created:** Added to `CLAUDE.md` Engineering Principles: avoid technical debt — legacy fallbacks are a last resort. When a modern standard fails, diagnose and fix the root cause first. Only fall back to a legacy approach after exhausting all other paths, and document why when you do.

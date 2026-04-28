@@ -60,6 +60,10 @@ Before designing any solution, consider:
    values that are stable but overridable; require explicit configuration only for
    secrets and environment-specific values.
 
+4. **Avoid technical debt — legacy fallbacks are a last resort.** When a modern standard
+   fails, diagnose and fix the root cause first. Only fall back to a legacy approach
+   (CommonJS, looser types, etc.) after exhausting all other paths. Document why when you do.
+
 ## Design Philosophy — Work Backwards From the User
 
 Before designing or implementing any feature, ask: **who is the customer using this, and what do they need?**
