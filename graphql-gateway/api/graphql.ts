@@ -36,6 +36,8 @@ const server = new ApolloServer({
 await server.start();
 
 const app = express();
-app.use("/", cors<cors.CorsRequest>(), express.json(), expressMiddleware(server));
+app.use(cors<cors.CorsRequest>());
+app.use(express.json());
+app.use(expressMiddleware(server));
 
 export default app;
