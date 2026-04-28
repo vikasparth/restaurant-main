@@ -20,5 +20,4 @@ export const excluded = [
   "OrderResponse",       // /api/orders returns empty schema in openapi.json — move to mappings once backend documents it
   "ReservationResponse", // same gap as OrderResponse
   "CateringResponse",   // same gap as OrderResponse — move to mappings once backend documents it
-  "CateringResponse",
 ];
