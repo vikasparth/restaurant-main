@@ -6,6 +6,7 @@ import { menuResolvers } from "../resolvers/menu.js";
 import { orderResolvers } from "../resolvers/orders.js";
 import { reservationResolvers } from "../resolvers/reservations.js";
 import { deliveryValidationResolvers } from "../resolvers/delivery.js";
+import { cateringResolvers } from "../resolvers/catering.js";
 import * as Sentry from "@sentry/node";
 import "../config.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
@@ -24,11 +25,18 @@ const typeDefs = [
   readFileSync(path.join(__dirname, "../schemas/orders.graphql"), "utf-8"),
   readFileSync(path.join(__dirname, "../schemas/reservations.graphql"), "utf-8"),
   readFileSync(path.join(__dirname, "../schemas/delivery.graphql"), "utf-8"),
+  readFileSync(path.join(__dirname, "../schemas/catering.graphql"), "utf-8"),
 ];
 
 const server = new ApolloServer({
   typeDefs,
-  resolvers: [menuResolvers, orderResolvers, reservationResolvers, deliveryValidationResolvers],
+  resolvers: [
+    menuResolvers,
+    orderResolvers,
+    reservationResolvers,
+    deliveryValidationResolvers,
+    cateringResolvers,
+  ],
 });
 
 await server.start();

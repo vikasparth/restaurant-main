@@ -11,4 +11,5 @@ export const API_PATHS = {
   orders: "/api/orders",
   reservations: "/api/reservations",
   deliveryValidate: "/api/delivery/validate",
+  catering: "/api/catering",
 } as const;

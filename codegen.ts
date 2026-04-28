@@ -18,6 +18,10 @@ const config: CodegenConfig = {
       schema: "./graphql-gateway/schemas/delivery.graphql",
       plugins: ["typescript", "typescript-operations"],
     },
+    "./src/__generated__/catering.ts": {
+      schema: "./graphql-gateway/schemas/catering.graphql",
+      plugins: ["typescript", "typescript-operations"],
+    },
   },
 };
 
