@@ -1,7 +1,7 @@
 # AI Agent Workflow — Development to Production
 
 **Scope:** All engineers and AI agents working in this repository.
-**Last updated:** 2026-04-24
+**Last updated:** 2026-04-27
 
 > **Note on CI tooling:** The inner loop diagram shows frontend tools (Husky, ESLint, TypeScript, Vitest). Backend uses pre-commit framework, Black, Flake8, and pytest. The phases and principles are identical — only the tool names differ. When the repo splits, each team copies this file and updates the tool names for their stack.
 
@@ -53,11 +53,11 @@ sequenceDiagram
 
     rect rgb(220, 255, 220)
         note over CI: Phase 3 — CI Checks
-        CI->>CI: Build check — compile and bundle
-        CI->>CI: Lint check — whole project
-        CI->>CI: Test suite
-        CI->>CI: Future — Schema validator
-        CI->>CI: Future — graphql-inspector
+        CI->>CI: TypeScript compile — zero type errors
+        CI->>CI: ESLint — zero warnings
+        CI->>CI: Frontend build
+        CI->>CI: Schema validator — every GraphQL field vs openapi.json
+        CI->>CI: graphql-inspector — breaking schema changes vs main
         alt Any check fails
             CI-->>GH: Status FAILED
             GH-->>Human: Red cross on PR — merge button locked
@@ -90,17 +90,65 @@ sequenceDiagram
     end
 
     rect rgb(220, 245, 255)
-        note over Prod, Monitor: Phase 6 — Production Monitoring
-        Monitor->>Prod: Canary tests every 50 min
-        alt Canary fails
-            Monitor->>GH: Auto-opens issue — canary-failure label
+        note over Prod, Monitor: Phase 6 — Observation Layer (always on — see diagram below)
+        Prod-->>Monitor: Frontend JS errors → Sentry via logger.ts
+        Prod-->>Monitor: Gateway errors → Sentry via @sentry/node
+        Prod-->>Monitor: Backend errors → Render logs via Python structured logging
+        Monitor->>Prod: Canary tests every 50 min (GitHub Actions)
+        Monitor->>Prod: UptimeRobot HTTP check every 5 min
+        alt Alert condition
+            Monitor->>GH: Auto-opens canary-failure issue
             GH-->>Human: Email notification
-        else Canary recovers
+        else Recovered
             Monitor->>GH: Auto-closes canary-failure issue
         end
-        Prod-->>Monitor: Runtime errors captured by Sentry
+        Monitor-->>Dev: Sentry dashboard — error notifications
     end
 ```
+
+---
+
+## Observation Layer
+
+Three independent logging stacks run continuously in production — one per tier. They are always on, independent of deployment events, and feed directly into the outer loop signal sources.
+
+```mermaid
+flowchart TD
+    subgraph Prod["Production — Three Tiers"]
+        FE["Frontend\nVercel CDN\n@sentry/react"]
+        GW["GraphQL Gateway\nVercel Node.js\n@sentry/node"]
+        BE["Backend\nRender FastAPI\nPython structured logging"]
+    end
+
+    subgraph Obs["Observation Layer (always on)"]
+        SE["Sentry\nFrontend and Gateway errors\nStack traces · ARIA breadcrumbs\nbeforeBreadcrumb hook normalises selectors"]
+        RL["Render Logs\nJSON per request in production\nrequest_id · event · reference\nNever logs PII"]
+        CA["Canary Tests\nGitHub Actions every 50 min\nUptimeRobot every 5 min\nHealth · menu · delivery endpoints"]
+        AI["AI Monitor Agent\ncron-job.org → /api/internal/monitor\nRule-based threshold checks\nTwo consecutive 6h windows"]
+    end
+
+    FE -- "logger.ts → Sentry.captureException()\nOnly unknown errors — expected\nbusiness errors handled in UI" --> SE
+    GW -- "Sentry.init() before Apollo Server\nCaptures unhandled resolver errors" --> SE
+    BE -- "logger.exception() in routers\nlogger.info() in services\nOn every business event" --> RL
+
+    RL --> AI
+    CA -->|"health · menu · delivery"| FE & GW & BE
+
+    SE -->|"new or spiked error"| Alert["Developer notified\nSentry dashboard"]
+    CA -->|"endpoint failure"| Issue["GitHub Issue auto-opened\ncanary-failure label + owner email"]
+    AI -->|"threshold breached"| Issue
+    AI -->|"metrics recover"| Close["GitHub Issue auto-closed"]
+```
+
+### What each stack captures
+
+| Stack | Tool | Captures | Does not capture |
+|---|---|---|---|
+| Frontend | `@sentry/react` + `logger.ts` | Unhandled JS exceptions, explicit `logger.error()` calls | Expected business errors (ZIP not covered, sold out) — those are handled in UI |
+| Gateway | `@sentry/node` | Unhandled resolver errors, uncaught gateway exceptions | GraphQL user errors (those are returned in the `errors` field, not thrown) |
+| Backend | Python `logging` + Render | Every router failure (`logger.exception`), every business event created (`logger.info`) | Frontend and gateway events — each tier owns its own stack |
+| Canary | GitHub Actions + UptimeRobot | Endpoint availability and correctness on a schedule | Silent data corruption, logic errors that still return 200 |
+| AI Monitor | cron-job.org agent | Error rate trends, latency spikes, notification failure patterns | Anything requiring human design judgement |
 
 ---
 
@@ -159,8 +207,8 @@ flowchart TD
 | CI — build | Compile errors, broken imports, missing modules | Runtime logic errors |
 | CI — lint | Lint violations across the whole project | Issues outside lint rule coverage |
 | CI — tests | Unit test regressions | Integration failures, end-to-end behaviour |
-| CI — schema validator *(future)* | GraphQL fields missing from backend openapi.json | Runtime data shape mismatches |
-| CI — graphql-inspector *(future)* | Breaking GraphQL schema changes vs main | Non-breaking drift |
+| CI — schema validator | GraphQL fields missing from backend openapi.json | Runtime data shape mismatches |
+| CI — graphql-inspector | Breaking GraphQL schema changes vs main | Non-breaking drift |
 | Human review | Intent, logic, and design problems | Anything automated checks already cover |
 | Canary + Sentry | Production runtime failures | Pre-production issues |
 | **Agent ops loop** | **Error trends, recurring bugs, doc drift — patterns CI cannot see** | **Issues requiring human design judgement** |
