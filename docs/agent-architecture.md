@@ -14,6 +14,7 @@
 3. **Orchestration layer.** A single orchestrator receives triggers, decides which agents to invoke, and synthesizes findings. Agents do not call each other — all coordination goes through the orchestrator.
 4. **Structured handoffs.** Agents return structured findings (not free-form prose) so the orchestrator and recommendation layer can reliably parse and combine them.
 5. **Read before write.** No agent writes to any external system (GitHub, Sentry, Slack) unless explicitly authorized by the orchestrator. Write access is a deliberate escalation, not a default.
+6. **Human in the loop — always.** Agents recommend; humans decide. No agent takes a write action (posting a comment, opening a PR, modifying configuration) without explicit human approval. The notification mechanism is the bridge between agent output and human decision.
 
 ---
 
@@ -50,10 +51,10 @@
 **Outputs:** root cause statement, confidence level (high/medium/low), recommended fix, suggested runbook section, escalation flag if confidence is low
 
 ### Orchestrator
-**Responsibility:** Receive triggers, route to the right agents, collect findings, pass to Recommendation Agent, deliver final output.
-**Access:** Can invoke all agents; can authorize GitHub Agent to post a comment if confidence is high
-**Inputs:** trigger event (see Trigger Types below)
-**Outputs:** investigation report delivered to the appropriate channel (GitHub issue comment, console, or alert)
+**Responsibility:** Receive triggers, route to the right agents, collect findings, pass to Recommendation Agent, notify the human, and execute approved actions.
+**Access:** Can invoke all agents; can open GitHub Issues and send email (Resend) for notifications; executes write actions only after human approval
+**Inputs:** trigger event (see Trigger Types below); human approval/rejection responses
+**Outputs:** GitHub Issue with investigation findings; email notification for high-confidence findings; approved actions executed post human sign-off
 
 ---
 
@@ -91,8 +92,11 @@ Trigger
   → [if issues found] Render Logs Agent (confirm operational health)
   → [if issues found] Codebase Agent (trace the affected field/path)
   → [if issues found] GitHub Agent (check for recent commits touching the affected area)
-  → Recommendation Agent (synthesize)
-  → Output: alert report with root cause and recommendation
+  → Recommendation Agent (synthesize → confidence level + root cause + recommended fix)
+  → Orchestrator opens GitHub Issue with full findings
+  → [high confidence] Orchestrator sends email notification via Resend
+  → Human reviews → /approve / /reject / /investigate
+  → [approved] Orchestrator executes recommended action
 ```
 
 ### Reactive (GitHub issue / manual)
@@ -103,9 +107,59 @@ Trigger (issue number or symptom)
   → Sentry Agent (find matching errors in the time window of the issue)
   → Render Logs Agent (check operational health at the time of the issue)
   → Codebase Agent (trace the symptom through the stack)
-  → Recommendation Agent (synthesize)
-  → Output: investigation report posted as GitHub issue comment (if authorized)
+  → Recommendation Agent (synthesize → confidence level + root cause + recommended fix)
+  → Orchestrator comments on the GitHub Issue with findings
+  → [high confidence] Orchestrator sends email notification via Resend
+  → Human reviews → /approve / /reject / /investigate
+  → [approved] Orchestrator executes recommended action
 ```
+
+---
+
+## Human in the Loop
+
+No agent recommendation is acted upon without human review. The orchestrator packages the Recommendation Agent's output and notifies the human before taking any write action. The human then approves, rejects, or requests further investigation.
+
+### Notification Channels
+
+| Channel | When used |
+|---|---|
+| GitHub Issue | Primary channel — opened automatically for every investigation that produces a finding; contains full root cause, evidence summary, and recommended action |
+| Email (Resend) | Secondary channel — sent alongside the GitHub Issue for high-confidence findings that require prompt attention |
+
+The GitHub Issue is the record of the investigation. The email is the nudge that a human needs to look at it. Both point to the same issue.
+
+### Confidence-Gated Actions
+
+The Recommendation Agent assigns a confidence level to every output. The orchestrator uses this to determine what the agent does next and what the notification says.
+
+| Confidence | Agent action | Notification content |
+|---|---|---|
+| **High** — root cause clear, fix is bounded | Open GitHub Issue with full diagnosis + specific recommended fix; notify human via email | "Root cause identified. Recommended fix attached. Please approve to proceed." |
+| **Medium** — likely cause known, needs human judgement | Open GitHub Issue with diagnosis and 2–3 proposed approaches; no email | "Likely cause identified. Human judgement needed to choose approach." |
+| **Low** — complex or cross-cutting, root cause unclear | Open GitHub Issue with raw findings and what was ruled out; no email | "Investigation inconclusive. Human investigation required." |
+
+### Human Response Options
+
+When the human reviews the GitHub Issue, they have three options:
+
+- **Approve** — comment `/approve` on the issue; orchestrator proceeds with the recommended action (e.g. posts a fix PR, updates configuration)
+- **Reject** — comment `/reject [reason]`; orchestrator closes the investigation and logs the rejection reason
+- **Request more investigation** — comment `/investigate [additional context]`; orchestrator re-runs with the additional context as input
+
+### Timeout and Escalation
+
+- If no human response within **24 hours** on a high-confidence finding, a reminder email is sent
+- If no response within **48 hours**, the issue is escalated with an `escalation-needed` label
+- The orchestrator never acts on a timeout — it only re-notifies; human approval is required regardless of elapsed time
+
+### What the Agent Can Never Do Without Approval
+
+- Post a comment on a GitHub Issue on behalf of the system
+- Open or close a pull request
+- Modify any configuration file or environment variable
+- Trigger a redeployment
+- Send a notification to a customer-facing channel
 
 ---
 
