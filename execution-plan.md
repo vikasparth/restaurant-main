@@ -1,6 +1,6 @@
 # Execution Plan — Aap ki Rasoi Backend
 **Status: APPROVED — Signed off by Vikas, 2026-04-06**
-**Last updated: 2026-04-24**
+**Last updated: 2026-04-27**
 **Reference:** See `docs/architecture.md` for full design decisions.
 
 ---
@@ -215,7 +215,7 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 | 3.4 | Deploy frontend to Vercel | Connect GitHub repo, vercel.json rewrite to Render URL | ✅ Done 2026-04-13 |
 | 3.5 | End-to-end smoke test | Full order flow on production URLs | ✅ Done 2026-04-13 |
 | 3.6 | Canary monitoring setup | UptimeRobot HTTP check on `/health` every 5 min (unlimited); GitHub Actions runs canary tests every 50 min (~864 min/month, well within free tier); alert to owner email on failure | ✅ Done 2026-04-14 |
-| 3.7 | Sentry setup — frontend | Install `@sentry/browser` in React app; capture page crashes, JS errors, network errors; create `src/lib/logger.ts` utility (`logger.warn` / `logger.error`) so all explicit logging goes to Sentry in production; verify errors appear in Sentry dashboard | ⏳ Pending |
+| 3.7 | Sentry setup — frontend | Install `@sentry/browser` in React app; capture page crashes, JS errors, network errors; create `src/lib/logger.ts` utility (`logger.warn` / `logger.error`) so all explicit logging goes to Sentry in production; verify errors appear in Sentry dashboard | ✅ Done 2026-04-27 |
 | 3.8 | Runbook skeleton | Create `backend/docs/runbook.md` with one entry per monitored metric category; each entry: symptom, likely cause, diagnostic steps, fix; grow incrementally as each monitoring metric is instrumented | ✅ Done 2026-04-14 |
 | 3.9 | Request logging middleware | FastAPI middleware that logs every request (endpoint, method, status code, duration ms) to a `request_logs` DB table; foundation for error rate, latency, throttling, and request count metrics | ✅ Done 2026-04-14 |
 | 3.10 | Notification failure logging | Log Twilio/Resend call results (success/failure, provider, error code) to a `notification_logs` DB table; enables outbound throttling and downstream failure metrics | ✅ Done 2026-04-14 |
@@ -224,7 +224,7 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 | 3.13 | AI monitoring agent — Phase 2 (MCP) | MCP server (`backend/mcp_server.py`) with 6 tools: `check_health_endpoint`, `get_render_logs`, `get_recent_commits`, `query_request_logs`, `query_notification_failures`, `check_provider_status`; registered via `.claude/settings.json`; sub-skills updated to call MCP tools instead of manual steps — Render log review now automatic | ✅ Done 2026-04-16 — ✅ Follow-up resolved 2026-04-16: all sub-skills updated to MCP tool calls; config.py fixed to use `Path(__file__).parent.parent / ".env"` so MCP server loads correct env from any working directory; tools verified working end-to-end via Claude CLI (`health` reachable, Render logs returning real data) — ⚠️ Open: MCP server not connecting in VSCode extension (v2.1.112) — extension appears to ignore `mcpServers` stdio config in `settings.json`; workaround is to run `claude --mcp-config .claude/settings.json` from project root in terminal; needs investigation when VSCode extension is updated |
 | 3.14 | Sentry backend SDK | Install `sentry-sdk[fastapi]`; auto-capture unhandled exceptions with request context (URL, method, correlation ID); correlates with frontend Sentry project; zero additional cost on free tier | ⏳ Pending |
 | 3.15 | Two-team ownership setup | Export `openapi.json`, add contract rules to CLAUDE.md files, create `lovable_project/CLAUDE.md` — see Phase 2 — Two-Team Ownership Setup section for full detail | ⏳ Pending |
-| 3.16 | GraphQL gateway layer | Frontend-owned Apollo Server gateway; Menu fully migrated; remaining features (Orders, Catering, Reservations) still on REST — see Phase 2 section for remaining steps | 🔄 In Progress |
+| 3.16 | GraphQL gateway layer | Frontend-owned Apollo Server gateway; Menu, Orders, Reservations migrated; Catering still on REST — see Phase 2 section for remaining steps | 🔄 In Progress |
 | 3.17 | Homepage dynamic content | `Index.tsx` now reads Meal of the Day and Latest Offers from GraphQL (live menu data); static `menuItems` deleted from `src/data/menu.ts` | ✅ Done 2026-04-24 |
 
 ---
@@ -280,7 +280,7 @@ Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid l
 | DT-6 | Skill: `/design` | ⏳ Pending |
 | DT-7 | Skill: `/spec` | ⏳ Pending |
 | DT-8 | Skill: `/execution-plan` | ⏳ Pending |
-| DT-9 | CI pipeline — GitHub Actions | TypeScript compile + ESLint + frontend build on every push/PR; prerequisite for schema validator and graphql-inspector | ⏳ Pending — **next session** |
+| DT-9 | CI pipeline — GitHub Actions | TypeScript compile + ESLint + frontend build on every push/PR; prerequisite for schema validator and graphql-inspector | ✅ Done 2026-04-24 |
 | DT-10 | Unit + integration tests — menu slice (backend + frontend) | ⏳ Pending |
 
 ---
@@ -297,12 +297,12 @@ Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid l
 | 3.16.4 — Menu resolvers | `graphql-gateway/resolvers/menu.ts` — extracted from index.ts | ✅ Done 2026-04-24 |
 | 3.16.5 — graphql-codegen | `codegen.ts` at repo root; generates `src/__generated__/menu.ts` | ✅ Done 2026-04-24 |
 | 3.16.6 — Menu component migration | `useMenu` hook, `MenuPage.tsx` + `Index.tsx` on GraphQL; static menuItems deleted; `src/features/menu/` feature folder complete | ✅ Done 2026-04-24 |
-| 3.16.7 — CI schema validator | `graphql-gateway/scripts/validate-schema.js` — checks every GraphQL field against `openapi.json`; wired into GitHub Actions (requires DT-9 first) | ⏳ Pending |
-| 3.16.8 — graphql-inspector in CI | Detects breaking schema changes between commits; wired into GitHub Actions | ⏳ Pending |
-| 3.16.9 — Sentry gateway SDK | Add `@sentry/node` to gateway; done alongside 3.7 + 3.14 Sentry session | ⏳ Pending |
-| 3.16.10 — Orders GraphQL migration | Schema + resolver + `useOrders` hook; migrate `OrderPage.tsx` | ⏳ Pending |
+| 3.16.7 — CI schema validator | `graphql-gateway/scripts/validate-schema.js` — checks every GraphQL field against `openapi.json`; wired into GitHub Actions (requires DT-9 first) | ✅ Done 2026-04-25 |
+| 3.16.8 — graphql-inspector in CI | Detects breaking schema changes between commits; wired into GitHub Actions | ✅ Done 2026-04-25 |
+| 3.16.9 — Sentry gateway SDK | Add `@sentry/node` to gateway; done alongside 3.7 + 3.14 Sentry session | ✅ Done 2026-04-27 |
+| 3.16.10 — Orders GraphQL migration | Schema + resolver + `useOrders` hook; migrate `OrderPage.tsx` | ✅ Done 2026-04-26 |
 | 3.16.11 — Catering GraphQL migration | Schema + resolver + `useCatering` hook; migrate `CateringPage.tsx` | ⏳ Pending |
-| 3.16.12 — Reservations GraphQL migration | Schema + resolver + `useReservations` hook; migrate `ReservationPage.tsx` | ⏳ Pending |
+| 3.16.12 — Reservations GraphQL migration | Schema + resolver + `useReservations` hook; migrate `ReservationPage.tsx` | ✅ Done 2026-04-26 |
 
 ### Feature Folder Migration Convention
 Migrate one feature at a time to `src/features/[feature]/` — only when that feature moves to GraphQL. See `src/docs/feature-migration-guide.md` for steps and rollback plan.
