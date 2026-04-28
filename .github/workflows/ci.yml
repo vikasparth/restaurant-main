@@ -57,14 +57,13 @@ jobs:
 
   sentry-release:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Create Sentry release
-        uses: getsentry/sentry-release-action@v1
+      - name: Create Sentry release        uses: getsentry/release-action@v1
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
