@@ -1,7 +1,4 @@
-import { ApolloServer } from "@apollo/server";
-import { expressMiddleware } from "@apollo/server/express4";
-import express from "express";
-import cors from "cors";
+import { ApolloServer, HeaderMap } from "@apollo/server";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -11,6 +8,7 @@ import { reservationResolvers } from "../resolvers/reservations.js";
 import { deliveryValidationResolvers } from "../resolvers/delivery.js";
 import * as Sentry from "@sentry/node";
 import "../config.js";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 if (process.env.SENTRY_DSN) {
   Sentry.init({
@@ -35,9 +33,46 @@ const server = new ApolloServer({
 
 await server.start();
 
-const app = express();
-app.use(cors<cors.CorsRequest>());
-app.use(express.json());
-app.use(expressMiddleware(server));
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // CORS preflight
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
 
-export default app;
+  // Build headers map for Apollo
+  const headers = new HeaderMap();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value !== undefined) {
+      headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+    }
+  }
+
+  // Vercel pre-parses JSON bodies — pass directly to Apollo
+  const result = await server.executeHTTPGraphQLRequest({
+    httpGraphQLRequest: {
+      method: req.method ?? "POST",
+      headers,
+      search: req.url?.includes("?") ? req.url.slice(req.url.indexOf("?")) : "",
+      body: req.body,
+    },
+    context: async () => ({}),
+  });
+
+  res.status(result.status ?? 200);
+  for (const [key, value] of result.headers) {
+    res.setHeader(key, value);
+  }
+
+  if (result.body.kind === "complete") {
+    res.end(result.body.string);
+  } else {
+    for await (const chunk of result.body.asyncIterator) {
+      res.write(chunk);
+    }
+    res.end();
+  }
+}
