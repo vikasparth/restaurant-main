@@ -303,6 +303,9 @@ Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid l
 | 3.16.10 — Orders GraphQL migration | Schema + resolver + `useOrders` hook; migrate `OrderPage.tsx` | ✅ Done 2026-04-26 |
 | 3.16.11 — Catering GraphQL migration | Schema + resolver + `useCatering` hook; migrate `CateringPage.tsx` | ⏳ Pending |
 | 3.16.12 — Reservations GraphQL migration | Schema + resolver + `useReservations` hook; migrate `ReservationPage.tsx` | ✅ Done 2026-04-26 |
+| 3.16.13 — Deploy gateway to Vercel | `graphql-gateway/api/graphql.ts` (Vercel-native handler), `vercel.json` rewrite, switched to CommonJS to fix function detection; 404 still returning — `api/graphql.ts` not being registered as a serverless function; root cause not yet found | 🔄 In Progress |
+| 3.16.14 — Set VITE_GATEWAY_URL in frontend Vercel | Point frontend at deployed gateway URL; fixes blank production page | ⏳ Blocked on 3.16.13 |
+| 3.16.15 — Revert allergens bug in useMenu.ts | Add `allergens` back to the GraphQL query — was deliberately removed for Sentry exercise | ⏳ Pending |
 
 ### Feature Folder Migration Convention
 Migrate one feature at a time to `src/features/[feature]/` — only when that feature moves to GraphQL. See `src/docs/feature-migration-guide.md` for steps and rollback plan.
