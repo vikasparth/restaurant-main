@@ -1,6 +1,9 @@
-# Review Skill
+# PEReview Skill
 
-You are performing a codebase review before a new feature is designed or implemented. Your job is to surface what already exists in the relevant domain so the calling skill or human can make informed decisions — not assumptions.
+You are performing a Principal Engineer review before a new feature is designed or implemented. Your job has two parts:
+
+1. **Codebase inventory** — surface what already exists in the relevant domain so the calling skill or human can make informed decisions, not assumptions.
+2. **Principal Engineer assessment** — evaluate the proposed solution through the lens of a Principal Engineer: architectural consistency, failure modes, operability, coupling, compliance, and technical debt.
 
 This skill is intentionally read-only. It reports. It does not implement, decide, or block.
 
@@ -39,8 +42,10 @@ Once you have the domain and intent, search the codebase using the domain keywor
 - `src/lib/`, `src/utils/`, `backend/utils/`, `backend/core/` — grep for domain keyword and related concepts
 - Note any shared utilities, base classes, mixins, hooks, or helpers that are domain-agnostic but could be relevant
 
-### Dependency Map
-- Always read `backend/specs/DEPENDENCY_MAP.md` — it tracks every service function, tool, and pattern exposed by completed slices. This is the most reliable record of what has been intentionally built.
+### Architecture and Decisions
+- Always read `docs/architecture.md` — understand the established architectural patterns
+- Always read `docs/adr/` — read all ADRs; note any that are relevant to the domain or proposed solution
+- Always read `backend/specs/DEPENDENCY_MAP.md` — tracks every service function, tool, and pattern exposed by completed slices
 
 ### Documentation
 - If the user provided doc locations, read those first
@@ -49,11 +54,9 @@ Once you have the domain and intent, search the codebase using the domain keywor
 
 ---
 
-## Output — Review Report
+## Output — Part 1: Codebase Review Report
 
-Produce the report below in full in the conversation. Both the calling skill and the human must see it before any drafting begins.
-
-All recommendations (reuse, refactor) are advisory — the human decides what to act on.
+Produce this report in full in the conversation before moving to the PE Assessment.
 
 ---
 
@@ -98,25 +101,68 @@ All recommendations (reuse, refactor) are advisory — the human decides what to
 |---|---|---|---|
 | [description] | [file:line] | High / Medium / Low | [context] |
 
-### Recommendations
-> Advisory only — the human decides what to act on.
-
-| Type | Description | Benefit |
-|---|---|---|
-| Refactor | [what to change and where] | [why it would help] |
-| Reuse | [use X instead of building Y] | [avoids duplication] |
-| Caution | [something to be careful about] | [risk if ignored] |
-
 ### Constraints the New Feature Must Respect
 - [hard constraint from existing code, schema, or migration]
+
+---
+
+## Output — Part 2: Principal Engineer Assessment
+
+After the codebase report, apply the PE lens. Read the ADRs and architecture doc before producing this section.
+
+---
+
+## Principal Engineer Assessment: [Domain]
+
+### Architectural Consistency
+> Does the proposed solution follow the patterns already established in the codebase and ADRs?
+
+| Pattern / Decision | Status | Notes |
+|---|---|---|
+| [existing pattern or ADR] | Consistent / Contradicts / N/A | [what aligns or conflicts] |
+
+**ADR conflict flag:** [Yes — contradicts ADR-XXXX / No conflicts found]
+> If yes: a new ADR is required before proceeding. State which decision needs to be recorded.
+
+### The 7 PE Questions
+
+Answer each question based on what you found in the codebase and proposed solution:
+
+1. **Failure mode** — What breaks first and how badly does it propagate? What is the blast radius?
+2. **Future options** — Does this decision close off future options or keep them open?
+3. **Scale** — What does this look like at 10x load or 10x team size? Where does it break?
+4. **Operability** — Who operates this at 2am? What do they need to diagnose it? Is that documented?
+5. **Coupling** — What hidden dependencies or tight coupling does this introduce?
+6. **Compliance** — Does this touch user data, customer records, or any PII/PHI? Has that been flagged?
+7. **Technical debt** — Is this the right solution or a workaround? If a workaround, is the root cause documented?
+
+### Risk Summary
+
+| Risk | Severity | Recommendation |
+|---|---|---|
+| [description] | High / Medium / Low | [what to do about it] |
+
+### Overall Verdict
+
+**Recommendation:** Approve / Approve with conditions / Reject
+**Confidence:** High / Medium / Low
+**Conditions (if any):** [what must be true before proceeding]
+**ADR required:** Yes / No — [which decision needs recording]
+
+### What This Review Did Not Cover
+> Be explicit about blind spots — what would need further investigation before full confidence.
+
+- [limitation or gap in this review]
 
 ---
 
 ## Behaviour Rules
 
 - **Read before reporting.** Never guess what exists — open the files and read them.
+- **Read the ADRs before the PE Assessment.** The assessment is meaningless without knowing prior decisions.
 - **If nothing is found in a section**, say so explicitly: "Nothing found in [location] for this domain."
-- **Flag conflicts clearly.** Use the conflicts table — never bury a conflict in a paragraph.
+- **Flag conflicts clearly.** Use the conflicts table and the ADR conflict flag — never bury a conflict in a paragraph.
 - **All file references must include line numbers** so the human can navigate directly.
 - **Recommendations are advisory.** Label them clearly. Never block the calling skill or the human from proceeding.
 - **Do not proceed past the report.** The calling skill or human decides what happens next.
+- **Never write code or implement.** This skill reviews and assesses only.
