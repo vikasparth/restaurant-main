@@ -1,3 +1,4 @@
+import sentry_sdk
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,6 +9,8 @@ from core.database import connect, disconnect
 from core.errors import register_error_handlers
 from core.logging import logger, setup_logging
 from core.middleware import RequestLoggingMiddleware
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+
 
 from core.rate_limit import (
     limiter,
@@ -32,6 +35,16 @@ async def lifespan(app: FastAPI):
     await disconnect()
     logger.info("Shutting down Aap ki Rasoi API")
 
+# Must init before FastAPI app — FastApiIntegration patches request handling at import time
+sentry_sdk.init(
+    dsn=settings.sentry_dsn,
+    integrations=[FastApiIntegration()],
+    traces_sample_rate=0.2,
+    release=settings.git_commit_sha,
+    environment=settings.environment,
+)
+
+
 
 # ---------------------------------------------------------------------------
 # App
@@ -41,6 +54,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
 
 # Rate limiter state attached to app
 app.state.limiter = limiter
