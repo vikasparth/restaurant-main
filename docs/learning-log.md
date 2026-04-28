@@ -19,6 +19,14 @@ validator loops over all of them automatically.
 **Principle enforced:** Never hardcode domain-specific values into a script that
 needs to work across all domains. Use configuration.
 
+## Validators Must Fail Loudly and Cover All Cases
+
+When the GraphQL schema validator was first wired into CI, it had two silent escape hatches: it only ran against `menu.graphql` by default, leaving every other schema file unchecked, and when it found an object type with no mapping in `validate-config.js` it emitted a warning rather than exiting with a non-zero code. Both meant the validator could pass CI while silently missing drift between the GraphQL schema and the backend OpenAPI contract — the exact problem it was built to catch.
+
+The fix was two changes to `ci.yml`: loop over all `schemas/*.graphql` files so new features are never silently skipped, and make the unmapped-type check a hard failure (`process.exit(1)`) so a missing config entry blocks the PR rather than just printing a message.
+
+**Guardrail created:** A validator that warns instead of failing, or that skips files by default, is not a validator — it is noise. Any new schema file must be covered automatically, and any coverage gap must be a CI failure.
+
 ---
 
 ## Comments — Code was labelled "self-documenting" to avoid writing WHY

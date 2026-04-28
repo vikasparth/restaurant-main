@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse
 
@@ -10,6 +12,7 @@ from services.monitor_service import (
     run_monitor,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/internal")
 
 
