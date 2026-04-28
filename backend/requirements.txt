@@ -30,6 +30,9 @@ twilio==9.4.3
 # Logging
 python-json-logger==3.2.1
 
+#Sentry
+sentry-sdk[fastapi]==2.25.1
+
 # HTTP client (GitHub API calls in monitor_service)
 httpx==0.28.1
 

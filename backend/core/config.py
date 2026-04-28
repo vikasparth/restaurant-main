@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     monitor_latency_p95_threshold_ms: int = 2000
     monitor_notification_failure_threshold: int = 2
 
+    # --- Sentry ---
+    sentry_dsn: str = ""
+    git_commit_sha: str = ""  # injected by Render as RENDER_GIT_COMMIT
+
+
     # --- GitHub (monitoring alerts) ---
     github_token: str = ""
     github_repo: str = ""
