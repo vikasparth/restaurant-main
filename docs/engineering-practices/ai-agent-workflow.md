@@ -1,7 +1,9 @@
 # AI Agent Workflow — Development to Production
 
 **Scope:** All engineers and AI agents working in this repository.
-**Last updated:** 2026-04-27
+**Last updated:** 2026-04-28
+**Agent architecture:** See `docs/agent-architecture.md` — specialized agents, access matrix, orchestration layer, and least privilege design.
+**Agent implementation plan:** See `docs/agent-execution-plan.md` — phases, tasks, and validation scenarios.
 
 > **Note on CI tooling:** The inner loop diagram shows frontend tools (Husky, ESLint, TypeScript, Vitest). Backend uses pre-commit framework, Black, Flake8, and pytest. The phases and principles are identical — only the tool names differ. When the repo splits, each team copies this file and updates the tool names for their stack.
 
@@ -167,11 +169,11 @@ flowchart TD
 
     S1 & S2 & S3 & S4 --> A[Agent picks up signal]
 
-    subgraph Research["Investigation Phase"]
-        A --> B1["Read Sentry logs\nStack traces, error frequency,\naffected users"]
-        A --> B2["Read source files\nFiles referenced in stack trace\nor issue description"]
-        A --> B3["Search historical GitHub Issues\nSame or similar error patterns\nfrom the past"]
-        A --> B4["Read documentation and ADRs\nArchitecture decisions, known constraints,\nprevious fix attempts"]
+    subgraph Research["Investigation Phase — Orchestrated Specialized Agents"]
+        A --> B1["Sentry Agent\nStack traces, error frequency,\naffected users — Sentry access only"]
+        A --> B2["Codebase Agent\nFiles referenced in stack trace\nor issue description — filesystem read only"]
+        A --> B3["GitHub Agent\nHistorical issues, recent commits,\nPR merge times — GitHub read only"]
+        A --> B4["Render Logs Agent\nRuntime and startup logs,\noperational health — Render API only"]
     end
 
     B1 & B2 & B3 & B4 --> C{Agent confidence}
@@ -236,20 +238,23 @@ flowchart TD
 
 ## Implementation Constraint — Selective Context Loading
 
-The outer loop diagram shows what needs to happen, not that one agent loads everything simultaneously. Loading Sentry logs + source files + historical issues + documentation in one pass will hit context limits on complex incidents and degrade reasoning quality.
+The outer loop is implemented as a fleet of specialized agents under an orchestration layer, not a single agent that loads everything. Each specialized agent has access only to the systems it needs (least privilege) and loads only what is relevant to its task. See `docs/agent-architecture.md` for the full agent catalog, access matrix, and orchestration flow.
 
-The rule: **start lean, load incrementally, stop when the root cause is found.**
+The rule within each agent: **start lean, load incrementally, stop when the finding is complete.**
 
 ```
-Load only the error summary
-  → points to a service — load only that service's source file
-  → points to a recent commit — load only that diff
-  → root cause found — generate fix for that file only
+Sentry Agent: load only the error summary for the relevant time window
+  → if stack trace points to a file, load only that file's relevant section
+  → return structured findings to the orchestrator — stop there
+
+Codebase Agent: load only the file or symbol named by the orchestrator
+  → trace one level at a time — component → hook → query → resolver
+  → return the trace — stop there
 ```
 
-Simple incidents stay cheap. Complex ones load more only if needed. See [`docs/phase2/agentic-workflows.md`](../phase2/agentic-workflows.md) for the full context window design rules, agent guardrails (security, blast radius, cost caps), and the operational incident loop design.
+Specialization enforces least privilege by design — a Sentry Agent cannot read source files, a Codebase Agent cannot read Sentry. This is a security and reliability property, not just a performance one. The orchestrator synthesizes findings across agents; no single agent needs the full picture.
 
-> **Note:** Splitting into multiple specialised agents is not the solution to context bloat. It adds coordination overhead and lossy handoff between agents. Disciplined incremental context loading by one agent is the right approach — as documented in `agentic-workflows.md`.
+See [`docs/phase2/agentic-workflows.md`](../phase2/agentic-workflows.md) for agent guardrails (security, blast radius, cost caps) and the operational incident loop design.
 
 ---
 

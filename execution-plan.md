@@ -311,6 +311,24 @@ Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid l
 Migrate one feature at a time to `src/features/[feature]/` — only when that feature moves to GraphQL. See `src/docs/feature-migration-guide.md` for steps and rollback plan.
 | Agentic workflows | `docs/phase2/agentic-workflows.md` | Nice to have — evaluate use cases first |
 
+---
+
+## Phase 3 — Agentic Workflows
+
+> Specialized agents with least privilege, orchestration layer, and proactive + reactive monitoring.
+> **Architecture:** `docs/agent-architecture.md` — agent catalog, access matrix, orchestration flow.
+> **Implementation plan:** `docs/agent-execution-plan.md` — full phase breakdown with tasks and validation scenarios.
+> **Workflow context:** `docs/engineering-practices/ai-agent-workflow.md` — outer loop signal sources and agent behaviour rules.
+
+| Task | Detail | Status |
+|---|---|---|
+| Phase A — Prerequisites | Backend Sentry, release tagging in CI, test scenarios file, runbook coverage, Render API access | ⏳ Pending |
+| Phase B — Individual Agents | Sentry Agent, Render Logs Agent, GitHub Agent, Codebase Agent, Recommendation Agent | ⏳ Pending |
+| Phase C — Orchestration Layer | Orchestrator, `/troubleshoot` skill, scheduled proactive check, GitHub write authorization | ⏳ Pending |
+| Phase D — Validation | End-to-end validation against all 5 test scenarios + false positive check | ⏳ Pending |
+
+---
+
 ### Nice to Have — Monitoring
 - [ ] Enhance `check_provider_status` to optionally include account-level delivery logs (Resend `GET /emails`, Twilio `GET /Messages.json`) via `include_logs: bool = False` parameter — gives provider's own view of failures, not just our DB's view
 - [ ] Add 4xx alerting thresholds (429, 404, 422, 401/403) as separate tracked metrics in the monitor service — currently these status codes are visible in `query_request_logs` output but do not trigger alerts
