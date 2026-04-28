@@ -117,5 +117,5 @@ Before deciding, confirm:
 2. Is the chatbot within 6 months, or further out?
 3. Is US-only data residency a requirement, or a preference?
 
-If cold start is not a problem and chatbot is 6+ months away → **Option 1** is sufficient today.  
-If chatbot is within 6 months → **Option 2** avoids a second migration.
+If cold start is not a problem → **Option 1** is sufficient today regardless of chatbot timeline. When the chatbot comes, it deploys as a new Cloudflare Worker independently — no migration of the gateway required.  
+If you prefer all edge services on one platform → **Option 2** consolidates gateway and chatbot on Cloudflare from the start. This is an operational preference, not a technical requirement.
