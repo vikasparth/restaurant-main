@@ -44,12 +44,12 @@ gitGraph
    commit id: "wire up API call"
    commit id: "add validation"
    checkout main
-   merge feature/catering-form id: "PR merged ✓"
+   merge feature/catering-form id: "PR #1 merged ✓"
    branch fix/cart-rounding
    checkout fix/cart-rounding
    commit id: "fix rounding error"
    checkout main
-   merge fix/cart-rounding id: "PR merged ✓"
+   merge fix/cart-rounding id: "PR #2 merged ✓"
 ```
 
 **Step by step:**
