@@ -1,6 +1,7 @@
 import { ApolloServer, HeaderMap } from "@apollo/server";
 import { readFileSync } from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import { menuResolvers } from "../resolvers/menu.js";
 import { orderResolvers } from "../resolvers/orders.js";
 import { reservationResolvers } from "../resolvers/reservations.js";
@@ -8,6 +9,8 @@ import { deliveryValidationResolvers } from "../resolvers/delivery.js";
 import * as Sentry from "@sentry/node";
 import "../config.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 if (process.env.SENTRY_DSN) {
   Sentry.init({
@@ -28,17 +31,9 @@ const server = new ApolloServer({
   resolvers: [menuResolvers, orderResolvers, reservationResolvers, deliveryValidationResolvers],
 });
 
-// top-level await not available in CommonJS — initialise lazily on first request
-let started = false;
-async function ensureStarted() {
-  if (!started) {
-    await server.start();
-    started = true;
-  }
-}
+await server.start();
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  await ensureStarted();
   // CORS preflight
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
