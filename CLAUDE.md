@@ -146,5 +146,7 @@ You MUST:
 - Never commit with `--no-verify` to bypass hooks.
 - Never commit `.env` files, secrets, or API keys.
 - Keep commits small and focused on one concern.
+- **Never use `git add -A` or `git add .`** — always stage files explicitly by name.
+- **If a commit touches more than 3–4 files, stop and split it.** Each commit should be reviewable in under 2 minutes. A new feature touching schema + resolver + types + test is fine; docs + unrelated hooks + config in one shot is not.
 - Use conventional commit prefixes: `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`.
 - Technology-specific pre-commit checklists are in `src/CLAUDE.md` (frontend) and `backend/CLAUDE.md` (backend).
