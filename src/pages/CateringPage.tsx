@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Plus, Minus } from "lucide-react";
 import { format, addHours, isBefore } from "date-fns";
 import { CalendarIcon, Clock } from "lucide-react";
@@ -8,10 +8,10 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
 import WhatsAppButton from "@/components/WhatsAppButton";
-import { fetchMenu } from "@/features/menu/services/menuService";
-import { createCateringOrder } from "@/services/cateringService";
-import type { MenuItem } from "@/features/menu/types";
-import type { CateringCreateResponse } from "@/types/catering";
+import { useMenu } from "@/features/menu/hooks/useMenu";
+import { useCreateCatering } from "@/features/catering/hooks/useCreateCatering";
+import type { CateringResponse } from "@/features/catering/types";
+import type { MenuItem } from "@/__generated__/menu";
 
 interface CateringCartItem {
   itemId: string;
@@ -39,7 +39,12 @@ const timeSlots = [
 ];
 
 const CateringPage = () => {
-  const [cateringItems, setCateringItems] = useState<MenuItem[]>([]);
+  const { data: menuData } = useMenu();
+  const cateringItems = useMemo<MenuItem[]>(
+    () => menuData?.categories.flatMap((c) => c.items).filter((i) => i.catering_available) ?? [],
+    [menuData]
+  );
+  const [createCatering, { loading: submitting }] = useCreateCatering();
   const [cart, setCart] = useState<CateringCartItem[]>([]);
   const [date, setDate] = useState<Date>();
   const [time, setTime] = useState("");
@@ -50,15 +55,7 @@ const CateringPage = () => {
   const [phone, setPhone] = useState("");
   const [specialInstructions, setSpecialInstructions] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
-  const [submitting, setSubmitting] = useState(false);
-  const [cateringResult, setCateringResult] = useState<CateringCreateResponse | null>(null);
-
-  useEffect(() => {
-    fetchMenu().then((data) => {
-      const allItems = data.categories.flatMap((c) => c.items);
-      setCateringItems(allItems.filter((i) => i.catering_available));
-    });
-  }, []);
+  const [cateringResult, setCateringResult] = useState<CateringResponse | null>(null);
 
   const addTray = (id: string) => {
     setCart((prev) => {
@@ -111,21 +108,24 @@ const CateringPage = () => {
       return;
     }
 
-    setSubmitting(true);
     try {
-      const result = await createCateringOrder({
-        idempotency_key: idempotencyKey,
-        customer_name: name.trim(),
-        customer_email: email.trim(),
-        customer_phone: phone.trim(),
-        event_date: format(date, "yyyy-MM-dd"),
-        event_time: time,
-        delivery_address: address.trim(),
-        zip_code: zipCode.trim(),
-        items: cart.map((ci) => ({ item_id: ci.itemId, trays: ci.trays })),
-        special_instructions: specialInstructions.trim() || undefined,
+      const { data } = await createCatering({
+        variables: {
+          input: {
+            idempotency_key: idempotencyKey,
+            customer_name: name.trim(),
+            customer_email: email.trim(),
+            customer_phone: phone.trim(),
+            event_date: format(date, "yyyy-MM-dd"),
+            event_time: time,
+            delivery_address: address.trim(),
+            zip_code: zipCode.trim(),
+            items: cart.map((ci) => ({ item_id: ci.itemId, trays: ci.trays })),
+            special_instructions: specialInstructions.trim() || null,
+          },
+        },
       });
-      setCateringResult(result);
+      setCateringResult(data?.createCatering ?? null);
       setIdempotencyKey(crypto.randomUUID());
       toast.success("Catering order placed!");
     } catch (err) {
@@ -146,8 +146,6 @@ const CateringPage = () => {
         logger.error("[catering] failed to create catering order", err);
         toast.error("Something went wrong. Please try again.");
       }
-    } finally {
-      setSubmitting(false);
     }
   };
 
