@@ -1,0 +1,29 @@
+input CateringItemInput {
+  item_id: String!
+  trays: Int!
+}
+
+input CreateCateringInput {
+  idempotency_key: String!
+  customer_name: String!
+  customer_email: String!
+  customer_phone: String!
+  event_date: String!
+  event_time: String!
+  delivery_address: String!
+  zip_code: String!
+  items: [CateringItemInput!]!
+  special_instructions: String
+}
+
+type CateringResponse {
+  reference_number: String!
+  event_date: String!
+  event_time: String!
+  total_amount: Float!
+  deposit_amount: Float!
+}
+
+type Mutation {
+  createCatering(input: CreateCateringInput!): CateringResponse!
+}
