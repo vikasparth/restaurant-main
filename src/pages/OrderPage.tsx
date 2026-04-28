@@ -45,6 +45,7 @@ const OrderPage = () => {
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [createOrder, { data, loading }] = useCreateOrder();
   const [validateZip] = useValidateZip();
 
@@ -97,7 +98,7 @@ const OrderPage = () => {
       await createOrder({
         variables: {
           input: {
-            idempotency_key: crypto.randomUUID(),
+            idempotency_key: idempotencyKey,
             customer_name: customerName.trim(),
             customer_email: customerEmail.trim(),
             customer_phone: customerPhone.trim(),
@@ -113,6 +114,7 @@ const OrderPage = () => {
         },
       });
       clearCart();
+      setIdempotencyKey(crypto.randomUUID());
       toast.success("Order placed successfully!");
     } catch (e) {
       toast.error("Something went wrong. Please try again.");

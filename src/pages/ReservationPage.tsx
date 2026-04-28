@@ -37,6 +37,7 @@ const ReservationPage = () => {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [createReservation, { data, loading }] = useCreateReservation();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,7 +51,7 @@ const ReservationPage = () => {
       await createReservation({
         variables: {
           input: {
-            idempotency_key: crypto.randomUUID(),
+            idempotency_key: idempotencyKey,
             customer_name: name.trim(),
             customer_email: email.trim() || undefined,
             customer_phone: phone.trim(),
@@ -61,6 +62,7 @@ const ReservationPage = () => {
           },
         },
       });
+      setIdempotencyKey(crypto.randomUUID());
       toast.success("Reservation confirmed!");
     } catch (e) {
       logger.error("[reservations] failed to create reservation", e);

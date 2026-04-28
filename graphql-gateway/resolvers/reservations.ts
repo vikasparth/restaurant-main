@@ -2,7 +2,7 @@ import { BACKEND_URL, API_PATHS } from "../config.js";
 
 export const reservationResolvers = {
   Mutation: {
-    createReservation: async (_, { input }) => {
+    createReservation: async (_: unknown, { input }: { input: unknown }) => {
       const response = await fetch(`${BACKEND_URL}${API_PATHS.reservations}`, {
         method: "POST",
         headers: {
