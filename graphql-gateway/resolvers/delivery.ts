@@ -2,7 +2,7 @@ import { BACKEND_URL, API_PATHS } from "../config.js";
 
 export const deliveryValidationResolvers = {
   Query: {
-    validateZip: async (_, { input }) => {
+    validateZip: async (_: unknown, { input }: { input: unknown }) => {
       const response = await fetch(`${BACKEND_URL}${API_PATHS.deliveryValidate}`, {
         method: "POST",
         headers: {
