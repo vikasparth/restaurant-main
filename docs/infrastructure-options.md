@@ -1,6 +1,6 @@
 # Infrastructure Options — GraphQL Gateway & Chatbot Hosting
 
-**Status:** Awaiting decision  
+**Status:** Decision made — Option 1 selected (2026-04-27)  
 **Author:** AI Agent  
 **Date:** 2026-04-27  
 **Context:** The GraphQL gateway has never been deployed to production. The frontend on Vercel points to `localhost:4000`, causing a blank page in production. A chatbot is on the mid-term roadmap. This document evaluates deployment options before committing to an architecture.
@@ -27,7 +27,7 @@ Deploy the GraphQL gateway as a Vercel serverless function. Keep FastAPI on Rend
 | **Cost** | $0 — Vercel Hobby free, Render free, Cloudflare Workers free (100k req/day) |
 | **Performance** | Gateway: ~100–300ms cold start on first request after idle; Render: 3s wake-up after 15min sleep |
 | **Scalability** | Vercel auto-scales to thousands of concurrent requests; Render free tier is single instance, no auto-scaling |
-| **Limitations** | Vercel Hobby: 10s function timeout — blocks long-running LLM calls; chatbot cannot go through gateway; WebSockets not supported on Vercel serverless |
+| **Limitations** | Vercel Hobby: **10s wall-clock timeout** (counts all I/O wait time) — a chatbot waiting 15s for Claude API response will be cut off; chatbot cannot go through gateway; WebSockets not supported on Vercel serverless |
 | **Compliance** | Vercel: SOC 2 Type 2, GDPR compliant, US data centers; Cloudflare: global edge (data may transit non-US nodes) — review if customer PII in chat history is a concern |
 
 **Best for:** Getting production working today with minimal change. Defer chatbot infrastructure until needed.
@@ -43,7 +43,7 @@ Deploy both the GraphQL gateway and the future chatbot on Cloudflare Workers. Ke
 | **Cost** | $0 — Cloudflare Workers free (100k req/day), Render free |
 | **Performance** | No cold starts — Workers are always warm globally; ~50ms response globally; Render still sleeps (3s wake-up) |
 | **Scalability** | Workers auto-scale globally with no configuration; Render free is single instance |
-| **Limitations** | Workers have 10ms CPU time limit per invocation — I/O bound operations (fetch calls to Render, Claude API) are fine; CPU-heavy processing is not; learning curve for Cloudflare ecosystem |
+| **Limitations** | Workers have **10ms CPU time limit** — this only counts actual JavaScript execution; the timer pauses during I/O (waiting for Render, waiting for Claude API). A chatbot waiting 30s for Claude uses ~5ms CPU. Learning curve for Cloudflare ecosystem |
 | **Compliance** | Cloudflare: global edge network — requests may be processed outside the US; review CCPA implications if chat history is stored; Cloudflare is SOC 2 Type 2 certified |
 
 **Best for:** No cold starts today, single platform for all edge services, natural home for the chatbot when it comes.
@@ -89,7 +89,7 @@ Full replacement: Cloudflare for all edge services, Fly.io for the persistent ba
 | **Cost** | $0 | $0 | $0 | $0 |
 | **Gateway cold start** | Yes (~300ms) | No | Yes (~300ms) | No |
 | **Backend cold start** | Yes (3s) | Yes (3s) | No | No |
-| **Chatbot ready** | When needed | When needed | When needed | When needed |
+| **Chatbot timeout risk** | Yes — 10s wall clock cuts off long LLM responses | No — 10ms CPU only; I/O wait is free | Yes — same as Option 1 | No — same as Option 2 |
 | **WebSocket support** | No | Yes | No | Yes |
 | **Setup complexity** | Low | Medium | High | High |
 | **Platforms to learn** | 1 new | 1 new | 2 new | 2 new |
@@ -119,3 +119,13 @@ Before deciding, confirm:
 
 If cold start is not a problem → **Option 1** is sufficient today regardless of chatbot timeline. When the chatbot comes, it deploys as a new Cloudflare Worker independently — no migration of the gateway required.  
 If you prefer all edge services on one platform → **Option 2** consolidates gateway and chatbot on Cloudflare from the start. This is an operational preference, not a technical requirement.
+
+---
+
+## Decision
+
+**Selected: Option 1** — Vercel (gateway) · Render (FastAPI) · Cloudflare Workers (chatbot, deferred)
+
+**Rationale:** No cold start pain reported on Render today. Cloudflare Workers' global edge introduces data residency uncertainty — requests may be processed outside the US, requiring GDPR/CCPA compliance review before storing any customer PII in Workers KV or logs. Deferring Cloudflare until the chatbot is scoped avoids that compliance work prematurely.
+
+**Revisit when:** chatbot is being scoped — evaluate Cloudflare's Data Processing Addendum and whether a Cloudflare paid plan with US-only routing is justified at that point.
