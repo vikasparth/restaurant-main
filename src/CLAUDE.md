@@ -100,6 +100,32 @@ Every page and component must follow these rules. Accessible names serve three p
 
 **Never** use `data-sentry-element` or `data-testid` as substitutes — fix the underlying naming instead.
 
+## Idempotency Keys — Required on Every Write Form
+
+Any page or component that submits a write operation (order, reservation, catering, or any future mutation) must generate a stable idempotency key using the lazy initializer pattern:
+
+```ts
+const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+```
+
+Rules:
+- **Never** call `crypto.randomUUID()` inside the submit handler — a new UUID on every click means a retry after a timeout creates a duplicate
+- Generate once on mount; reuse the same key for all retries of the same form session
+- After confirmed success, regenerate: `setIdempotencyKey(crypto.randomUUID())`
+- Pass as a field in the mutation input: `idempotency_key: idempotencyKey`
+- The backend deduplicates on this key — the frontend's job is to keep it stable across retries
+
+## Gateway Error UX — Handled Globally
+
+Network and timeout errors are handled globally in `src/lib/apolloClient.ts` via an Apollo `onError` link. **Do not add timeout or network error handling in individual pages or hooks** — it is already wired.
+
+What the global handler does:
+- `503` / `504` on a **mutation** → "Your request timed out — we may not have received it. Please try again or contact us directly."
+- `503` / `504` on a **query** → "Taking longer than expected — the server may be starting up. Please try again in a moment."
+- Any other network error → "Connection problem — please check your connection and try again."
+
+GraphQL errors (business logic errors returned in the response body) are **not** handled here — catch and display those in the component.
+
 ## Pre-Commit Checklist (Frontend)
 Before every commit touching frontend code, ALL of the following must pass:
 
