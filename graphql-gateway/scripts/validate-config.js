@@ -5,6 +5,7 @@
 export const mappings = [
   { graphqlType: "MenuItem", openapiSchema: "MenuItem" },
   { graphqlType: "DeliveryValidateResponse", openapiSchema: "DeliveryValidateResponse" },
+  
 ];
 
 // excluded: response types intentionally omitted from field validation.
@@ -18,4 +19,6 @@ export const excluded = [
   "MenuResponse",        // gateway wrapper grouping categories — no single OpenAPI schema for this
   "OrderResponse",       // /api/orders returns empty schema in openapi.json — move to mappings once backend documents it
   "ReservationResponse", // same gap as OrderResponse
+  "CateringResponse",   // same gap as OrderResponse — move to mappings once backend documents it
+  "CateringResponse",
 ];
