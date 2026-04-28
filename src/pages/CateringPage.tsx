@@ -49,6 +49,7 @@ const CateringPage = () => {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [specialInstructions, setSpecialInstructions] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [submitting, setSubmitting] = useState(false);
   const [cateringResult, setCateringResult] = useState<CateringCreateResponse | null>(null);
 
@@ -113,7 +114,7 @@ const CateringPage = () => {
     setSubmitting(true);
     try {
       const result = await createCateringOrder({
-        idempotency_key: crypto.randomUUID(),
+        idempotency_key: idempotencyKey,
         customer_name: name.trim(),
         customer_email: email.trim(),
         customer_phone: phone.trim(),
@@ -125,6 +126,7 @@ const CateringPage = () => {
         special_instructions: specialInstructions.trim() || undefined,
       });
       setCateringResult(result);
+      setIdempotencyKey(crypto.randomUUID());
       toast.success("Catering order placed!");
     } catch (err) {
       const code = err instanceof Error ? err.message : "CATERING_FAILED";
