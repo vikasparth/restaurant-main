@@ -1,7 +1,6 @@
 import { ApolloServer, HeaderMap } from "@apollo/server";
 import { readFileSync } from "fs";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
+import path from "path";
 import { menuResolvers } from "../resolvers/menu.js";
 import { orderResolvers } from "../resolvers/orders.js";
 import { reservationResolvers } from "../resolvers/reservations.js";
@@ -17,13 +16,11 @@ if (process.env.SENTRY_DSN) {
   });
 }
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
 const typeDefs = [
-  readFileSync(join(__dirname, "../schemas/menu.graphql"), "utf-8"),
-  readFileSync(join(__dirname, "../schemas/orders.graphql"), "utf-8"),
-  readFileSync(join(__dirname, "../schemas/reservations.graphql"), "utf-8"),
-  readFileSync(join(__dirname, "../schemas/delivery.graphql"), "utf-8"),
+  readFileSync(path.join(__dirname, "../schemas/menu.graphql"), "utf-8"),
+  readFileSync(path.join(__dirname, "../schemas/orders.graphql"), "utf-8"),
+  readFileSync(path.join(__dirname, "../schemas/reservations.graphql"), "utf-8"),
+  readFileSync(path.join(__dirname, "../schemas/delivery.graphql"), "utf-8"),
 ];
 
 const server = new ApolloServer({
@@ -31,9 +28,17 @@ const server = new ApolloServer({
   resolvers: [menuResolvers, orderResolvers, reservationResolvers, deliveryValidationResolvers],
 });
 
-await server.start();
+// top-level await not available in CommonJS — initialise lazily on first request
+let started = false;
+async function ensureStarted() {
+  if (!started) {
+    await server.start();
+    started = true;
+  }
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  await ensureStarted();
   // CORS preflight
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
