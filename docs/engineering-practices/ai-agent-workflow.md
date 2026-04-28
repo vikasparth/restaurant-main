@@ -2,8 +2,8 @@
 
 **Scope:** All engineers and AI agents working in this repository.
 **Last updated:** 2026-04-28
-**Agent architecture:** See `docs/agent-architecture.md` — specialized agents, access matrix, orchestration layer, and least privilege design.
-**Agent implementation plan:** See `docs/agent-execution-plan.md` — phases, tasks, and validation scenarios.
+**Agent architecture:** See `docs/engineering-practices/agent-architecture.md` — specialized agents, access matrix, orchestration layer, and least privilege design.
+**Agent implementation plan:** See `docs/engineering-practices/agent-execution-plan.md` — phases, tasks, and validation scenarios.
 
 > **Note on CI tooling:** The inner loop diagram shows frontend tools (Husky, ESLint, TypeScript, Vitest). Backend uses pre-commit framework, Black, Flake8, and pytest. The phases and principles are identical — only the tool names differ. When the repo splits, each team copies this file and updates the tool names for their stack.
 
@@ -161,30 +161,37 @@ The agent does not only execute assigned tasks. It monitors three signal sources
 ```mermaid
 flowchart TD
     subgraph Signals["Signal Sources"]
-        S1["🔴 Sentry\nError spike or new unhandled exception\nin frontend, backend, or gateway"]
+        S1["🔴 Sentry alert\nError spike or new unhandled exception\nin frontend, gateway, or backend"]
         S2["🟡 Canary failure\nEndpoint returning errors or timing out\ndetected every 50 min"]
         S3["🔵 New GitHub Issue\nOpened by human, by canary auto-open,\nor escalated by a previous agent run"]
-        S4["🟢 Scheduled review\nPeriodic agent run — scans for\nerror patterns, tech debt, doc drift"]
+        S4["🟢 Scheduled review\nPeriodic proactive scan — error patterns,\ntech debt, doc drift"]
     end
 
-    S1 & S2 & S3 & S4 --> A[Agent picks up signal]
+    S1 & S2 & S3 & S4 --> ORCH["Orchestrator\nDecides which agents to invoke\nbased on trigger type and symptom"]
 
-    subgraph Research["Investigation Phase — Orchestrated Specialized Agents"]
-        A --> B1["Sentry Agent\nStack traces, error frequency,\naffected users — Sentry access only"]
-        A --> B2["Codebase Agent\nFiles referenced in stack trace\nor issue description — filesystem read only"]
-        A --> B3["GitHub Agent\nHistorical issues, recent commits,\nPR merge times — GitHub read only"]
-        A --> B4["Render Logs Agent\nRuntime and startup logs,\noperational health — Render API only"]
+    subgraph Agents["Specialized Agents — Least Privilege"]
+        ORCH --> A1["Frontend Sentry Agent\nJS errors · React breadcrumbs\nFrontend Sentry project only"]
+        ORCH --> A2["Backend Sentry Agent\nPython exceptions · FastAPI errors\nBackend Sentry project only"]
+        ORCH --> A3["Render Logs Agent\nRuntime and startup logs\nRender API only"]
+        ORCH --> A4["GitHub Agent\nIssues · commits · PRs\nGitHub read-only"]
+        ORCH --> A5["Codebase Agent\nSource files · runbook · schemas\nFilesystem read-only — scoped paths"]
     end
 
-    B1 & B2 & B3 & B4 --> C{Agent confidence}
+    A1 & A2 & A3 & A4 & A5 --> REC["Recommendation Agent\nSynthesizes structured findings\nNo external access"]
 
-    C -->|"High\nRoot cause clear,\nfix is bounded"| D["Create feature branch\nWrite fix\nOpen Draft PR with full diagnosis"]
-    C -->|"Medium\nLikely cause known,\nneeds human judgement"| E["Create GitHub Issue\nWith diagnosis, stack trace,\nand proposed approaches"]
-    C -->|"Low\nComplex or cross-cutting,\nneeds design decision"| F["Create GitHub Issue\nWith full analysis\nRequest human design input"]
+    REC --> CONF{Confidence level}
 
-    D --> G["Back to inner loop\nCI checks → Human Review → Merge"]
-    E --> H["Human picks up issue\nAssigns or resolves"]
-    F --> H
+    CONF -->|"High — root cause clear,\nfix is bounded"| N1["Orchestrator opens GitHub Issue\n+ sends email via Resend"]
+    CONF -->|"Medium — likely cause known,\nneeds human judgement"| N2["Orchestrator opens GitHub Issue\nno email"]
+    CONF -->|"Low — complex or cross-cutting,\nroot cause unclear"| N3["Orchestrator opens GitHub Issue\nflags for human investigation"]
+
+    N1 & N2 & N3 --> HUMAN["👤 Human reviews GitHub Issue\n/approve · /reject · /investigate"]
+
+    HUMAN -->|"/approve"| ACT["Orchestrator executes\napproved action"]
+    HUMAN -->|"/reject"| CLOSE["Investigation closed\nReason logged on issue"]
+    HUMAN -->|"/investigate [context]"| ORCH
+
+    ACT --> INNER["Back to inner loop\nCI checks → Human Review → Merge"]
 ```
 
 ---

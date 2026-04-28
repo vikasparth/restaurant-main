@@ -23,7 +23,7 @@ Replace the single outer-loop agent with a fleet of specialized agents under an 
 
 Each agent loads context incrementally within its own scope. The orchestrator decides which agents are needed based on the trigger type — not all agents run on every investigation.
 
-Full design in `docs/agent-architecture.md`.
+Full design in `docs/engineering-practices/agent-architecture.md`.
 
 ## Alternatives Considered
 

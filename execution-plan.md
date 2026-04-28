@@ -316,8 +316,8 @@ Migrate one feature at a time to `src/features/[feature]/` — only when that fe
 ## Phase 3 — Agentic Workflows
 
 > Specialized agents with least privilege, orchestration layer, and proactive + reactive monitoring.
-> **Architecture:** `docs/agent-architecture.md` — agent catalog, access matrix, orchestration flow.
-> **Implementation plan:** `docs/agent-execution-plan.md` — full phase breakdown with tasks and validation scenarios.
+> **Architecture:** `docs/engineering-practices/agent-architecture.md` — agent catalog, access matrix, orchestration flow.
+> **Implementation plan:** `docs/engineering-practices/agent-execution-plan.md` — full phase breakdown with tasks and validation scenarios.
 > **Workflow context:** `docs/engineering-practices/ai-agent-workflow.md` — outer loop signal sources and agent behaviour rules.
 
 | Task | Detail | Status |

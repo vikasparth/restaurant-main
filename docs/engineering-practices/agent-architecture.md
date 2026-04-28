@@ -3,7 +3,7 @@
 **Status: DRAFT**
 **Last updated: 2026-04-28**
 **Workflow context:** See `docs/engineering-practices/ai-agent-workflow.md` — two-loop model (inner/outer), signal sources, and recommended agent behaviour.
-**Implementation plan:** See `docs/agent-execution-plan.md` — phases, tasks, and validation scenarios.
+**Implementation plan:** See `docs/engineering-practices/agent-execution-plan.md` — phases, tasks, and validation scenarios.
 
 ---
 
@@ -20,11 +20,17 @@
 
 ## Agent Catalog
 
-### Sentry Agent
-**Responsibility:** Query Sentry for errors, trends, and patterns.
-**Access:** Sentry API — read-only
-**Inputs:** time range, feature filter, error type filter
-**Outputs:** error list with stack traces, trend data (frequency over time), affected release tags
+### Frontend Sentry Agent
+**Responsibility:** Query the frontend Sentry project for JS errors, React breadcrumbs, and gateway exceptions.
+**Access:** Frontend Sentry project — read-only (no access to backend Sentry project)
+**Inputs:** time range, component filter, error type filter
+**Outputs:** JS error list with stack traces, ARIA breadcrumb sequences, error frequency trends, affected release tags
+
+### Backend Sentry Agent
+**Responsibility:** Query the backend Sentry project for Python exceptions and FastAPI errors.
+**Access:** Backend Sentry project — read-only (no access to frontend Sentry project)
+**Inputs:** time range, endpoint filter, error type filter
+**Outputs:** Python exception list with stack traces, request context (endpoint, status code), error frequency trends, affected release tags
 
 ### Render Logs Agent
 **Responsibility:** Read runtime and deployment logs from Render.
@@ -60,14 +66,15 @@
 
 ## Access Matrix
 
-| Agent | Sentry | Render Logs | GitHub (read) | GitHub (write) | Codebase | External write |
-|---|---|---|---|---|---|---|
-| Sentry Agent | ✅ Read | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Render Logs Agent | ❌ | ✅ Read | ❌ | ❌ | ❌ | ❌ |
-| GitHub Agent | ❌ | ❌ | ✅ Read | Orchestrator only | ❌ | ❌ |
-| Codebase Agent | ❌ | ❌ | ❌ | ❌ | ✅ Read | ❌ |
-| Recommendation Agent | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Orchestrator | Via agents | Via agents | Via agents | ✅ Authorized | Via agents | ❌ |
+| Agent | Frontend Sentry | Backend Sentry | Render Logs | GitHub (read) | GitHub (write) | Codebase | Email (Resend) |
+|---|---|---|---|---|---|---|---|
+| Frontend Sentry Agent | ✅ Read | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Backend Sentry Agent | ❌ | ✅ Read | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Render Logs Agent | ❌ | ❌ | ✅ Read | ❌ | ❌ | ❌ | ❌ |
+| GitHub Agent | ❌ | ❌ | ❌ | ✅ Read | Orchestrator only | ❌ | ❌ |
+| Codebase Agent | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ Read | ❌ |
+| Recommendation Agent | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Orchestrator | Via agents | Via agents | Via agents | Via agents | ✅ Authorized | Via agents | ✅ Notify only |
 
 ---
 
@@ -88,7 +95,8 @@
 ```
 Trigger
   → Orchestrator
-  → Sentry Agent (look for error spikes or new patterns)
+  → Frontend Sentry Agent (JS error spikes, gateway exceptions)
+  → Backend Sentry Agent (Python exception spikes, FastAPI errors)
   → [if issues found] Render Logs Agent (confirm operational health)
   → [if issues found] Codebase Agent (trace the affected field/path)
   → [if issues found] GitHub Agent (check for recent commits touching the affected area)
@@ -103,8 +111,9 @@ Trigger
 ```
 Trigger (issue number or symptom)
   → Orchestrator
-  → GitHub Agent (read the issue and recent related PRs)
-  → Sentry Agent (find matching errors in the time window of the issue)
+  → GitHub Agent (read the issue, extract symptom, check recent related PRs)
+  → [frontend symptom] Frontend Sentry Agent (find matching JS errors in the issue time window)
+  → [backend symptom] Backend Sentry Agent (find matching Python errors in the issue time window)
   → Render Logs Agent (check operational health at the time of the issue)
   → Codebase Agent (trace the symptom through the stack)
   → Recommendation Agent (synthesize → confidence level + root cause + recommended fix)
