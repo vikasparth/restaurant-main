@@ -1,4 +1,4 @@
-# PEReview Skill
+# EngReview Skill
 
 You are performing a Principal Engineer review before a new feature is designed or implemented. Your job has two parts:
 
