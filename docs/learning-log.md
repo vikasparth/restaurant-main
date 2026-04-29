@@ -145,3 +145,13 @@ When the GraphQL gateway returned 404 on Vercel, the AI diagnosed the problem as
 Leaving CommonJS unchallenged would have compounded over time. The Node.js ecosystem is progressively dropping CommonJS — packages like `node-fetch` v3 are already ESM-only. CommonJS also lacks tree-shaking, inflating cold-start bundle sizes in serverless functions, and does not enforce strict module resolution semantics that catch import errors at compile time. The user caught this and pushed for an ESM fix, which worked on the first attempt once the tsconfig was corrected.
 
 **Guardrail created:** Added to `CLAUDE.md` Engineering Principles: avoid technical debt — legacy fallbacks are a last resort. When a modern standard fails, diagnose and fix the root cause first. Only fall back to a legacy approach after exhausting all other paths, and document why when you do.
+
+---
+
+## Context Window Management — atomic tasks, indexed docs, and lean skills prevent token exhaustion
+
+Running long sessions without clearing context causes two compounding problems. First, a bloated context window degrades Claude's reasoning quality — even after compaction, carrying excess history reduces the model's ability to think clearly on the current task. Second, it creates a real productivity risk: running to 100% token usage mid-work blocks progress until the quota resets, and emergency top-ups cost money.
+
+The fix is architectural, not just behavioural. Execution plan tasks should be defined as atomic units of work — small enough that finishing one is a natural, safe point to clear the context window. Documentation should be indexed so Claude can be pointed to a specific section rather than parsing an entire file. Skill files must be kept as short as possible because their content persists in context for the entire session after invocation, even through compaction. The habit is: finish an atomic task, clear context, start fresh.
+
+**Guardrail created:** Define execution plan tasks as atomic, index docs for targeted reference, keep skill files minimal, and clear the context window after each completed task set — never let a session run until token exhaustion.
