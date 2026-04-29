@@ -152,7 +152,7 @@ Every agent posts its findings as a GitHub Issue comment. Each comment begins wi
 
 ### Format
 
-```
+````
 <!-- agent-finding -->
 ```yaml
 schema_version: "1.0"
@@ -173,7 +173,7 @@ runbook_match: null
 ### Human-readable findings in markdown below this line
 
 [Free-form markdown narrative for the on-call engineer]
-```
+````
 
 ### Required Fields (Common Envelope)
 
@@ -210,19 +210,14 @@ Two scheduled GitHub Actions workflows form the **outer monitoring layer** — t
 
 ### Overall Pipeline
 
-```
-GitHub Actions (scheduled cron)
-  ├── sentry-monitor-frontend.yml  — polls frontend Sentry project on a schedule
-  └── sentry-monitor-backend.yml  — polls backend Sentry project on a schedule
-       │
-       ▼  if threshold crossed AND no matching open issue
-  GitHub Issue created  (labels: needs-analysis, source:frontend-sentry OR source:backend-sentry)
-       │
-       ▼  triggers
-  agent-orchestrator.yml  (on: issues: [labeled: needs-analysis])
-       │
-       ▼  runs: python agents/orchestrator.py --issue <number>
-  Orchestrator → specialized agents → Recommendation Agent → comment on issue
+```mermaid
+flowchart TD
+    cron["GitHub Actions\n(scheduled cron)"]
+    cron --> fe["sentry-monitor-frontend.yml\n— polls frontend Sentry"]
+    cron --> be["sentry-monitor-backend.yml\n— polls backend Sentry"]
+    fe & be -->|"threshold crossed, no matching open issue"| issue["GitHub Issue created\nlabels: needs-analysis\nsource:frontend-sentry OR source:backend-sentry"]
+    issue -->|triggers| orch["agent-orchestrator.yml\non: issues labeled: needs-analysis"]
+    orch -->|"python agents/orchestrator.py --issue"| result["Orchestrator → specialized agents\n→ Recommendation Agent\n→ comment on issue"]
 ```
 
 ### Workflow Responsibilities

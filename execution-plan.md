@@ -1,7 +1,8 @@
-# Execution Plan — Aap ki Rasoi Backend
+# Execution Plan — Aap ki Rasoi (Active)
 **Status: APPROVED — Signed off by Vikas, 2026-04-06**
-**Last updated: 2026-04-27**
-**Reference:** See `docs/architecture.md` for full design decisions.
+**Last updated: 2026-04-29**
+**Reference:** `docs/architecture.md` for design decisions.
+**Completed work:** `execution-plan-completed.md` — all finished stages, slices, and tooling items.
 
 ---
 
@@ -15,26 +16,9 @@
 
 ---
 
-## Pre-conditions (must be resolved before Stage 1)
+## Open Pre-conditions
 
-### Architecture sign-off
-- [x] Owner reviews and approves `docs/architecture.md` ✅ 2026-04-06
-
-### Accounts to create (all free)
-- [x] Create Supabase account — supabase.com (GitHub login) ✅
-- [x] Create Render.com account — render.com (GitHub login) ✅
-- [x] Create Vercel account — vercel.com (GitHub login) ✅
-- [x] Create Resend account — resend.com (GitHub login) ✅
-- [x] Create Twilio account — twilio.com (email login) ✅
-- [x] Create cron-job.org account (email login) ✅
-- [x] Create UptimeRobot account (email login) ✅
-
-### Cleanup
-- [x] Delete `supabase/functions/` folder — was never created, already clean ✅
-- [x] Rewrite `supabase/migrations/` with updated schema (locations, restaurant_config, allergens, daily_specials, reference numbers, idempotency keys) ✅
-- [x] Rewrite `.env.example` with final variables ✅
-
-### Frontend gaps to fix in Lovable (can run in parallel with Stage 1)
+### Frontend gaps to fix in Lovable
 - [ ] OrderPage: add customer name, email, phone fields
 - [ ] OrderPage: change "postcode" placeholder to "zip code"
 - [ ] CateringPage: add customer name, email, phone fields
@@ -43,131 +27,9 @@
 
 ---
 
-## Stage 1 — Foundation
-> Build the skeleton that all features share. Nothing feature-specific.
-> **Done when:** `GET /health` returns `{"status": "ok"}` and Supabase connection is confirmed.
+## Stage 2 — Remaining Slices
 
-| # | Task | Description | Status |
-|---|---|---|---|
-| 1.1 | Python environment setup | `backend/` folder, `requirements.txt`, virtual env | ✅ Done |
-| 1.2 | FastAPI app skeleton | `main.py` with CORS (allowed origins from env variable — never wildcard), router registration, startup event | ✅ Done |
-| 1.3 | Config / env setup | `core/config.py` reads all `.env` variables with validation | ✅ Done |
-| 1.4 | Global error handling | `core/errors.py` — defines consistent `{"error": "...", "code": "..."}` format used by all routes | ✅ Done |
-| 1.5 | Auth middleware | `core/security.py` — Supabase JWT verification for all admin routes | ✅ Done |
-| 1.6 | Rate limiting setup | `core/rate_limit.py` — slowapi middleware on public POST endpoints | ✅ Done |
-| 1.7 | Supabase DB connection | `core/database.py` — asyncpg session pooler connection (IPv6 issue on direct connection) | ✅ Done |
-| 1.8 | Health check endpoint | `GET /health` → confirms app + DB alive | ✅ Done |
-| 1.9 | Database schema applied | Run updated migrations on Supabase | ✅ Done |
-| 1.10 | Seed data applied | Seed: 1 location, initial restaurant_config, sample menu items, sample zip codes | ✅ Done |
-| 1.11 | Structured logging setup | `core/logging.py` — JSON logs in production, human-readable in dev; log business events, errors, rate limit triggers; never log PII | ✅ Done |
-| 1.12 | Test suite setup | Install pytest + httpx; create `tests/` folder with `conftest.py`; write one sample test to confirm setup works | ✅ Done |
-| 1.13 | Local run verified | `uvicorn main:app --reload` works, `/health` passes, one test passes | ✅ Done |
-
----
-
-## Stage 2 — Vertical Slices (Feature by Feature)
-
-> For each feature, build the complete stack before moving to the next:
-> `Pydantic model → Service logic → Router → Frontend service → Wire to UI page → Test`
-
-### Rules for Every Slice
-See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
-
----
-
-### Slice 1 — Menu (Read)
-> Enables frontend to load menu from database instead of static file.
-
-| # | Task | Description | Status |
-|---|---|---|---|
-| 2.1.1 | Pydantic model | `models/menu.py` — MenuItem, Category | ✅ Done |
-| 2.1.2 | Menu service | `services/menu_service.py` — fetch all active items from Supabase | ✅ Done |
-| 2.1.3 | Menu router | `routers/menu.py` — `GET /api/menu` | ✅ Done |
-| 2.1.4 | Frontend service | `src/services/menuService.ts` — fetch from API | ✅ Done |
-| 2.1.5 | Wire to UI | Update `MenuPage.tsx` + `CartContext` to use API instead of static `menu.ts` | ✅ Done |
-| 2.1.6 | Automated tests | pytest: menu returns items, categories correct, unavailable items excluded | ✅ Done |
-| 2.1.7 | Manual verification | Menu loads in browser from database | ✅ Done |
-
----
-
-### Slice 2 — Delivery Validation
-> Validates customer zip code before allowing delivery order.
-
-| # | Task | Description | Status |
-|---|---|---|---|
-| 2.2.1 | Pydantic model | `models/delivery.py` — DeliveryValidateRequest/Response | ✅ Done |
-| 2.2.2 | Delivery service | `services/delivery_service.py` — check zip against `delivery_zones` table | ✅ Done |
-| 2.2.3 | Delivery router | `routers/delivery.py` — `POST /api/delivery/validate` | ✅ Done |
-| 2.2.4 | Frontend service | `src/services/deliveryService.ts` | ✅ Done |
-| 2.2.5 | Wire to UI | Update `OrderPage.tsx` to validate zip before showing delivery option | ✅ Done |
-| 2.2.6 | Automated tests | pytest: valid zip accepted, invalid zip rejected, empty zip rejected | ✅ Done |
-| 2.2.7 | Manual verification | Valid zip accepted, invalid zip shows friendly error in browser | ✅ Done |
-
----
-
-### Slice 3 — Orders
-> Core feature — saves pickup/delivery orders to database.
-
-| # | Task | Description | Status |
-|---|---|---|---|
-| 2.3.1 | Spec | `backend/specs/slice3_orders.md` — 18 tests defined, business rules captured, signed off | ✅ Done 2026-04-09 |
-| 2.3.2 | Automated tests | `tests/test_orders.py` — 18 tests written, all failing (TDD Step 1) | ✅ Done 2026-04-09 |
-| 2.3.3 | Pydantic model | `models/order.py` — `OrderItemRequest`, `OrderCreateRequest`, `OrderCreateResponse` | ✅ Done 2026-04-09 |
-| 2.3.4 | Order service | `services/order_service.py` — validate hours, zip, min order, items; save order + items; idempotency | ✅ Done 2026-04-09 |
-| 2.3.5 | Orders router | `routers/orders.py` — `POST /api/orders` | ✅ Done 2026-04-09 |
-| 2.3.6 | Run tests | All 18 tests green | ✅ Done 2026-04-09 |
-| 2.3.7 | Frontend service | `src/services/orderService.ts` | ✅ Done 2026-04-09 |
-| 2.3.8 | Wire to UI | Update `OrderPage.tsx` — add name/email/phone, generate idempotency_key, show reference number | ✅ Done 2026-04-09 |
-| 2.3.9 | Manual verification | Full order flow in browser: place order → see reference number → check Supabase | ✅ Done 2026-04-09 |
-
----
-
-### Slice 4 — Reservations
-> Saves table reservation requests to database.
-
-| # | Task | Description | Status |
-|---|---|---|---|
-| 2.4.1 | Spec | `backend/specs/slice4_reservations.md` — 10 tests defined, business rules captured, signed off | ✅ Done 2026-04-10 |
-| 2.4.2 | Automated tests | `tests/test_reservations.py` — 10 tests written, all failing (TDD Step 1) | ✅ Done 2026-04-10 |
-| 2.4.3 | Pydantic model | `models/reservation.py` — `ReservationCreateRequest`, `ReservationCreateResponse` | ✅ Done 2026-04-10 |
-| 2.4.4 | Reservation service | `services/reservation_service.py` — validate time, party size, idempotency, save to DB | ✅ Done 2026-04-12 |
-| 2.4.5 | Reservations router | `routers/reservations.py` — `POST /api/reservations` | ✅ Done 2026-04-12 |
-| 2.4.6 | Run tests | All 10 tests green | ✅ Done 2026-04-12 |
-| 2.4.7 | Frontend service | `src/services/reservationService.ts` | ✅ Done 2026-04-12 |
-| 2.4.8 | Wire to UI | Update `ReservationPage.tsx` — generate idempotency_key, show reference number | ✅ Done 2026-04-12 |
-| 2.4.9 | Manual verification | Reservation saved in Supabase, confirmation shown in browser | ✅ Done 2026-04-12 |
-
----
-
-### Slice 5 — Catering Orders
-> Saves catering orders, enforces 48-hour advance rule.
-
-| # | Task | Description | Status |
-|---|---|---|---|
-| 2.5.1 | Pydantic model | `models/catering.py` — includes `idempotency_key: UUID` | ✅ Done 2026-04-12 |
-| 2.5.2 | Catering service | `services/catering_service.py` — 48h validation, zip validation, $100 minimum, calculate 40% deposit amount from `restaurant_config.catering_deposit_percent`, save to Supabase; idempotency check on key | ✅ Done 2026-04-12 |
-| 2.5.3 | Catering router | `routers/catering.py` — `POST /api/catering` | ✅ Done 2026-04-12 |
-| 2.5.4 | Frontend service | `src/services/cateringService.ts` | ✅ Done 2026-04-12 |
-| 2.5.5 | Wire to UI | Update `CateringPage.tsx` to POST to API | ✅ Done 2026-04-12 |
-| 2.5.6 | Automated tests | pytest: 11 tests — catering saved, 48h rule, zip validation, minimum order, idempotency, deposit math, both tables populated | ✅ Done 2026-04-12 |
-| 2.5.7 | Manual verification | Full catering flow in browser, reference number + deposit amount shown on success screen | ✅ Done 2026-04-12 |
-
----
-
-### Slice 6 — Notifications
-> Add email + WhatsApp notifications to Orders, Reservations, and Catering.
-
-| # | Task | Description | Status |
-|---|---|---|---|
-| 2.6.1 | Email service | `services/email_service.py` — Resend wrapper, confirmation templates | ✅ Done 2026-04-13 |
-| 2.6.2 | WhatsApp service | `services/whatsapp_service.py` — Twilio wrapper | ✅ Done 2026-04-13 |
-| 2.6.3 | Wire to orders | Call email + WhatsApp after order saved | ✅ Done 2026-04-13 |
-| 2.6.4 | Wire to reservations | Call email + WhatsApp after reservation saved | ✅ Done 2026-04-13 |
-| 2.6.5 | Wire to catering | Call email + WhatsApp after catering order saved | ✅ Done 2026-04-13 |
-| 2.6.6 | Automated tests | pytest: email/WhatsApp failures do not block order save (REL-02, REL-03); failure logged | ✅ Done 2026-04-13 |
-| 2.6.7 | Manual verification | Set up Resend API key + Twilio sandbox, place a real order from UI, confirm customer email and owner WhatsApp received | ✅ Done 2026-04-13 |
-
----
+> Slices 1–6 complete. See `execution-plan-completed.md`.
 
 ### Slice 7 — Menu Admin CRUD
 > Owner can add, edit, and remove menu items via API (used by admin UI).
@@ -183,7 +45,7 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 ---
 
 ### Slice 8 — Admin Endpoints (Orders, Reservations, Catering, Config, Analytics)
-> Owner can view and manage all records via API. Required for day-one operations before admin UI is built in Phase 2.
+> Owner can view and manage all records via API. Required for day-one operations before admin UI is built.
 
 | # | Task | Description | Status |
 |---|---|---|---|
@@ -193,173 +55,94 @@ See **CLAUDE.md** — "Slice Rules" and "Pair Programming Rules" sections.
 | 2.8.4 | Analytics service | `services/analytics_service.py` — monthly revenue, pickup vs delivery count, top 5 items | ⏳ Pending |
 | 2.8.5 | Admin config service | Read and update `restaurant_config` (hours, fees, rules) | ⏳ Pending |
 | 2.8.6 | Admin router | Wire all above into `routers/admin.py` behind JWT middleware | ⏳ Pending |
-| 2.8.7 | Automated tests | pytest — in `test_orders.py`: list returns saved orders, status update persists, cancel sets correct status, invalid JWT returns 401; in `test_reservations.py`: list returns reservations, cancel works, invalid JWT returns 401; in `test_catering.py`: list + cancel + invalid JWT; new `test_admin_config.py`: GET returns config, PUT updates value, invalid JWT returns 401; new `test_analytics.py`: returns correct shape and values, invalid JWT returns 401 | ⏳ Pending |
-| 2.8.8 | Manual verification | Call each admin endpoint via API tool (e.g. Postman/curl); verify correct data returned | ⏳ Pending |
+| 2.8.7 | Automated tests | `test_orders.py`: list, status update, cancel, 401. `test_reservations.py`: list, cancel, 401. `test_catering.py`: list, cancel, 401. `test_admin_config.py`: GET/PUT/401. `test_analytics.py`: shape + values + 401 | ⏳ Pending |
+| 2.8.8 | Manual verification | Call each admin endpoint via Postman/curl; verify correct data returned | ⏳ Pending |
 
 ---
 
-## Stage 3 — Cross-Cutting Concerns
+## Stage 3 — Remaining Items
 
-**Agreed sequence for remaining work:**
-1. `3.1`, `3.2`, `3.15` — error handling, validation review, two-team ownership
-2. `DT-9` — GitHub Actions CI pipeline (foundation for all checks)
-3. `3.7` + `3.14` + `3.16.9` — Sentry frontend + backend + gateway together, plus `src/lib/logger.ts`
-4. `3.16.7` + `3.16.8` — Schema validator + graphql-inspector wired into CI
-5. `3.16.10` → `3.16.12` — Orders, Catering, Reservations GraphQL migrations
+> Completed: 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.17. See `execution-plan-completed.md`.
+> **Remaining sequence:** 3.1 + 3.2 → 3.14 → 3.15 → remaining 3.16 items
 
 | # | Task | Description | Status |
 |---|---|---|---|
 | 3.1 | Global error handling | Consistent error response format across all endpoints | ⏳ Pending |
 | 3.2 | Input validation review | Review all Pydantic models for edge cases | ⏳ Pending |
-| 3.3 | Deploy backend to Render | Connect GitHub repo, set env vars, verify live URL | ✅ Done 2026-04-13 |
-| 3.4 | Deploy frontend to Vercel | Connect GitHub repo, vercel.json rewrite to Render URL | ✅ Done 2026-04-13 |
-| 3.5 | End-to-end smoke test | Full order flow on production URLs | ✅ Done 2026-04-13 |
-| 3.6 | Canary monitoring setup | UptimeRobot HTTP check on `/health` every 5 min (unlimited); GitHub Actions runs canary tests every 50 min (~864 min/month, well within free tier); alert to owner email on failure | ✅ Done 2026-04-14 |
-| 3.7 | Sentry setup — frontend | Install `@sentry/browser` in React app; capture page crashes, JS errors, network errors; create `src/lib/logger.ts` utility (`logger.warn` / `logger.error`) so all explicit logging goes to Sentry in production; verify errors appear in Sentry dashboard | ✅ Done 2026-04-27 |
-| 3.8 | Runbook skeleton | Create `backend/docs/runbook.md` with one entry per monitored metric category; each entry: symptom, likely cause, diagnostic steps, fix; grow incrementally as each monitoring metric is instrumented | ✅ Done 2026-04-14 |
-| 3.9 | Request logging middleware | FastAPI middleware that logs every request (endpoint, method, status code, duration ms) to a `request_logs` DB table; foundation for error rate, latency, throttling, and request count metrics | ✅ Done 2026-04-14 |
-| 3.10 | Notification failure logging | Log Twilio/Resend call results (success/failure, provider, error code) to a `notification_logs` DB table; enables outbound throttling and downstream failure metrics | ✅ Done 2026-04-14 |
-| 3.11 | AI monitoring agent — Phase 1 (rule-based) | Spec + build: metrics snapshot collector + Python rule-based threshold checks (two consecutive 6h windows); open GitHub Issue on breach, send owner email with issue link, auto-close on recovery; no Claude API calls; zero variable cost; update runbook entries alongside each metric. Trigger: cron-job.org → GET /api/internal/monitor (no APScheduler — Render free tier spins down, cron-job.org is more reliable and scales to Phase 2/3 MCP approach) | ✅ Done 2026-04-15 — ⚠️ Follow-up: second live test (with window/threshold overrides) returned 200 but no issue created and no email sent. Needs investigation — check Render logs around that request, verify GITHUB_TOKEN/GITHUB_REPO are set in Render, check if `alerts_fired` was true in the response |
-| 3.12 | Claude Code Skill — `/monitor-check` | IDE-side skill that calls `/api/internal/monitor`, passes metrics snapshot to Claude using existing Claude Code session (covered by Claude Pro — no API billing); on-demand analysis only | ✅ Done 2026-04-16 |
-| 3.13 | AI monitoring agent — Phase 2 (MCP) | MCP server (`backend/mcp_server.py`) with 6 tools: `check_health_endpoint`, `get_render_logs`, `get_recent_commits`, `query_request_logs`, `query_notification_failures`, `check_provider_status`; registered via `.claude/settings.json`; sub-skills updated to call MCP tools instead of manual steps — Render log review now automatic | ✅ Done 2026-04-16 — ✅ Follow-up resolved 2026-04-16: all sub-skills updated to MCP tool calls; config.py fixed to use `Path(__file__).parent.parent / ".env"` so MCP server loads correct env from any working directory; tools verified working end-to-end via Claude CLI (`health` reachable, Render logs returning real data) — ⚠️ Open: MCP server not connecting in VSCode extension (v2.1.112) — extension appears to ignore `mcpServers` stdio config in `settings.json`; workaround is to run `claude --mcp-config .claude/settings.json` from project root in terminal; needs investigation when VSCode extension is updated |
-| 3.14 | Sentry backend SDK | Install `sentry-sdk[fastapi]`; auto-capture unhandled exceptions with request context (URL, method, correlation ID); correlates with frontend Sentry project; zero additional cost on free tier | ⏳ Pending |
-| 3.15 | Two-team ownership setup | Export `openapi.json`, add contract rules to CLAUDE.md files, create `lovable_project/CLAUDE.md` — see Phase 2 — Two-Team Ownership Setup section for full detail | ⏳ Pending |
-| 3.16 | GraphQL gateway layer | Frontend-owned Apollo Server gateway; Menu, Orders, Reservations migrated; Catering still on REST — see Phase 2 section for remaining steps | 🔄 In Progress |
-| 3.17 | Homepage dynamic content | `Index.tsx` now reads Meal of the Day and Latest Offers from GraphQL (live menu data); static `menuItems` deleted from `src/data/menu.ts` | ✅ Done 2026-04-24 |
+| 3.14 | Sentry backend SDK | Install `sentry-sdk[fastapi]`; auto-capture unhandled exceptions with request context (URL, method, correlation ID) | ⏳ Pending |
+| 3.15 | Two-team ownership setup | Export `openapi.json`, contract rules in CLAUDE.md files, `lovable_project/CLAUDE.md` | ⏳ Pending |
 
 ---
 
-## Canary Monitoring Strategy
+## GraphQL Gateway — Remaining Items
 
-> Automated synthetic tests that run against the deployed website on a schedule to detect outages before customers do.
+> Completed: 3.16.1–3.16.10, 3.16.12, 3.16.9. See `execution-plan-completed.md`.
 
-### Approach
-The same pytest integration tests used during development are made **environment-aware** — pointed at the live Render URL instead of localhost. A GitHub Actions workflow (free, 2000 min/month) runs them on a schedule.
-
-```
-backend/tests/canary/
-    test_health.py          # GET /health → 200, {"status": "ok"}
-    test_menu_available.py  # GET /api/menu → 200, non-empty array
-    test_delivery_check.py  # POST /api/delivery/validate with known valid zip → 200
-```
-
-Controlled by one env variable: `API_BASE_URL=https://restaurant-main.onrender.com`
-Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid loading app dependencies
-
-### Alert Channels
-| Tool | What it monitors | Frequency | Cost |
+| # | Task | Description | Status |
 |---|---|---|---|
-| **UptimeRobot** | Raw HTTP uptime on `/health` | Every 5 min | Free, unlimited |
-| **GitHub Actions** | Canary test suite (menu, delivery, health) | Every 50 min | ~864 min/month — within 2,000 free tier |
-| Both alert to | Owner email on failure | — | — |
+| 3.16.11 | Catering GraphQL migration | Schema + resolver + `useCatering` hook; migrate `CateringPage.tsx` | ⏳ Pending |
+| 3.16.13 | Deploy gateway to Vercel | `graphql-gateway/api/graphql.ts` (Vercel-native handler), `vercel.json` rewrite; `api/graphql.ts` not being registered as serverless function — root cause not yet found | 🔄 In Progress |
+| 3.16.14 | Set VITE_GATEWAY_URL in frontend Vercel | Point frontend at deployed gateway URL; fixes blank production page | ⏳ Blocked on 3.16.13 |
+| 3.16.15 | Revert allergens bug in useMenu.ts | Add `allergens` back to the GraphQL query — was deliberately removed for Sentry exercise | ⏳ Pending |
 
-### What canary tests catch
-- Backend crashed or Render deployment failed
-- Database connection lost
-- Menu endpoint returning empty (data issue)
-- Delivery validation broken after a code change
-- Cold start taking too long (Render timeout)
-
-### What canary tests do NOT test
-- Full browser flow (that's Playwright/Selenium — Phase 2 if needed)
-- Email/WhatsApp delivery (tested manually after each slice)
+**Feature folder convention:** Migrate one feature at a time to `src/features/[feature]/` only when it moves to GraphQL. See `src/docs/feature-migration-guide.md`.
 
 ---
 
-## Developer Tooling Track
+## Developer Tooling — Pending
 
-> This track runs in parallel with product slices. See full detail in `docs/developer-tooling.md`.
+> Completed: DT-1, DT-2, DT-3, DT-4, DT-9. See `execution-plan-completed.md`.
 
 | # | Item | Status |
 |---|---|---|
-| DT-1 | Pre-commit hooks — frontend (Husky + lint-staged) | ✅ Done 2026-04-21 |
-| DT-2 | Pre-commit hooks — backend (Black + Flake8) | ✅ Done 2026-04-21 |
-| DT-3 | Local dev setup README | ✅ Done 2026-04-21 |
-| DT-4 | Skill: `/requirements` with guardrails and draft/sign-off | ✅ Done 2026-04-21 |
-| DT-5 | Skill: `/review` — codebase review before any new feature | ✅ Done 2026-04-21 — ⏳ Not yet tested |
+| DT-5 | Skill: `/review` — codebase review before any new feature | ✅ Done — ⏳ Not yet tested |
 | DT-6 | Skill: `/design` | ⏳ Pending |
 | DT-7 | Skill: `/spec` | ⏳ Pending |
 | DT-8 | Skill: `/execution-plan` | ⏳ Pending |
-| DT-9 | CI pipeline — GitHub Actions | TypeScript compile + ESLint + frontend build on every push/PR; prerequisite for schema validator and graphql-inspector | ✅ Done 2026-04-24 |
 | DT-10 | Unit + integration tests — menu slice (backend + frontend) | ⏳ Pending |
-| DT-11 | **⚠️ Must have — Claude Code token efficiency** | Context window exhaustion is a development blocker. Build a plugin/skill that surfaces live token usage per session, identifies patterns that inflate context (large file reads, over-broad globs, repeated context re-reads), and produces a report of recommended practices (lean context habits, `/compact` timing, session scoping). Goal: no session should hit the token ceiling mid-task. | ⏳ Pending |
-
----
-
-## Phase 2 — Future (not in current scope)
-
-| Task | Detail | Status |
-|---|---|---|
-| 3.15 — Two-team ownership | `docs/phase2/two-team-ownership.md` | ⏳ Pending |
-| 3.16 — GraphQL gateway | `src/docs/graphql-gateway.md` | 🔄 In Progress |
-| 3.16.1 — Architecture decisions | Option B (hand-written schema), `graphql-gateway/` at repo root, dual Vercel deploy | ✅ Done |
-| 3.16.2 — Apollo Server setup | `graphql-gateway/` — Apollo Server 4.x, `tsx`, `dotenv`, `config.ts` for `BACKEND_URL`+`API_PATHS` | ✅ Done 2026-04-24 |
-| 3.16.3 — Menu schema | `graphql-gateway/schemas/menu.graphql` — per-feature schema file | ✅ Done 2026-04-24 |
-| 3.16.4 — Menu resolvers | `graphql-gateway/resolvers/menu.ts` — extracted from index.ts | ✅ Done 2026-04-24 |
-| 3.16.5 — graphql-codegen | `codegen.ts` at repo root; generates `src/__generated__/menu.ts` | ✅ Done 2026-04-24 |
-| 3.16.6 — Menu component migration | `useMenu` hook, `MenuPage.tsx` + `Index.tsx` on GraphQL; static menuItems deleted; `src/features/menu/` feature folder complete | ✅ Done 2026-04-24 |
-| 3.16.7 — CI schema validator | `graphql-gateway/scripts/validate-schema.js` — checks every GraphQL field against `openapi.json`; wired into GitHub Actions (requires DT-9 first) | ✅ Done 2026-04-25 |
-| 3.16.8 — graphql-inspector in CI | Detects breaking schema changes between commits; wired into GitHub Actions | ✅ Done 2026-04-25 |
-| 3.16.9 — Sentry gateway SDK | Add `@sentry/node` to gateway; done alongside 3.7 + 3.14 Sentry session | ✅ Done 2026-04-27 |
-| 3.16.10 — Orders GraphQL migration | Schema + resolver + `useOrders` hook; migrate `OrderPage.tsx` | ✅ Done 2026-04-26 |
-| 3.16.11 — Catering GraphQL migration | Schema + resolver + `useCatering` hook; migrate `CateringPage.tsx` | ⏳ Pending |
-| 3.16.12 — Reservations GraphQL migration | Schema + resolver + `useReservations` hook; migrate `ReservationPage.tsx` | ✅ Done 2026-04-26 |
-| 3.16.13 — Deploy gateway to Vercel | `graphql-gateway/api/graphql.ts` (Vercel-native handler), `vercel.json` rewrite, switched to CommonJS to fix function detection; 404 still returning — `api/graphql.ts` not being registered as a serverless function; root cause not yet found | 🔄 In Progress |
-| 3.16.14 — Set VITE_GATEWAY_URL in frontend Vercel | Point frontend at deployed gateway URL; fixes blank production page | ⏳ Blocked on 3.16.13 |
-| 3.16.15 — Revert allergens bug in useMenu.ts | Add `allergens` back to the GraphQL query — was deliberately removed for Sentry exercise | ⏳ Pending |
-
-### Feature Folder Migration Convention
-Migrate one feature at a time to `src/features/[feature]/` — only when that feature moves to GraphQL. See `src/docs/feature-migration-guide.md` for steps and rollback plan.
-| Agentic workflows | `docs/phase2/agentic-workflows.md` | Nice to have — evaluate use cases first |
+| DT-11 | **⚠️ Must have — Claude Code token efficiency** | Context window exhaustion is a development blocker. Build a plugin/skill that surfaces live token usage per session, identifies patterns that inflate context (large file reads, over-broad globs, repeated context re-reads), and recommends lean context habits, `/compact` timing, session scoping. Goal: no session hits the token ceiling mid-task. | ⏳ Pending |
 
 ---
 
 ## Phase 3 — Agentic Workflows
 
-> Specialized agents with least privilege, orchestration layer, and proactive + reactive monitoring.
-> **Architecture:** `docs/engineering-practices/agent-architecture.md` — agent catalog, access matrix, orchestration flow.
-> **Implementation plan:** `docs/engineering-practices/agent-execution-plan.md` — full phase breakdown with tasks and validation scenarios.
-> **Workflow context:** `docs/engineering-practices/ai-agent-workflow.md` — outer loop signal sources and agent behaviour rules.
+> **Architecture:** `docs/engineering-practices/agent-architecture.md`
+> **Implementation plan:** `docs/engineering-practices/agent-execution-plan.md`
+> **Workflow context:** `docs/engineering-practices/ai-agent-workflow.md`
 
 | Task | Detail | Status |
 |---|---|---|
 | Phase A — Prerequisites | Backend Sentry ✅, release tagging in CI ✅, test scenarios file ⏳, runbook coverage ⏳, Render API access ⏳ | 🔄 In Progress |
-| Phase B — Individual Agents | Sentry Agent, Render Logs Agent, GitHub Agent, Codebase Agent, Recommendation Agent | ⏳ Pending |
-| Phase C — Orchestration Layer | Orchestrator, `/troubleshoot` skill, scheduled proactive check, GitHub write authorization | ⏳ Pending |
+| Phase B — Individual Agents | Frontend Sentry Agent, Backend Sentry Agent, Render Logs Agent, GitHub Agent, Codebase Agent, Recommendation Agent | ⏳ Pending |
+| Phase C — Orchestration Layer | Orchestrator, `/troubleshoot` skill, `sentry-monitor-frontend.yml`, `sentry-monitor-backend.yml`, GitHub write authorization | ⏳ Pending |
 | Phase D — Validation | End-to-end validation against all 5 test scenarios + false positive check | ⏳ Pending |
 
 ---
 
 ## Phase 4 — Infrastructure & Reliability
 
----
-
 ### 4.1 — Queue / Notification Integration
 
-> Replace direct Resend/Twilio calls in request handlers with an async queue layer.
-> Currently notifications are fire-and-forget inside the order/reservation save path — a provider failure is logged but there is no retry. A queue decouples notification delivery from the user-facing request, adds retry with backoff, and enables a dead-letter queue for failed messages.
-
-**Current state:** `services/email_service.py` and `services/whatsapp_service.py` called directly from `order_service.py`, `reservation_service.py`, `catering_service.py` — synchronous, no retry.
+> Replace direct Resend/Twilio calls with an async queue layer. Adds retry with backoff and dead-letter handling.
+> **Current state:** `email_service.py` + `whatsapp_service.py` called synchronously from order/reservation/catering services — no retry.
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| 4.1.1 | Choose queue backend | Evaluate AWS SQS (free tier: 1M requests/month) vs Redis Queue (RQ) vs Celery + Redis — decision based on AWS deployment strategy in 4.2; document choice as ADR | ⏳ Pending |
-| 4.1.2 | Queue service | `services/queue_service.py` — enqueue notification jobs (email and WhatsApp separately); job payload includes type, recipient, reference number, template key — no PII beyond what is needed to render the message | ⏳ Pending |
-| 4.1.3 | Worker | Notification worker that dequeues jobs, calls Resend/Twilio, retries on failure (max 3 attempts, exponential backoff), moves to dead-letter queue after final failure | ⏳ Pending |
-| 4.1.4 | Dead-letter handling | Dead-letter queue consumer logs failure to `notification_logs` table with full retry history; triggers owner alert (email) so no notification is silently lost | ⏳ Pending |
-| 4.1.5 | Wire to slices | Replace direct email/WhatsApp calls in order, reservation, catering services with queue enqueue calls; existing `notification_logs` table records queue entry time + delivery time | ⏳ Pending |
-| 4.1.6 | Automated tests | pytest: job enqueued on order save; worker delivers on dequeue; failed delivery retries up to max; dead-letter entry created after final failure; notification_logs updated correctly | ⏳ Pending |
-| 4.1.7 | Manual verification | Place order → confirm job in queue → confirm delivery → simulate provider failure → confirm retry → confirm dead-letter alert | ⏳ Pending |
+| 4.1.1 | Choose queue backend | AWS SQS (1M req/month free) vs Redis Queue vs Celery + Redis — decide alongside 4.2 compute choice; document as ADR | ⏳ Pending |
+| 4.1.2 | Queue service | `services/queue_service.py` — enqueue email and WhatsApp jobs separately; payload: type, recipient, reference number, template key (no excess PII) | ⏳ Pending |
+| 4.1.3 | Worker | Dequeues jobs, calls Resend/Twilio, retries max 3 attempts with exponential backoff, moves to dead-letter after final failure | ⏳ Pending |
+| 4.1.4 | Dead-letter handling | Consumer logs failure to `notification_logs` with full retry history; triggers owner email alert — no notification silently lost | ⏳ Pending |
+| 4.1.5 | Wire to slices | Replace direct email/WhatsApp calls in order, reservation, catering services with queue enqueue | ⏳ Pending |
+| 4.1.6 | Automated tests | Job enqueued on save; worker delivers on dequeue; failed delivery retries to max; dead-letter created; `notification_logs` updated correctly | ⏳ Pending |
+| 4.1.7 | Manual verification | Place order → confirm queue → confirm delivery → simulate failure → confirm retry → confirm dead-letter alert | ⏳ Pending |
 
 ---
 
 ### 4.2 — AWS DevOps Pipeline (Free Tier)
 
-> Migrate infrastructure from Render + Vercel to AWS. Adds a production-grade CI/CD pipeline with CodePipeline + CodeBuild, backend on AWS compute, static frontend on S3 + CloudFront.
+> Migrate from Render + Vercel to AWS. CI/CD with CodePipeline + CodeBuild, backend on AWS compute, frontend on S3 + CloudFront.
 
-**Current state:** Backend on Render (free tier, cold starts), frontend on Vercel, no AWS CI/CD.
-
-**AWS free tier — what is actually free and for how long:**
+**AWS free tier — accurate:**
 
 | Service | Free allowance | Duration |
 |---|---|---|
@@ -372,43 +155,43 @@ Migrate one feature at a time to `src/features/[feature]/` — only when that fe
 | CodeBuild | 100 build minutes/month | Always free |
 | CodePipeline | 1 active pipeline/month | Always free |
 | ECR (public) | Unlimited | Always free |
-| ECR (private) | 500 MB/month | 12 months only |
-| Parameter Store (standard) | 10,000 parameters, standard throughput | Always free |
-| **ECS Fargate** | **Not free — ~$10–15/month minimum** | ❌ Not free tier |
-| **Secrets Manager** | **Not free — $0.40/secret/month** | ❌ Not free tier |
+| Parameter Store (standard) | 10,000 parameters | Always free |
+| **ECS Fargate** | **~$10–15/month minimum** | ❌ Not free tier |
+| **Secrets Manager** | **$0.40/secret/month** | ❌ Not free tier |
 
-**Compute choice — two viable options:**
+**Compute choice:**
 
 | Option | Cost | Trade-off |
 |---|---|---|
-| **Lambda + API Gateway** (recommended) | Always free within limits | Requires Mangum adapter to wrap FastAPI; cold starts on first request after idle |
-| **EC2 t2.micro + Elastic Beanstalk** | Free for 12 months, then ~$10/month | No code change needed; warm instance always running; cost starts after year 1 |
+| **Lambda + API Gateway** (recommended) | Always free within limits | Requires Mangum adapter to wrap FastAPI; cold starts after idle |
+| **EC2 t2.micro + Elastic Beanstalk** | Free 12 months, then ~$10/month | No code change; warm instance; cost kicks in after year 1 |
 
 **Nice to Have — evaluate at implementation time (paid):**
-- [ ] ECS Fargate — container-native compute, no EC2 management; ~$10–15/month minimum; consider if cold starts or scaling become a problem
-- [ ] Secrets Manager — automatic secret rotation, fine-grained IAM policies; $0.40/secret/month; consider if compliance or rotation requirements arise
+- [ ] ECS Fargate — container-native, no EC2 management; ~$10–15/month; consider if cold starts/scaling become a problem
+- [ ] Secrets Manager — automatic rotation; $0.40/secret/month; consider if compliance requirements arise
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| 4.2.1 | Architecture decision | Choose compute: Lambda + API Gateway (always free, needs Mangum) vs EC2 + Elastic Beanstalk (free 12 months, no code change); document as ADR | ⏳ Pending |
-| 4.2.2 | Backend adapter / Dockerfile | Lambda path: add Mangum, create `handler.py` entry point, package as zip or container image (ECR public — free). EB path: `backend/Dockerfile` — multi-stage build, uvicorn, non-root user | ⏳ Pending |
-| 4.2.3 | ECR setup (public) | Create public ECR repository (always free); push backend image; wire image tag to Git SHA for Sentry release traceability | ⏳ Pending |
-| 4.2.4 | Compute setup | Lambda path: create Lambda function + HTTP API Gateway, configure `/health` check. EB path: create EB environment, t2.micro, configure health check on `/health` | ⏳ Pending |
-| 4.2.5 | Secrets via Parameter Store | Migrate all secrets from Render/Vercel to AWS Parameter Store standard tier (always free); no Secrets Manager — cost not justified on free tier | ⏳ Pending |
-| 4.2.6 | Frontend on S3 + CloudFront | Build React app; upload to S3 bucket; CloudFront distribution; cache invalidation on deploy | ⏳ Pending |
-| 4.2.7 | CodePipeline + CodeBuild | Pipeline: source (GitHub) → build (CodeBuild: tests + build image + push to ECR) → deploy (Lambda update or EB deploy + S3 sync + CloudFront invalidation); stays within 100 free build minutes/month | ⏳ Pending |
-| 4.2.8 | Update Sentry release tagging | Update `sentry-release.yml` to tag releases using CodeBuild build ID / image tag; keeps error → deployment traceability intact | ⏳ Pending |
-| 4.2.9 | Update canary monitoring | Point `API_BASE_URL` in canary workflow at new AWS backend URL; update UptimeRobot to monitor new endpoint | ⏳ Pending |
-| 4.2.10 | Cut-over and smoke test | Run full end-to-end smoke test against AWS URLs; confirm Sentry errors route correctly; confirm notifications deliver; decommission Render + Vercel | ⏳ Pending |
+| 4.2.1 | Architecture decision | Lambda + API Gateway vs EC2 + Elastic Beanstalk; document as ADR | ⏳ Pending |
+| 4.2.2 | Backend adapter / Dockerfile | Lambda: add Mangum, `handler.py` entry point, package as zip or ECR image. EB: `Dockerfile` multi-stage, uvicorn, non-root | ⏳ Pending |
+| 4.2.3 | ECR setup (public) | Create public ECR repo (always free); push image tagged to Git SHA for Sentry release traceability | ⏳ Pending |
+| 4.2.4 | Compute setup | Lambda: function + HTTP API Gateway + `/health` check. EB: environment, t2.micro, health check on `/health` | ⏳ Pending |
+| 4.2.5 | Secrets via Parameter Store | Migrate all secrets to Parameter Store standard tier (always free); no Secrets Manager | ⏳ Pending |
+| 4.2.6 | Frontend on S3 + CloudFront | Build React app; upload to S3; CloudFront distribution; cache invalidation on deploy | ⏳ Pending |
+| 4.2.7 | CodePipeline + CodeBuild | Source (GitHub) → build (tests + image + ECR push) → deploy (Lambda/EB + S3 sync + CloudFront invalidation); stay within 100 free build minutes/month | ⏳ Pending |
+| 4.2.8 | Update Sentry release tagging | Tag releases using CodeBuild build ID / image tag to maintain error → deployment traceability | ⏳ Pending |
+| 4.2.9 | Update canary monitoring | Point `API_BASE_URL` at new AWS backend URL; update UptimeRobot to monitor new endpoint | ⏳ Pending |
+| 4.2.10 | Cut-over and smoke test | End-to-end smoke test on AWS URLs; confirm Sentry + notifications; decommission Render + Vercel | ⏳ Pending |
 
 ---
 
-### Nice to Have — Monitoring
-- [ ] Enhance `check_provider_status` to optionally include account-level delivery logs (Resend `GET /emails`, Twilio `GET /Messages.json`) via `include_logs: bool = False` parameter — gives provider's own view of failures, not just our DB's view
-- [ ] Add 4xx alerting thresholds (429, 404, 422, 401/403) as separate tracked metrics in the monitor service — currently these status codes are visible in `query_request_logs` output but do not trigger alerts
+## Nice to Have — Monitoring
+- [ ] Enhance `check_provider_status` to include account-level delivery logs (Resend `GET /emails`, Twilio `GET /Messages.json`) via `include_logs: bool = False`
+- [ ] Add 4xx alerting thresholds (429, 404, 422, 401/403) as separate tracked metrics — currently visible in `query_request_logs` but do not trigger alerts
 
+## Nice to Have — Features
 - [ ] Stripe payment integration
 - [ ] Customer order status tracking page
-- [ ] Real geocoding for delivery radius (upgrade from zip code list — applies to both regular orders and catering)
+- [ ] Real geocoding for delivery radius (upgrade from zip code list)
 - [ ] Admin panel API endpoints (once Lovable UI is ready)
 - [ ] Upgrade Render to paid tier if cold starts become a problem
