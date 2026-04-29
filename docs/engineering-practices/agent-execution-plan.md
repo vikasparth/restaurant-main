@@ -43,6 +43,7 @@
 | B.2 | Finding schema file | Create `agents/schemas/finding-schema.json` — defines the common YAML envelope (schema_version, agent, status, source, time_window, confidence, pii_flag, injection_flag, findings_count, runbook_match); see architecture doc Finding Schema section for full field definitions | ⏳ Pending |
 | B.3 | Schema validator utility | Write `agents/validator.py` — single function `validate_finding(yaml_str)` that parses the YAML block from an agent comment and validates it against `finding-schema.json` using `jsonschema`; raise a descriptive error on failure | ⏳ Pending |
 | B.4 | Model config | Add `agents/config.py` — reads per-agent model names from environment variables with defaults (Sonnet 4.6 for Orchestrator, Recommendation, Codebase; Haiku 4.5 for Sentry, Render, GitHub agents); never hardcode model IDs | ⏳ Pending |
+| B.5 | Prompt caching | Add `cache_control: {"type": "ephemeral"}` to the last static block of every agent's system prompt so the Anthropic SDK caches it across runs; verify cache hits appear in `usage.cache_read_input_tokens` in the response; required for all agents — system prompts do not change between investigations so every run should hit the cache | ⏳ Pending |
 
 ---
 
@@ -115,10 +116,11 @@ A.4 (test scenarios) ───────────────────�
 A.5 (runbook) ─────────────────────────────────────→ D.5 (Codebase Agent reads runbook)
 A.6 (Render API) ──────────────────────────────────→ D.3 (Render Logs Agent)
 
-B.1 (agents/ package) ─────────────────────────────→ B.2, B.3, B.4, all of D and E
+B.1 (agents/ package) ─────────────────────────────→ B.2, B.3, B.4, B.5, all of D and E
 B.2 (finding schema) ──────────────────────────────→ B.3 (validator), D.1–D.6 (agents conform to schema)
 B.3 (schema validator) ────────────────────────────→ E.2 (orchestrator validates before routing)
 B.4 (model config) ────────────────────────────────→ D.1–D.6, E.2
+B.5 (prompt caching) ──────────────────────────────→ D.1–D.6, E.2 (all agents must cache system prompts)
 
 C.1 (backend monitor workflow) ────────────────────→ C.3 (orchestrator triggered by label)
 C.2 (frontend monitor workflow) ───────────────────→ C.3 (orchestrator triggered by label)
