@@ -282,6 +282,7 @@ Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid l
 | DT-8 | Skill: `/execution-plan` | ⏳ Pending |
 | DT-9 | CI pipeline — GitHub Actions | TypeScript compile + ESLint + frontend build on every push/PR; prerequisite for schema validator and graphql-inspector | ✅ Done 2026-04-24 |
 | DT-10 | Unit + integration tests — menu slice (backend + frontend) | ⏳ Pending |
+| DT-11 | **⚠️ Must have — Claude Code token efficiency** | Context window exhaustion is a development blocker. Build a plugin/skill that surfaces live token usage per session, identifies patterns that inflate context (large file reads, over-broad globs, repeated context re-reads), and produces a report of recommended practices (lean context habits, `/compact` timing, session scoping). Goal: no session should hit the token ceiling mid-task. | ⏳ Pending |
 
 ---
 
@@ -322,7 +323,7 @@ Migrate one feature at a time to `src/features/[feature]/` — only when that fe
 
 | Task | Detail | Status |
 |---|---|---|
-| Phase A — Prerequisites | Backend Sentry, release tagging in CI, test scenarios file, runbook coverage, Render API access | ⏳ Pending |
+| Phase A — Prerequisites | Backend Sentry ✅, release tagging in CI ✅, test scenarios file ⏳, runbook coverage ⏳, Render API access ⏳ | 🔄 In Progress |
 | Phase B — Individual Agents | Sentry Agent, Render Logs Agent, GitHub Agent, Codebase Agent, Recommendation Agent | ⏳ Pending |
 | Phase C — Orchestration Layer | Orchestrator, `/troubleshoot` skill, scheduled proactive check, GitHub write authorization | ⏳ Pending |
 | Phase D — Validation | End-to-end validation against all 5 test scenarios + false positive check | ⏳ Pending |

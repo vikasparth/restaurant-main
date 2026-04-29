@@ -1,7 +1,7 @@
 # Agent Architecture — Aap ki Rasoi
 
 **Status: DRAFT**
-**Last updated: 2026-04-28**
+**Last updated: 2026-04-28 (updated: monitoring workflows layer added)**
 **Workflow context:** See `docs/engineering-practices/ai-agent-workflow.md` — two-loop model (inner/outer), signal sources, and recommended agent behaviour.
 **Implementation plan:** See `docs/engineering-practices/agent-execution-plan.md` — phases, tasks, and validation scenarios.
 
@@ -66,10 +66,61 @@
 
 ---
 
+## Monitoring Workflows
+
+Two scheduled GitHub Actions workflows form the **outer monitoring layer** — they sit outside the agent orchestration stack and serve as the automated entry point for the reactive pipeline. The orchestrator and all agents are invoked only after the monitoring workflow decides an issue warrants investigation.
+
+### Overall Pipeline
+
+```
+GitHub Actions (scheduled cron)
+  ├── sentry-monitor-frontend.yml  — polls frontend Sentry project on a schedule
+  └── sentry-monitor-backend.yml  — polls backend Sentry project on a schedule
+       │
+       ▼  if threshold crossed AND no matching open issue
+  GitHub Issue created  (labels: needs-analysis, source:frontend-sentry OR source:backend-sentry)
+       │
+       ▼  triggers
+  agent-orchestrator.yml  (on: issues: [labeled: needs-analysis])
+       │
+       ▼
+  Orchestrator Agent → specialized agents → Recommendation Agent → comment on issue
+```
+
+### Workflow Responsibilities
+
+| Workflow | Sentry project | Schedule | Output |
+|---|---|---|---|
+| `sentry-monitor-frontend.yml` | Frontend Sentry | Every 30 min (configurable via env var) | GitHub issue with `needs-analysis` + `source:frontend-sentry` labels |
+| `sentry-monitor-backend.yml` | Backend Sentry | Every 30 min (configurable via env var) | GitHub issue with `needs-analysis` + `source:backend-sentry` labels |
+
+### De-duplication Rule
+
+Before creating a new issue, the monitoring workflow must query open GitHub issues for a matching Sentry error fingerprint (Sentry group ID). Two outcomes:
+
+- **No matching open issue** — create a new GitHub issue with the labels above
+- **Matching open issue exists** — comment on the existing issue with the latest error count and timestamp; do not create a new issue
+
+This prevents duplicate issues from accumulating across cron cycles for the same ongoing error.
+
+### Handoff Contract
+
+The `needs-analysis` label is the contract between the monitoring workflow and the orchestrator workflow. The `source:frontend-sentry` or `source:backend-sentry` label tells the orchestrator which Sentry project to query first. Both labels must be present for the orchestrator workflow to trigger.
+
+The issue body written by the monitoring workflow must include:
+- Sentry error fingerprint (group ID — not the raw error message)
+- Error count in the detection window
+- First seen / last seen timestamps
+- Top-line error message — **redacted of all PII before posting**
+- Deep link to the Sentry error group
+
+---
+
 ## Access Matrix
 
-| Agent | Frontend Sentry | Backend Sentry | Render Logs | GitHub (read) | GitHub (write) | Codebase | Email (Resend) |
+| Component | Frontend Sentry | Backend Sentry | Render Logs | GitHub (read) | GitHub (write) | Codebase | Email (Resend) |
 |---|---|---|---|---|---|---|---|
+| **Monitoring Workflows** | ✅ Read (frontend wf only) | ✅ Read (backend wf only) | ❌ | ❌ | ✅ Create issues + comment | ❌ | ❌ |
 | Frontend Sentry Agent | ✅ Read | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Backend Sentry Agent | ❌ | ✅ Read | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Render Logs Agent | ❌ | ❌ | ✅ Read | ❌ | ❌ | ❌ | ❌ |
@@ -84,43 +135,70 @@
 
 | Trigger | Source | Orchestrator Entry Point |
 |---|---|---|
-| Scheduled proactive check | Cron (daily) | Check Sentry for error spikes; check Render for operational anomalies |
-| GitHub issue opened | GitHub webhook or manual invocation | Read issue → extract symptom → investigate |
-| Sentry alert threshold crossed | Sentry alert webhook | Read error group → investigate |
+| Sentry monitoring workflow | GitHub Actions scheduled cron — two separate workflows (frontend and backend) | Monitoring workflow creates GitHub issue with `needs-analysis` + `source:*` labels; orchestrator workflow triggers on label event |
+| GitHub issue labeled `needs-analysis` | Label applied by monitoring workflow or manually | Read issue → extract symptom, source label, Sentry fingerprint → investigate |
 | Manual invocation | `/troubleshoot` skill | User provides symptom or issue number → investigate |
+
+> **Note:** Direct Sentry alert webhooks are not used. Sentry's GitHub integration for issue creation is a paid feature. All automated Sentry monitoring goes through the scheduled GitHub Actions workflows above.
 
 ---
 
 ## Orchestration Flow
 
-### Proactive (scheduled / Sentry alert)
+### Automated Monitoring (Sentry threshold breach)
+
+Phase 1 — Monitoring workflow (GitHub Actions, no Claude involved):
 ```
-Trigger
-  → Orchestrator
-  → Frontend Sentry Agent (JS error spikes, gateway exceptions)
-  → Backend Sentry Agent (Python exception spikes, FastAPI errors)
-  → [if issues found] Render Logs Agent (confirm operational health)
-  → [if issues found] Codebase Agent (trace the affected field/path)
-  → [if issues found] GitHub Agent (check for recent commits touching the affected area)
-  → Recommendation Agent (synthesize → confidence level + root cause + recommended fix)
-  → Orchestrator opens GitHub Issue with full findings
-  → [high confidence] Orchestrator sends email notification via Resend
+sentry-monitor-frontend.yml OR sentry-monitor-backend.yml (scheduled cron)
+  → calls Sentry API — checks error count against configurable threshold
+  → de-duplication check: open issue with matching Sentry fingerprint?
+      → [yes] comment on existing issue with updated count and timestamp — stop
+      → [no] create GitHub issue
+            title: "[Sentry] <top-line error> — <project>"
+            labels: needs-analysis, source:frontend-sentry OR source:backend-sentry
+            body: fingerprint, error count, first/last seen, redacted message, Sentry deep link
+```
+
+Phase 2 — Agent orchestration (triggered by label event):
+```
+agent-orchestrator.yml  (on: issues labeled: needs-analysis)
+  → Orchestrator Agent reads issue — extracts fingerprint, source label, time window
+  → [source:frontend-sentry] Frontend Sentry Agent
+        detailed JS error trace, breadcrumbs, affected release tag
+  → [source:backend-sentry] Backend Sentry Agent
+        detailed Python exception trace, request context, affected release tag
+  → [backend source] Render Logs Agent
+        operational health at error time — startup events, crash events
+  → Codebase Agent
+        trace affected field or endpoint through component → hook → query → resolver → backend
+  → GitHub Agent
+        recent commits touching the affected area; any related open issues
+  → Recommendation Agent
+        root cause statement, confidence level, recommended fix, runbook reference
+  → Orchestrator comments on the GitHub issue with full structured findings
+  → [high confidence] email notification via Resend
   → Human reviews → /approve / /reject / /investigate
   → [approved] Orchestrator executes recommended action
 ```
 
-### Reactive (GitHub issue / manual)
+### Reactive (manual GitHub issue or `/troubleshoot` skill)
 ```
-Trigger (issue number or symptom)
-  → Orchestrator
-  → GitHub Agent (read the issue, extract symptom, check recent related PRs)
-  → [frontend symptom] Frontend Sentry Agent (find matching JS errors in the issue time window)
-  → [backend symptom] Backend Sentry Agent (find matching Python errors in the issue time window)
-  → Render Logs Agent (check operational health at the time of the issue)
-  → Codebase Agent (trace the symptom through the stack)
-  → Recommendation Agent (synthesize → confidence level + root cause + recommended fix)
-  → Orchestrator comments on the GitHub Issue with findings
-  → [high confidence] Orchestrator sends email notification via Resend
+Trigger: issue number OR symptom description from /troubleshoot skill
+  → Orchestrator Agent
+  → GitHub Agent
+        read the issue, extract symptom, check recent related PRs and commits
+  → [frontend symptom] Frontend Sentry Agent
+        matching JS errors in the issue time window
+  → [backend symptom] Backend Sentry Agent
+        matching Python errors in the issue time window
+  → Render Logs Agent
+        operational health at the time of the reported issue
+  → Codebase Agent
+        trace symptom through the full stack
+  → Recommendation Agent
+        root cause statement, confidence level, recommended fix, runbook reference
+  → Orchestrator comments on the GitHub issue with full structured findings
+  → [high confidence] email notification via Resend
   → Human reviews → /approve / /reject / /investigate
   → [approved] Orchestrator executes recommended action
 ```
