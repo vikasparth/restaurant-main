@@ -282,6 +282,7 @@ Workflow: `.github/workflows/canary.yml` — runs with `--noconftest` to avoid l
 | DT-8 | Skill: `/execution-plan` | ⏳ Pending |
 | DT-9 | CI pipeline — GitHub Actions | TypeScript compile + ESLint + frontend build on every push/PR; prerequisite for schema validator and graphql-inspector | ✅ Done 2026-04-24 |
 | DT-10 | Unit + integration tests — menu slice (backend + frontend) | ⏳ Pending |
+| DT-11 | **⚠️ Must have — Claude Code token efficiency** | Context window exhaustion is a development blocker. Build a plugin/skill that surfaces live token usage per session, identifies patterns that inflate context (large file reads, over-broad globs, repeated context re-reads), and produces a report of recommended practices (lean context habits, `/compact` timing, session scoping). Goal: no session should hit the token ceiling mid-task. | ⏳ Pending |
 
 ---
 
@@ -322,10 +323,83 @@ Migrate one feature at a time to `src/features/[feature]/` — only when that fe
 
 | Task | Detail | Status |
 |---|---|---|
-| Phase A — Prerequisites | Backend Sentry, release tagging in CI, test scenarios file, runbook coverage, Render API access | ⏳ Pending |
+| Phase A — Prerequisites | Backend Sentry ✅, release tagging in CI ✅, test scenarios file ⏳, runbook coverage ⏳, Render API access ⏳ | 🔄 In Progress |
 | Phase B — Individual Agents | Sentry Agent, Render Logs Agent, GitHub Agent, Codebase Agent, Recommendation Agent | ⏳ Pending |
 | Phase C — Orchestration Layer | Orchestrator, `/troubleshoot` skill, scheduled proactive check, GitHub write authorization | ⏳ Pending |
 | Phase D — Validation | End-to-end validation against all 5 test scenarios + false positive check | ⏳ Pending |
+
+---
+
+## Phase 4 — Infrastructure & Reliability
+
+---
+
+### 4.1 — Queue / Notification Integration
+
+> Replace direct Resend/Twilio calls in request handlers with an async queue layer.
+> Currently notifications are fire-and-forget inside the order/reservation save path — a provider failure is logged but there is no retry. A queue decouples notification delivery from the user-facing request, adds retry with backoff, and enables a dead-letter queue for failed messages.
+
+**Current state:** `services/email_service.py` and `services/whatsapp_service.py` called directly from `order_service.py`, `reservation_service.py`, `catering_service.py` — synchronous, no retry.
+
+| # | Task | Description | Status |
+|---|---|---|---|
+| 4.1.1 | Choose queue backend | Evaluate AWS SQS (free tier: 1M requests/month) vs Redis Queue (RQ) vs Celery + Redis — decision based on AWS deployment strategy in 4.2; document choice as ADR | ⏳ Pending |
+| 4.1.2 | Queue service | `services/queue_service.py` — enqueue notification jobs (email and WhatsApp separately); job payload includes type, recipient, reference number, template key — no PII beyond what is needed to render the message | ⏳ Pending |
+| 4.1.3 | Worker | Notification worker that dequeues jobs, calls Resend/Twilio, retries on failure (max 3 attempts, exponential backoff), moves to dead-letter queue after final failure | ⏳ Pending |
+| 4.1.4 | Dead-letter handling | Dead-letter queue consumer logs failure to `notification_logs` table with full retry history; triggers owner alert (email) so no notification is silently lost | ⏳ Pending |
+| 4.1.5 | Wire to slices | Replace direct email/WhatsApp calls in order, reservation, catering services with queue enqueue calls; existing `notification_logs` table records queue entry time + delivery time | ⏳ Pending |
+| 4.1.6 | Automated tests | pytest: job enqueued on order save; worker delivers on dequeue; failed delivery retries up to max; dead-letter entry created after final failure; notification_logs updated correctly | ⏳ Pending |
+| 4.1.7 | Manual verification | Place order → confirm job in queue → confirm delivery → simulate provider failure → confirm retry → confirm dead-letter alert | ⏳ Pending |
+
+---
+
+### 4.2 — AWS DevOps Pipeline (Free Tier)
+
+> Migrate infrastructure from Render + Vercel to AWS. Adds a production-grade CI/CD pipeline with CodePipeline + CodeBuild, backend on AWS compute, static frontend on S3 + CloudFront.
+
+**Current state:** Backend on Render (free tier, cold starts), frontend on Vercel, no AWS CI/CD.
+
+**AWS free tier — what is actually free and for how long:**
+
+| Service | Free allowance | Duration |
+|---|---|---|
+| Lambda | 1M requests + 400K GB-seconds/month | Always free |
+| API Gateway (HTTP API) | 1M requests/month | 12 months only |
+| EC2 t2.micro | 750 hrs/month | 12 months only |
+| Elastic Beanstalk | Free (EC2 underneath is not) | — |
+| S3 | 5 GB storage, 20K GET, 2K PUT/month | 12 months only |
+| CloudFront | 1 TB transfer + 10M requests/month | Always free |
+| CodeBuild | 100 build minutes/month | Always free |
+| CodePipeline | 1 active pipeline/month | Always free |
+| ECR (public) | Unlimited | Always free |
+| ECR (private) | 500 MB/month | 12 months only |
+| Parameter Store (standard) | 10,000 parameters, standard throughput | Always free |
+| **ECS Fargate** | **Not free — ~$10–15/month minimum** | ❌ Not free tier |
+| **Secrets Manager** | **Not free — $0.40/secret/month** | ❌ Not free tier |
+
+**Compute choice — two viable options:**
+
+| Option | Cost | Trade-off |
+|---|---|---|
+| **Lambda + API Gateway** (recommended) | Always free within limits | Requires Mangum adapter to wrap FastAPI; cold starts on first request after idle |
+| **EC2 t2.micro + Elastic Beanstalk** | Free for 12 months, then ~$10/month | No code change needed; warm instance always running; cost starts after year 1 |
+
+**Nice to Have — evaluate at implementation time (paid):**
+- [ ] ECS Fargate — container-native compute, no EC2 management; ~$10–15/month minimum; consider if cold starts or scaling become a problem
+- [ ] Secrets Manager — automatic secret rotation, fine-grained IAM policies; $0.40/secret/month; consider if compliance or rotation requirements arise
+
+| # | Task | Description | Status |
+|---|---|---|---|
+| 4.2.1 | Architecture decision | Choose compute: Lambda + API Gateway (always free, needs Mangum) vs EC2 + Elastic Beanstalk (free 12 months, no code change); document as ADR | ⏳ Pending |
+| 4.2.2 | Backend adapter / Dockerfile | Lambda path: add Mangum, create `handler.py` entry point, package as zip or container image (ECR public — free). EB path: `backend/Dockerfile` — multi-stage build, uvicorn, non-root user | ⏳ Pending |
+| 4.2.3 | ECR setup (public) | Create public ECR repository (always free); push backend image; wire image tag to Git SHA for Sentry release traceability | ⏳ Pending |
+| 4.2.4 | Compute setup | Lambda path: create Lambda function + HTTP API Gateway, configure `/health` check. EB path: create EB environment, t2.micro, configure health check on `/health` | ⏳ Pending |
+| 4.2.5 | Secrets via Parameter Store | Migrate all secrets from Render/Vercel to AWS Parameter Store standard tier (always free); no Secrets Manager — cost not justified on free tier | ⏳ Pending |
+| 4.2.6 | Frontend on S3 + CloudFront | Build React app; upload to S3 bucket; CloudFront distribution; cache invalidation on deploy | ⏳ Pending |
+| 4.2.7 | CodePipeline + CodeBuild | Pipeline: source (GitHub) → build (CodeBuild: tests + build image + push to ECR) → deploy (Lambda update or EB deploy + S3 sync + CloudFront invalidation); stays within 100 free build minutes/month | ⏳ Pending |
+| 4.2.8 | Update Sentry release tagging | Update `sentry-release.yml` to tag releases using CodeBuild build ID / image tag; keeps error → deployment traceability intact | ⏳ Pending |
+| 4.2.9 | Update canary monitoring | Point `API_BASE_URL` in canary workflow at new AWS backend URL; update UptimeRobot to monitor new endpoint | ⏳ Pending |
+| 4.2.10 | Cut-over and smoke test | Run full end-to-end smoke test against AWS URLs; confirm Sentry errors route correctly; confirm notifications deliver; decommission Render + Vercel | ⏳ Pending |
 
 ---
 
