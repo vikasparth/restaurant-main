@@ -247,6 +247,54 @@ The issue body written by the monitoring workflow must include:
 - Top-line error message — **redacted of all PII before posting**
 - Deep link to the Sentry error group
 
+### Release ID — End-to-End Flow
+
+The sequence below shows how a commit SHA flows from a push to `main` all the way to the Recommendation Agent's root cause output. The release ID is the thread that connects a Sentry error to the exact code change that introduced it.
+
+**Example scenario:** A date validation rule was tightened in PR #44 (commit `a3f9c12`). Reservations start failing. The agent traces the bug back to that specific commit without any human pointing it there.
+
+```mermaid
+sequenceDiagram
+    actor Dev as Developer
+    participant GHA_Rel as sentry-release.yml
+    participant Sentry as Sentry
+    participant App as Production App
+    participant GHA_Mon as sentry-monitor-backend.yml
+    participant GH as GitHub Issues
+    participant Orch as orchestrator.py
+    participant SAgent as Backend Sentry Agent
+    participant GHAgent as GitHub Agent
+    participant Rec as Recommendation Agent
+
+    Dev->>GHA_Rel: git push to main (commit "a3f9c12")
+    GHA_Rel->>Sentry: create release "a3f9c12" for restaurant-backend
+    Note over GHA_Rel,Sentry: getsentry/action-release@v1 tags the deploy<br/>so Sentry knows which code is live
+
+    App->>Sentry: 47 ValidationErrors on POST /reservations
+    Note over App,Sentry: Sentry auto-tags: first_seen_in_release = "a3f9c12"<br/>only works if Sentry.init() passes release=
+
+    GHA_Mon->>Sentry: poll error count (every 30 min)
+    Sentry-->>GHA_Mon: count=47, release="a3f9c12", fingerprint="abc123"
+    GHA_Mon->>GH: create issue<br/>fingerprint=abc123, release=a3f9c12, count=47
+    Note over GHA_Mon,GH: labels: needs-analysis + source:backend-sentry
+
+    GH-->>Orch: trigger on: issues labeled needs-analysis
+    Orch->>SAgent: investigate(fingerprint=abc123)
+    SAgent->>Sentry: get_stack_trace(group=abc123)
+    SAgent->>Sentry: get_affected_releases(group=abc123)
+    Sentry-->>SAgent: ValidationError in reservation_service.py:47<br/>first_seen_in_release="a3f9c12"
+    SAgent-->>Orch: finding { release="a3f9c12", endpoint=/reservations }
+
+    Orch->>GHAgent: investigate(release="a3f9c12")
+    GHAgent->>GH: get_recent_commits(sha="a3f9c12")
+    GH-->>GHAgent: PR #44 — "feat: tighten date validation on reservations"
+    GHAgent-->>Orch: finding { commit=a3f9c12, pr=44, file=reservation_service.py }
+
+    Orch->>Rec: synthesize(sentry_finding, github_finding, codebase_finding)
+    Rec-->>Orch: root_cause="MAX_DATE_DAYS reduced in PR #44, line 47"<br/>confidence=high, fix="revert to 90-day window"
+    Orch->>GH: comment with full findings + email notification
+```
+
 ---
 
 ## Access Matrix
@@ -280,64 +328,86 @@ The issue body written by the monitoring workflow must include:
 
 ### Automated Monitoring (Sentry threshold breach)
 
-Phase 1 — Monitoring workflow (GitHub Actions, no Claude involved):
-```
-sentry-monitor-frontend.yml OR sentry-monitor-backend.yml (scheduled cron)
-  → calls Sentry API — checks error count against configurable threshold
-  → de-duplication check: open issue with matching Sentry fingerprint?
-      → [yes] comment on existing issue with updated count and timestamp — stop
-      → [no] create GitHub issue
-            title: "[Sentry] <top-line error> — <project>"
-            labels: needs-analysis, source:frontend-sentry OR source:backend-sentry
-            body: fingerprint, error count, first/last seen, redacted message, Sentry deep link
-```
+```mermaid
+sequenceDiagram
+    participant Monitor as sentry-monitor-*.yml
+    participant Sentry as Sentry API
+    participant GH as GitHub Issues
+    participant Orch as orchestrator.py
+    participant SAgent as Sentry Agent<br/>(frontend or backend)
+    participant Render as Render Logs Agent
+    participant Code as Codebase Agent
+    participant GHAgent as GitHub Agent
+    participant Rec as Recommendation Agent
+    actor Human as Human
 
-Phase 2 — Agent orchestration (triggered by label event):
-```
-agent-orchestrator.yml  (on: issues labeled: needs-analysis)
-  → runs: python agents/orchestrator.py --issue <number>
-  → Orchestrator reads issue — extracts fingerprint, source label, time window
-  → [source:frontend-sentry] Frontend Sentry Agent
-        detailed JS error trace, breadcrumbs, affected release tag
-  → [source:backend-sentry] Backend Sentry Agent
-        detailed Python exception trace, request context, affected release tag
-  → [backend source] Render Logs Agent
-        operational health at error time — startup events, crash events
-  → Codebase Agent
-        trace affected field or endpoint through component → hook → query → resolver → backend
-  → GitHub Agent
-        recent commits touching the affected area; any related open issues
-  → [each finding validated against agents/schemas/finding-schema.json before routing]
-  → Recommendation Agent
-        root cause statement, confidence level, recommended fix, runbook reference
-  → Orchestrator comments on the GitHub issue with full structured findings
-  → [high confidence] email notification via Resend
-  → Human reviews → /approve / /reject / /investigate
-  → [approved] open_pull_request tool added to orchestrator tool list → action executed
+    Monitor->>Sentry: check error count against threshold
+    alt threshold crossed, no matching open issue
+        Monitor->>GH: create issue<br/>title: [Sentry] error — project<br/>labels: needs-analysis + source:*-sentry<br/>body: fingerprint, count, release, Sentry link
+    else matching open issue exists
+        Monitor->>GH: comment with updated count and timestamp
+    end
+
+    GH-->>Orch: trigger on: issues labeled needs-analysis
+    Orch->>SAgent: detailed error trace + affected release tag
+    SAgent-->>Orch: finding (YAML envelope, validated)
+    Orch->>Render: operational health at error time
+    Render-->>Orch: finding (YAML envelope, validated)
+    Orch->>Code: trace affected field/endpoint through full stack
+    Code-->>Orch: finding (YAML envelope, validated)
+    Orch->>GHAgent: commits touching affected area + related issues
+    GHAgent-->>Orch: finding (YAML envelope, validated)
+    Note over Orch: each finding validated against<br/>agents/schemas/finding-schema.json before routing
+    Orch->>Rec: synthesize all findings
+    Rec-->>Orch: root cause, confidence, recommended fix, runbook reference
+    Orch->>GH: comment with full structured investigation
+    alt high confidence
+        Orch->>Human: email via Resend
+    end
+    Human->>GH: /approve OR /reject OR /investigate
+    alt approved
+        Note over Orch: open_pull_request added to tool list<br/>only after /approve — not before
+        Orch->>GH: execute recommended action
+    end
 ```
 
 ### Reactive (manual GitHub issue or `/troubleshoot` skill)
-```
-Trigger: issue number OR symptom description from /troubleshoot skill
-  → runs: python agents/orchestrator.py --issue <number>  (same entry point)
-  → Orchestrator Agent
-  → GitHub Agent
-        read the issue, extract symptom, check recent related PRs and commits
-  → [frontend symptom] Frontend Sentry Agent
-        matching JS errors in the issue time window
-  → [backend symptom] Backend Sentry Agent
-        matching Python errors in the issue time window
-  → Render Logs Agent
-        operational health at the time of the reported issue
-  → Codebase Agent
-        trace symptom through the full stack
-  → [each finding validated against agents/schemas/finding-schema.json before routing]
-  → Recommendation Agent
-        root cause statement, confidence level, recommended fix, runbook reference
-  → Orchestrator comments on the GitHub issue with full structured findings
-  → [high confidence] email notification via Resend
-  → Human reviews → /approve / /reject / /investigate
-  → [approved] Orchestrator executes recommended action
+
+```mermaid
+sequenceDiagram
+    actor Human as Human
+    participant Skill as /troubleshoot skill
+    participant Orch as orchestrator.py
+    participant GHAgent as GitHub Agent
+    participant SAgent as Sentry Agent<br/>(frontend or backend)
+    participant Render as Render Logs Agent
+    participant Code as Codebase Agent
+    participant Rec as Recommendation Agent
+    participant GH as GitHub Issues
+
+    Human->>Skill: symptom description or issue number
+    Skill->>Orch: python orchestrator.py --issue <number>
+    Note over Skill,Orch: same entry point as the automated path
+
+    Orch->>GHAgent: read issue, extract symptom + recent PRs and commits
+    GHAgent-->>Orch: finding (YAML envelope, validated)
+    Orch->>SAgent: matching errors in issue time window
+    SAgent-->>Orch: finding (YAML envelope, validated)
+    Orch->>Render: operational health at reported time
+    Render-->>Orch: finding (YAML envelope, validated)
+    Orch->>Code: trace symptom through full stack
+    Code-->>Orch: finding (YAML envelope, validated)
+    Note over Orch: each finding validated against<br/>agents/schemas/finding-schema.json before routing
+    Orch->>Rec: synthesize all findings
+    Rec-->>Orch: root cause, confidence, recommended fix, runbook reference
+    Orch->>GH: comment with full structured investigation
+    alt high confidence
+        Orch->>Human: email via Resend
+    end
+    Human->>GH: /approve OR /reject OR /investigate
+    alt approved
+        Orch->>GH: execute recommended action
+    end
 ```
 
 ---
