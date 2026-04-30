@@ -23,13 +23,13 @@
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| A.1 | Backend Sentry | Install `sentry-sdk[fastapi]` on backend; wire to FastAPI; tag releases with commit SHA so errors map to deployments | ✅ Done |
-| A.2 | Sentry release tagging in CI | Separate `sentry-release.yml` workflow fires on push to main; tags release with Git SHA via `getsentry/action-release@v1` | ✅ Done |
-| A.3 | Frontend Sentry | Wire the React frontend to the frontend Sentry project; confirm JS errors and breadcrumbs appear in a separate Sentry project from the backend | ⏳ Pending |
+| A.1 | Backend Sentry | Install `sentry-sdk[fastapi]` on backend; wire to FastAPI; tag releases with commit SHA so errors map to deployments | ✅ Done — **one open fix:** Render dashboard must map `GIT_COMMIT_SHA=$RENDER_GIT_COMMIT`; pydantic reads `GIT_COMMIT_SHA` but Render injects `RENDER_GIT_COMMIT` — without this mapping `release=` in Sentry is always empty |
+| A.2 | Sentry release tagging in CI | Separate `sentry-release.yml` workflow fires on push to main; tags release with Git SHA via `getsentry/action-release@v1` | ✅ Done — **scope gap:** currently only creates a release for `restaurant-backend`; must be extended to cover the frontend and gateway Sentry projects once those DSNs are set up |
+| A.3 | Frontend Sentry | Wire the React frontend to the frontend Sentry project; confirm JS errors and breadcrumbs appear in a separate Sentry project from the backend | ⏳ Pending — code is wired (`@sentry/react` installed, `Sentry.init()` in `main.tsx`, `logger.ts` routes errors in prod, breadcrumb hook present) but the following must be completed before this can be marked done: **(1)** add `SENTRY_DSN` and `VITE_SENTRY_DSN` to `.env.example` with instructions on where to get each DSN (separate Sentry projects); **(2)** add `release: import.meta.env.VITE_SENTRY_RELEASE` to `Sentry.init()` in `main.tsx` so errors map to the deploying commit; **(3)** set `VITE_SENTRY_RELEASE` at Vercel build time (use the Vercel system env var `VERCEL_GIT_COMMIT_SHA`); **(4)** rename gateway env var from `SENTRY_DSN` to `GATEWAY_SENTRY_DSN` so backend and gateway errors land in separate Sentry projects |
 | A.4 | Test scenarios file | Write `docs/agent-test-scenarios.md` — 5 real bugs introduced one at a time to production; each scenario defines trigger, expected agent routing, expected findings per agent, expected recommendation | ⏳ Pending |
 | A.5 | Runbook coverage | Create `docs/runbooks/troubleshooting.md` — cover all 5 test scenarios with named pattern, investigation steps, and expected findings | ⏳ Pending |
 | A.6 | Render logs access | Confirm Render API key is available as env variable; document which log endpoints the Render Logs Agent will call | ⏳ Pending |
-| A.7 | Sequence diagram | Add sequence diagram to agent architecture doc showing agent transitive dependencies and Sentry release → error correlation flow | ⏳ Pending (after all agents designed) |
+| A.7 | Sequence diagram | Add sequence diagram to agent architecture doc showing agent transitive dependencies and Sentry release → error correlation flow | ✅ Done — release ID end-to-end flow diagram and both orchestration flow diagrams added to `agent-architecture.md` under Monitoring Workflows and Orchestration Flow sections |
 
 ---
 
