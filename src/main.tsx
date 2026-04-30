@@ -9,6 +9,7 @@ import "./index.css";
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
   environment: import.meta.env.MODE,
+  release: import.meta.env.VITE_SENTRY_RELEASE,
   beforeBreadcrumb(breadcrumb, hint) {
     // Tailwind class names make auto-generated selectors unreadable — prefer aria-label or id
     if (breadcrumb.category?.startsWith("ui.")) {

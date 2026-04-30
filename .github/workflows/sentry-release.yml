@@ -25,7 +25,7 @@ jobs:
           # which powers the "commits in this release" view and suspect commit detection.
           # A shallow clone (the default) would give Sentry nothing to work with.
 
-      - name: Create Sentry release
+      - name: Create Sentry release — backend
         uses: getsentry/action-release@v1
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -33,7 +33,27 @@ jobs:
           SENTRY_PROJECT: restaurant-backend
         with:
           version: ${{ github.sha }}
-          # The commit SHA is used as the release version so Sentry can pinpoint
-          # the exact code deployed. Human-readable tags (e.g. v1.2.3) are optional
-          # but we don't maintain a versioning scheme here, so SHA is the safest
-          # unambiguous identifier that always exists.
+          # SHA as version so agents can correlate a Sentry error's first_seen_in_release
+          # back to the exact commit and PR that introduced it.
+
+      - name: Create Sentry release — frontend
+        uses: getsentry/action-release@v1
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: restaurant-frontend
+        with:
+          version: ${{ github.sha }}
+          # Same SHA as backend so all three projects are on the same release identifier —
+          # the Frontend Sentry Agent can compare release IDs across projects without remapping.
+
+      - name: Create Sentry release — gateway
+        uses: getsentry/action-release@v1
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: restaurant-gateway
+        with:
+          version: ${{ github.sha }}
+          # Gateway errors tagged with the same SHA so the orchestrator can correlate
+          # a gateway Sentry error with the backend error from the same deploy.

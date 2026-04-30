@@ -13,10 +13,11 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-if (process.env.SENTRY_DSN) {
+if (process.env.GATEWAY_SENTRY_DSN) {
   Sentry.init({
-    dsn: process.env.SENTRY_DSN,
+    dsn: process.env.GATEWAY_SENTRY_DSN,
     environment: process.env.NODE_ENV ?? "production",
+    release: process.env.GATEWAY_SENTRY_RELEASE,
   });
 }
 
