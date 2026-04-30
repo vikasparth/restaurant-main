@@ -1,9 +1,17 @@
 name: Sentry Release
 
+# Without a Sentry release, errors are reported but have no deploy context —
+# you can't tell which commit introduced a bug or whether it's a regression.
+# This workflow creates a release in Sentry every time production is updated,
+# so each error is linked to the exact code version that caused it.
+
 on:
   push:
     branches:
       - main
+      # Only main triggers a release because only main maps to the production
+      # deployment. Feature branches should not create releases — they would
+      # pollute Sentry's release history with unreleased code.
 
 jobs:
   sentry-release:
@@ -12,6 +20,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # fetch-depth: 0 fetches the full git history, not just the latest commit.
+          # Sentry walks the commit log to associate commits with this release,
+          # which powers the "commits in this release" view and suspect commit detection.
+          # A shallow clone (the default) would give Sentry nothing to work with.
 
       - name: Create Sentry release
         uses: getsentry/action-release@v1
@@ -21,3 +33,7 @@ jobs:
           SENTRY_PROJECT: restaurant-backend
         with:
           version: ${{ github.sha }}
+          # The commit SHA is used as the release version so Sentry can pinpoint
+          # the exact code deployed. Human-readable tags (e.g. v1.2.3) are optional
+          # but we don't maintain a versioning scheme here, so SHA is the safest
+          # unambiguous identifier that always exists.
