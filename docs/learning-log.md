@@ -155,3 +155,13 @@ Running long sessions without clearing context causes two compounding problems. 
 The fix is architectural, not just behavioural. Execution plan tasks should be defined as atomic units of work — small enough that finishing one is a natural, safe point to clear the context window. Documentation should be indexed so Claude can be pointed to a specific section rather than parsing an entire file. Skill files must be kept as short as possible because their content persists in context for the entire session after invocation, even through compaction. The habit is: finish an atomic task, clear context, start fresh.
 
 **Guardrail created:** Define execution plan tasks as atomic, index docs for targeted reference, keep skill files minimal, and clear the context window after each completed task set — never let a session run until token exhaustion.
+
+---
+
+## PII/PHI Scrubbing — Missing from Sentry Initialisation
+
+When setting up Sentry across the frontend, backend, and GraphQL gateway, the `beforeSend` hook was not included as part of the initial Sentry configuration. The user had to prompt adding it after the fact. The hook scrubs known PII fields (`customer_name`, `customer_email`, `customer_phone`) from Sentry event payloads before they leave the application, ensuring customer data never reaches Sentry's servers.
+
+This is not a nice-to-have — it is a baseline security and compliance requirement. Without it, any error that captures a request body (such as a failed reservation or order submission) could transmit customer personal data to a third-party logging service. This is a direct violation of GDPR and potentially other data protection regulations depending on jurisdiction. The risk is compounded by the fact that Sentry errors are often shared across a team and retained for months.
+
+**Guardrail created:** Any `Sentry.init()` call across all layers (frontend, backend, gateway) must include a `beforeSend` hook that scrubs known PII/PHI fields before the event is sent. This requirement must be documented in CLAUDE.md so it is applied by default whenever Sentry is wired into a new service.

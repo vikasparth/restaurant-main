@@ -7,11 +7,22 @@ import { reservationResolvers } from "./resolvers/reservations.js";
 import { deliveryValidationResolvers } from "./resolvers/delivery.js";
 import * as Sentry from "@sentry/node";
 
+const PII_FIELDS = ["customer_name", "customer_email", "customer_phone"] as const;
+
 if (process.env.GATEWAY_SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.GATEWAY_SENTRY_DSN,
     environment: process.env.NODE_ENV ?? "development",
     release: process.env.GATEWAY_SENTRY_RELEASE,
+    beforeSend(event) {
+      const body = event.request?.data as Record<string, unknown>;
+      if (body && typeof body === "object") {
+        for (const field of PII_FIELDS) {
+          delete body[field];
+        }
+      }
+      return event;
+    },
   });
 }
 
