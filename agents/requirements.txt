@@ -22,5 +22,13 @@ requests==2.33.1
 # YAML parsing — extracts and parses YAML blocks from agent finding comments
 pyyaml==6.0.3
 
+# Testing
+pytest==9.0.3
+colorama==0.4.6
+iniconfig==2.3.0
+packaging==26.2
+pluggy==1.6.0
+pygments==2.20.0
+
 
 
