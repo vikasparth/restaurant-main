@@ -35,7 +35,9 @@ async def lifespan(app: FastAPI):
     await disconnect()
     logger.info("Shutting down Aap ki Rasoi API")
 
+
 _PII_FIELDS = ("customer_name", "customer_email", "customer_phone")
+
 
 def scrub_pii(event, hint):
     body = event.get("request", {}).get("data", {})
@@ -43,6 +45,7 @@ def scrub_pii(event, hint):
         for field in _PII_FIELDS:
             body.pop(field, None)
     return event
+
 
 # Must init before FastAPI app — FastApiIntegration patches request handling at import time
 sentry_sdk.init(
@@ -53,7 +56,6 @@ sentry_sdk.init(
     environment=settings.environment,
     before_send=scrub_pii,
 )
-
 
 
 # ---------------------------------------------------------------------------
