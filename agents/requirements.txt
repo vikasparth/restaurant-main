@@ -1,0 +1,17 @@
+# ============================================================
+# Agent Dependencies — Aap ki Rasoi
+# Install with: pip install -r requirements.txt
+# Run inside agents/.venv — do not install into the backend venv
+# ============================================================
+
+# Anthropic SDK — agentic loop, tool use, prompt caching
+anthropic==0.97.0
+
+# JSON Schema validation — validates agent findings against finding-schema.json
+jsonschema==4.26.0
+
+# GitHub API — read issues, commits, PRs (read-only)
+PyGithub==2.9.1
+
+# HTTP client — Sentry API and Render API calls
+requests==2.33.1
