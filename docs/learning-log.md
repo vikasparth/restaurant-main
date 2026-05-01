@@ -165,3 +165,13 @@ When setting up Sentry across the frontend, backend, and GraphQL gateway, the `b
 This is not a nice-to-have — it is a baseline security and compliance requirement. Without it, any error that captures a request body (such as a failed reservation or order submission) could transmit customer personal data to a third-party logging service. This is a direct violation of GDPR and potentially other data protection regulations depending on jurisdiction. The risk is compounded by the fact that Sentry errors are often shared across a team and retained for months.
 
 **Guardrail created:** Any `Sentry.init()` call across all layers (frontend, backend, gateway) must include a `beforeSend` hook that scrubs known PII/PHI fields before the event is sent. This requirement must be documented in CLAUDE.md so it is applied by default whenever Sentry is wired into a new service.
+
+---
+
+## Pre-Commit Hook Strategy — Wrong Tool for a Multi-Language Repo
+
+When pre-commit hooks were first set up, Husky was chosen for the frontend and the `pre-commit` framework was chosen for the backend — two separate tools fighting over the same Git hook entry point. This worked initially, but was fragile from the start: every `npm install` on a fresh clone runs the `prepare` script, which re-installs Husky and sets `core.hooksPath`, silently overriding the `pre-commit` framework hooks and breaking backend checks without any visible error. The hooks appeared to be in place but were not firing for backend commits. Neither the engineers nor the AI caught this until it was explicitly questioned.
+
+The correct choice from the beginning was the `pre-commit` framework for the entire repo. Despite its Python origins, `pre-commit` is a language-agnostic hook manager that handles frontend, backend, and gateway checks from a single config file. It does not get overwritten by `npm install`, and each hook only fires when files in its designated layer are staged. Using Husky for a multi-language repo is a misapplication of the tool — it is designed for Node.js projects and has no awareness of Python or gateway code. The migration to `pre-commit` for all three layers (backend, frontend, gateway) was recorded in `docs/developer-tooling.md`.
+
+**Guardrail created:** In a multi-language monorepo, use the `pre-commit` framework as the single hook manager for all layers. Never use Husky alongside `pre-commit` — they conflict over `core.hooksPath` and `npm install` silently breaks the setup. New engineers must run `pre-commit install` after every fresh clone.
