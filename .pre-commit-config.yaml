@@ -1,4 +1,5 @@
 repos:
+  # ── Backend — Python ──────────────────────────────────────────────────────
   - repo: https://github.com/psf/black
     rev: 26.3.1
     hooks:
@@ -12,3 +13,42 @@ repos:
       - id: flake8
         args: ["--max-line-length=88", "--extend-ignore=E203,E501"]
         files: ^backend/
+
+  # ── Frontend (src/) — TypeScript / React ─────────────────────────────────
+  # pass_filenames: false on tsc — it must compile the whole project, not individual files
+  - repo: local
+    hooks:
+      - id: frontend-typecheck
+        name: TypeScript (frontend)
+        language: system
+        entry: npx tsc --noEmit -p tsconfig.app.json
+        pass_filenames: false
+        files: ^src/.*\.(ts|tsx)$
+
+      - id: frontend-eslint
+        name: ESLint (frontend)
+        language: system
+        entry: npx eslint --fix
+        files: ^src/.*\.(ts|tsx)$
+
+      - id: frontend-prettier
+        name: Prettier (frontend)
+        language: system
+        entry: npx prettier --write
+        files: ^src/.*\.(ts|tsx|css|json)$
+
+  # ── GraphQL Gateway — TypeScript ─────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: gateway-typecheck
+        name: TypeScript (gateway)
+        language: system
+        entry: bash -c 'cd graphql-gateway && npx tsc --noEmit'
+        pass_filenames: false
+        files: ^graphql-gateway/.*\.ts$
+
+      - id: gateway-prettier
+        name: Prettier (gateway)
+        language: system
+        entry: npx prettier --write
+        files: ^graphql-gateway/.*\.ts$

@@ -1,6 +1,6 @@
 # Developer Tooling
 
-**Last updated:** 2026-04-21
+**Last updated:** 2026-05-01
 **Reference from:** `execution-plan.md` — Developer Tooling track
 
 This document covers the developer tooling layer: pre-commit hooks, local dev setup, and the Claude Code skill system that guides requirements, design, spec, and review workflows.
@@ -9,22 +9,29 @@ This document covers the developer tooling layer: pre-commit hooks, local dev se
 
 ## 1. Pre-Commit Hooks
 
-### Frontend (Husky + lint-staged)
-- **Tool:** Husky 9.x + lint-staged 16.x
-- **Triggers on:** staged `.ts` / `.tsx` files
-- **Checks:** ESLint (auto-fix) + Prettier (auto-format)
-- **Config:** `.husky/pre-commit`, `package.json` → `lint-staged`
-- **Status:** ✅ Done 2026-04-21
+**Tool:** `pre-commit` framework (language-agnostic) — owns the Git hooks layer for the entire repo. Husky and lint-staged have been removed.
+**Config:** `.pre-commit-config.yaml` at repo root.
 
-### Backend (pre-commit framework)
-- **Tool:** pre-commit framework
-- **Triggers on:** staged `backend/**` Python files
-- **Checks:** Black (format check, line length 88) + Flake8 (lint, `--extend-ignore=E203,E501`)
-- **Config:** `.pre-commit-config.yaml`
-- **Status:** ✅ Done 2026-04-21
+| Layer | Staged files that trigger | Checks |
+|---|---|---|
+| Backend | `backend/**/*.py` | Black (format, line length 88) + Flake8 (lint, `--extend-ignore=E203,E501`) |
+| Frontend | `src/**/*.{ts,tsx}` | TypeScript compile (`tsc --noEmit`) + ESLint (auto-fix) + Prettier (auto-format) |
+| Gateway | `graphql-gateway/**/*.ts` | TypeScript compile (`tsc --noEmit`) + Prettier (auto-format) |
 
-### Setup requirement for new engineers
-New engineers must run `pre-commit install` after cloning. See `README.md` → Pre-Commit Hooks section.
+Each layer only runs when files from that layer are staged — unrelated layers are skipped automatically.
+
+### Setup — required on every fresh clone
+```bash
+pip install pre-commit   # if not already installed
+pre-commit install       # wires the hook into .git/hooks/pre-commit
+```
+
+This must be run once per clone. Without it, pre-commit hooks do not fire on commit.
+
+**Note:** Never run `npm install` with `--ignore-scripts` — the `prepare` script was removed so this is no longer a concern, but verify hooks are active after any major environment change by running `pre-commit install` again.
+
+### Status
+✅ Done 2026-05-01 — all three layers verified working
 
 ---
 
