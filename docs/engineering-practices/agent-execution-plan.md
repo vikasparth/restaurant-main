@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-04-30**
+**Last updated: 2026-05-01**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,11 +9,53 @@
 
 ## Current Focus
 
-**Next task: A.4** — Write test scenarios file `docs/agent-test-scenarios.md`
+**Next task: D.1 (in progress)** — Complete `agents/frontend_sentry_agent.py`
 
-**Path to D.1 (Frontend Sentry Agent):** ~~B.2~~ ~~B.4~~ ~~B.5~~ → A.4 (test scenarios) → A.5 (runbook) → introduce bugs → D.1
+**Remaining for D.1:** `TOOLS` list → system prompt → `run()` agentic loop → make test green
+
+**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ → D.1 (in progress) → A.5 (runbook) → remaining D agents → E (orchestration)
 
 **Deferred:** 8 pre-existing ESLint warnings (`react-refresh/only-export-components`) in shadcn/ui components — separate task, not blocking agents
+
+## Session Progress (2026-05-01)
+
+**A.4 complete. D.1 started (TDD red phase confirmed).**
+
+### A.4 — Test scenarios file ✅
+`docs/agent-test-scenarios.md` written. Covers all 5 scenarios (reservation failures, Render cold start, missing allergens, wrong order total, schema drift). Each scenario defines: bug introduction steps, trigger, expected agent routing, expected findings YAML per agent, expected recommendation output, and cleanup. File serves as acceptance criteria for all Phase D agents.
+
+### `agents/config.py` extended
+- `SENTRY_API_BASE` — env var with default `https://sentry.io/api/0`; extracted from agent code per "config over hardcoding" rule
+- `AGENT_MAX_TURNS` / `AGENT_MAX_TOKENS_PER_TURN` — global defaults (5 turns, 1024 tokens)
+- Per-agent overrides for all 6 agents; all fall back to global defaults except: `CODEBASE_MAX_TURNS` defaults to `8` (deeper tracing), `RECOMMENDATION_MAX_TURNS` defaults to `1` (no tools, one turn only)
+
+### `agents/requirements.txt` updated
+Added `pytest==9.0.3` and its 5 transitive dependencies (colorama, iniconfig, packaging, pluggy, pygments) — all pinned.
+
+### D.1 TDD test written — red phase confirmed
+- `agents/tests/__init__.py` — empty; required so pytest resolves `from agents.frontend_sentry_agent import run` correctly when run from repo root
+- `agents/tests/test_frontend_sentry_agent.py` — acceptance test for Scenario 5 (schema drift: `preparation_time` field in frontend query but missing from gateway schema)
+  - `SENTRY_EVENT` — mock Sentry issue dict with TypeError on `useMenu.ts`
+  - `EXPECTED_FINDING` — expected agent output: `agent=frontend-sentry`, `confidence=high`, `affected_layer=gateway`, `regression=True`, `affected_field=preparation_time`
+  - `test_frontend_sentry_identifies_schema_drift()` — patches `query_sentry_errors`, calls `run()`, asserts 10 specific fields
+  - **Red phase confirmed:** `AttributeError: module 'agents' has no attribute 'frontend_sentry_agent'` — module does not exist yet
+
+### D.1 agent file started — 3 of 4 parts written
+`agents/frontend_sentry_agent.py` — in progress:
+- Imports: `os`, `requests`, `FRONTEND_SENTRY_MAX_TURNS`, `FRONTEND_SENTRY_MAX_TOKENS`, `SENTRY_API_BASE` from config
+- `query_sentry_errors(project_slug)` — GET `/projects/{org}/{slug}/issues/` with `is:unresolved` filter, limit 25
+- `get_stack_trace(issue_id)` — GET `/issues/{id}/events/latest/`
+- `get_affected_releases(issue_id)` — GET `/issues/{id}/tags/release/`, extracts `topValues[].value` list
+- **Still to write:** `TOOLS` list (Anthropic SDK tool definitions), system prompt using `build_system_prompt`, `run()` agentic loop
+
+### New reference doc committed
+`docs/engineering-practices/mcp-vs-agents.md` — committed on branch `docs/mcp-vs-agents`. Covers MCP vs SDK agent pattern decision, architecture diagrams, sequence diagrams, agentic loop flowchart, decision guide, and rationale for every agent in this project.
+
+Run tests from repo root with agents venv activated:
+```
+source agents/.venv/Scripts/activate
+python -m pytest agents/tests/ -v
+```
 
 ## Session Progress (2026-04-30)
 
@@ -52,7 +94,7 @@ Files created:
 | A.1 | Backend Sentry | Install `sentry-sdk[fastapi]` on backend; wire to FastAPI; tag releases with commit SHA so errors map to deployments | ✅ Done — `SENTRY_DSN` and `GIT_COMMIT_SHA=$RENDER_GIT_COMMIT` confirmed set in Render |
 | A.2 | Sentry release tagging in CI | Separate `sentry-release.yml` workflow fires on push to main; tags release with Git SHA via `getsentry/action-release@v1` | ✅ Done — extended to create releases for all three Sentry projects (`restaurant-backend`, `restaurant-frontend`, `restaurant-gateway`) using the same commit SHA so agents can correlate errors across projects. **Validated 2026-04-30:** all three Sentry projects show release `cfe6747` matching merge commit `cfe6747637e4` on main |
 | A.3 | Frontend Sentry + Gateway Sentry | Wire React frontend and GraphQL gateway to their own Sentry projects; all three layers (backend, frontend, gateway) must be on separate projects with release tagging so agents can query each independently | ✅ Done — **(1)** `SENTRY_DSN`, `VITE_SENTRY_DSN`, `GATEWAY_SENTRY_DSN` added to `.env.example`; **(2)** `release: import.meta.env.VITE_SENTRY_RELEASE` added to `main.tsx`; **(3)** `VITE_SENTRY_RELEASE=$VERCEL_GIT_COMMIT_SHA` set in Vercel for frontend; **(4)** gateway updated to read `GATEWAY_SENTRY_DSN` and `GATEWAY_SENTRY_RELEASE` in both `index.ts` and `api/graphql.ts`; **(5)** `GATEWAY_SENTRY_DSN` and `GATEWAY_SENTRY_RELEASE=$VERCEL_GIT_COMMIT_SHA` set in Vercel for gateway; new `restaurant-gateway` Sentry project created. **Next remaining step:** trigger a test error in each layer post-D.1 to confirm errors link to release SHA in Sentry |
-| A.4 | Test scenarios file | Write `docs/agent-test-scenarios.md` — 5 real bugs introduced one at a time to production; each scenario defines trigger, expected agent routing, expected findings per agent, expected recommendation | ⏳ Pending |
+| A.4 | Test scenarios file | Write `docs/agent-test-scenarios.md` — 5 real bugs introduced one at a time to production; each scenario defines trigger, expected agent routing, expected findings per agent, expected recommendation | ✅ Done — all 5 scenarios written (reservation validation spike, Render cold start, missing allergens, seed data price error, schema drift); file is the acceptance criteria for all Phase D agents |
 | A.5 | Runbook coverage | Create `docs/runbooks/troubleshooting.md` — cover all 5 test scenarios with named pattern, investigation steps, and expected findings | ⏳ Pending |
 | A.6 | Render logs access | Confirm Render API key is available as env variable; document which log endpoints the Render Logs Agent will call | ⏳ Pending |
 | A.7 | Sequence diagram | Add sequence diagram to agent architecture doc showing agent transitive dependencies and Sentry release → error correlation flow | ✅ Done — release ID end-to-end flow diagram and both orchestration flow diagrams added to `agent-architecture.md` under Monitoring Workflows and Orchestration Flow sections |
@@ -92,7 +134,7 @@ Files created:
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| D.1 | Frontend Sentry Agent | `agents/frontend_sentry_agent.py` — Anthropic SDK agentic loop; tools: `query_sentry_errors`, `get_stack_trace`, `get_affected_releases` (frontend project only); returns YAML finding conforming to `finding-schema.json`; validate against Scenario 1 and any frontend-triggered scenario | ⏳ Pending |
+| D.1 | Frontend Sentry Agent | `agents/frontend_sentry_agent.py` — Anthropic SDK agentic loop; tools: `query_sentry_errors`, `get_stack_trace`, `get_affected_releases` (frontend project only); returns YAML finding conforming to `finding-schema.json`; validate against Scenario 5 (schema drift) | 🔄 In Progress — 3 tool functions written; still to write: `TOOLS` list, system prompt, `run()` loop; TDD test written and red phase confirmed |
 | D.2 | Backend Sentry Agent | `agents/backend_sentry_agent.py` — same structure as D.1 but scoped to backend Sentry project; adds `endpoint` and `status_code` to agent-specific fields; validate against Scenario 1 (reservation failures) and Scenario 3 (allergens) | ⏳ Pending |
 | D.3 | Render Logs Agent | `agents/render_logs_agent.py` — tools: `get_service_logs`, `get_deployment_events`; returns structured log entries and startup/crash events; validate against Scenario 2 (cold start) | ⏳ Pending |
 | D.4 | GitHub Agent | `agents/github_agent.py` — tools: `get_issue`, `get_recent_commits`, `get_pr_history` (read-only); validate against Scenario 3 (allergens issue) and Scenario 4 (wrong total) | ⏳ Pending |
