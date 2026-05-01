@@ -19,4 +19,8 @@ PyGithub==2.9.1
 # HTTP client — Sentry API and Render API calls
 requests==2.33.1
 
+# YAML parsing — extracts and parses YAML blocks from agent finding comments
+pyyaml==6.0.3
+
+
 
