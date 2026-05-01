@@ -1,0 +1,252 @@
+{
+  "$defs": {
+    "FrontendSentryData": {
+      "properties": {
+        "error_type": {
+          "title": "Error Type",
+          "type": "string"
+        },
+        "error_message": {
+          "title": "Error Message",
+          "type": "string"
+        },
+        "affected_file": {
+          "title": "Affected File",
+          "type": "string"
+        },
+        "line_number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line Number"
+        },
+        "affected_field": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Affected Field"
+        },
+        "graphql_mutation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Graphql Mutation"
+        },
+        "affected_user_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Affected User Count"
+        },
+        "first_seen": {
+          "title": "First Seen",
+          "type": "string"
+        },
+        "last_seen": {
+          "title": "Last Seen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "error_type",
+        "error_message",
+        "affected_file",
+        "first_seen",
+        "last_seen"
+      ],
+      "title": "FrontendSentryData",
+      "type": "object"
+    },
+    "Interpretation": {
+      "properties": {
+        "root_cause": {
+          "title": "Root Cause",
+          "type": "string"
+        },
+        "affected_layer": {
+          "enum": [
+            "frontend",
+            "backend",
+            "gateway",
+            "infrastructure",
+            "unknown"
+          ],
+          "title": "Affected Layer",
+          "type": "string"
+        },
+        "regression": {
+          "title": "Regression",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "root_cause",
+        "affected_layer",
+        "regression"
+      ],
+      "title": "Interpretation",
+      "type": "object"
+    },
+    "Metadata": {
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "agent": {
+          "enum": [
+            "frontend-sentry",
+            "backend-sentry",
+            "render-logs",
+            "github",
+            "codebase",
+            "recommendation"
+          ],
+          "title": "Agent",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "partial",
+            "failed",
+            "injection_detected"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "time_window": {
+          "$ref": "#/$defs/TimeWindow"
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "pii_flag": {
+          "title": "Pii Flag",
+          "type": "boolean"
+        },
+        "injection_flag": {
+          "title": "Injection Flag",
+          "type": "boolean"
+        },
+        "findings_count": {
+          "title": "Findings Count",
+          "type": "integer"
+        },
+        "runbook_match": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runbook Match"
+        },
+        "release_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Release Id"
+        },
+        "release_id_unresolvable": {
+          "default": false,
+          "title": "Release Id Unresolvable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema_version",
+        "agent",
+        "status",
+        "source",
+        "time_window",
+        "confidence",
+        "pii_flag",
+        "injection_flag",
+        "findings_count"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    },
+    "TimeWindow": {
+      "properties": {
+        "from_": {
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from_",
+        "to"
+      ],
+      "title": "TimeWindow",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "metadata": {
+      "$ref": "#/$defs/Metadata"
+    },
+    "interpretation": {
+      "$ref": "#/$defs/Interpretation"
+    },
+    "findings": {
+      "$ref": "#/$defs/FrontendSentryData"
+    }
+  },
+  "required": [
+    "metadata",
+    "interpretation",
+    "findings"
+  ],
+  "title": "FrontendSentryFinding",
+  "type": "object"
+}

@@ -7,6 +7,9 @@
 # Anthropic SDK — agentic loop, tool use, prompt caching
 anthropic==0.97.0
 
+# Pydantic — finding schema models, auto-generates finding-schema.json
+pydantic==2.13.3
+
 # JSON Schema validation — validates agent findings against finding-schema.json
 jsonschema==4.26.0
 
@@ -15,3 +18,5 @@ PyGithub==2.9.1
 
 # HTTP client — Sentry API and Render API calls
 requests==2.33.1
+
+
