@@ -6,6 +6,8 @@ import { ApolloProvider } from "@apollo/client/react";
 
 import "./index.css";
 
+const PII_FIELDS = ["customer_name", "customer_email", "customer_phone"] as const;
+
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
   environment: import.meta.env.MODE,
@@ -20,6 +22,15 @@ Sentry.init({
       }
     }
     return breadcrumb;
+  },
+  beforeSend(event) {
+    const body = event.request?.data as Record<string, unknown>;
+    if (body && typeof body === "object") {
+      for (const field of PII_FIELDS) {
+        delete body[field];
+      }
+    }
+    return event;
   },
 });
 

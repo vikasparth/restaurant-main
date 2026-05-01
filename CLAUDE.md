@@ -89,6 +89,7 @@ The user is a new engineer learning Python by building this project. These rules
 - Prefer git diff to detect changes.
 - Avoid opening large files unnecessarily.
 - Work file-by-file.
+- **Large documents with a Table of Contents — read the index first (first ~30 lines), identify the relevant section's line number, then use `offset` + `limit` to read only that section.** Never read the whole file when an index exists.
 
 ## Code Quality Rules
 
@@ -142,6 +143,8 @@ Do not just describe what a step does — explain the reasoning a new engineer w
 - Use environment variables for secrets — never hardcode them.
 - Apply authentication middleware to all protected routes.
 - Follow least-privilege principle for database queries.
+- **Never log or transmit PII or PHI data.** This includes customer names, emails, phone numbers, IP addresses, order history, and health-related dietary information. Applies to application logs, Sentry events, and any third-party service.
+- **Every `Sentry.init()` call must include a `beforeSend` hook** that scrubs known PII/PHI fields (e.g. `customer_name`, `customer_email`, `customer_phone`) from the event payload before it is sent. This applies to all layers: frontend, backend, and gateway.
 
 ### Testing
 - Write tests for all service-layer functions.
