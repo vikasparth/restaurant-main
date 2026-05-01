@@ -150,24 +150,50 @@ Models are set via environment variables — never hardcoded. The table above de
 
 Every agent posts its findings as a GitHub Issue comment. Each comment begins with a YAML block inside a marked HTML comment (the machine-readable contract) followed by a human-readable markdown section.
 
+### Three-Section Structure
+
+Every finding has three top-level sections:
+
+1. **`metadata`** — common envelope fields shared by all agents (schema version, agent name, confidence, flags)
+2. **`findings`** — what the agent actually observed (errors, stack traces, affected files, counts). Fields differ per agent.
+3. **`interpretation`** — what the agent concluded from those findings (root cause hypothesis, affected layer, regression or pre-existing). This is what the Recommendation Agent reads to produce its fix.
+
 ### Format
 
 ````
 <!-- agent-finding -->
 ```yaml
-schema_version: "1.0"
-agent: backend-sentry
-status: completed
-source: sentry-backend
-time_window:
-  from: "2026-04-29T10:00:00Z"
-  to: "2026-04-29T10:30:00Z"
-confidence: high
-pii_flag: false
-injection_flag: false
-findings_count: 2
-runbook_match: null
-# agent-specific fields follow
+metadata:
+  schema_version: "1.0"
+  agent: frontend-sentry
+  status: completed
+  source: sentry-frontend
+  time_window:
+    from: "2026-04-29T10:00:00Z"
+    to: "2026-04-29T10:30:00Z"
+  confidence: high
+  pii_flag: false
+  injection_flag: false
+  findings_count: 1
+  runbook_match: null
+  release_id: "cfe6747"         # present | null | set release_id_unresolvable: true
+
+findings:
+  # agent-specific observed data — differs per agent type
+  error_type: TypeError
+  error_message: "Cannot read properties of undefined (reading 'toUpperCase')"
+  affected_file: "src/pages/ReservationPage.tsx"
+  line_number: 89
+  affected_field: customer_email
+  graphql_mutation: createReservation
+  affected_user_count: 47
+  first_seen: "2026-04-30T08:12:00Z"
+  last_seen: "2026-04-30T10:45:00Z"
+
+interpretation:
+  root_cause: "Field customer_email is accessed on the reservation response but is not included in the GraphQL selection set — it is always undefined at runtime"
+  affected_layer: frontend
+  regression: true          # true = new in this release, false = pre-existing
 ```
 
 ### Human-readable findings in markdown below this line
@@ -175,7 +201,7 @@ runbook_match: null
 [Free-form markdown narrative for the on-call engineer]
 ````
 
-### Required Fields (Common Envelope)
+### Metadata Fields (Common to All Agents)
 
 | Field | Type | Values |
 |---|---|---|
@@ -189,14 +215,22 @@ runbook_match: null
 | `injection_flag` | boolean | `true` if a prompt injection attempt was detected |
 | `findings_count` | integer | Number of distinct findings returned |
 | `runbook_match` | string or null | Matched runbook pattern name, or `null` |
+| `release_id` | string or null | Sentry release SHA if present; `null` if missing (Recommendation Agent downgrades confidence to medium); omit and add `release_id_unresolvable: true` if SHA exists in Sentry but not in git history |
 
-Agent-specific fields go below the common envelope inside the same YAML block.
+### Schema Source of Truth — Pydantic Models
 
-### Schema File
+**Decision (2026-04-30):** Pydantic models are the single source of truth for the finding schema. `finding-schema.json` is auto-generated from the Pydantic models — never hand-edited.
 
-The schema lives at `agents/schemas/finding-schema.json` — inside the `agents/` package, not in `docs/`. It ships with the agents and is version-controlled with them. It is the single source of truth: agent prompts reference it, and the orchestrator validates against it using the `jsonschema` Python library.
+**Why:** With frequent schema evolution in early iterations, maintaining a hand-written JSON Schema file and keeping agent Python code in sync is error-prone. Pydantic generates the JSON Schema automatically, so there is only one thing to update.
 
-The `schema_version` field allows the schema to evolve without breaking existing findings. The orchestrator checks `schema_version` before parsing — if it encounters an unknown version it flags the finding and stops rather than misreading fields.
+**Structure:**
+```
+agents/schemas/
+  models.py              ← Pydantic BaseFinding + agent-specific subclasses (source of truth)
+  finding-schema.json    ← auto-generated from models.py via pydantic.model_json_schema()
+```
+
+`BaseFinding` defines the `metadata` and `interpretation` sections (common to all agents). Each agent subclass (e.g. `FrontendSentryFinding`) extends `BaseFinding` with its own `findings` section fields. The validator loads `finding-schema.json` and validates parsed YAML against it using the `jsonschema` library.
 
 ### Agent Tag for Finding Lookup
 
