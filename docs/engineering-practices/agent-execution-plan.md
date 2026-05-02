@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-01**
+**Last updated: 2026-05-02**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,13 +9,64 @@
 
 ## Current Focus
 
-**Next task: D.1 (in progress)** — Complete `agents/frontend_sentry_agent.py`
+**Next task: D.1 production smoke test** — Run `agents/frontend_sentry_agent.py` against live Sentry; confirm real YAML finding returned, verify tool call sequence, check pii_flag behaviour on real data. Then commit A.5 + proceed to D.2.
 
-**Remaining for D.1:** `TOOLS` list → system prompt → `run()` agentic loop → make test green
-
-**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ → D.1 (in progress) → A.5 (runbook) → remaining D agents → E (orchestration)
+**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ ~~D.1~~ ~~A.5~~ → D.1 prod smoke test → D.2 → D.3 → D.4 → D.5 → D.6 → E (orchestration)
 
 **Deferred:** 8 pre-existing ESLint warnings (`react-refresh/only-export-components`) in shadcn/ui components — separate task, not blocking agents
+
+## Session Progress (2026-05-02)
+
+**D.1 complete. A.5 complete. DT-12 complete.** Env restructuring done, production smoke test pending.
+
+### A.5 — Runbook ✅
+`docs/runbooks/troubleshooting.md` — created with all 5 patterns:
+- `reservation-validation-spike` — inverted comparison operator in `validate_reservation_time`; investigate `backend/services/reservation_service.py`; escalate if error predates current release
+- `render-cold-start-503` — Render free tier suspension; confirm via Render startup logs overlapping 503 window; escalate if 503s persist past 60s or no startup log found
+- `missing-field-frontend-query` — field in types and UI but absent from GraphQL query; trace field through all 5 layers; escalate if also missing from gateway schema
+- `seed-data-price-error` — decimal point error in seed data or migration; trace via git log on seed/migration files; escalate if already applied to production DB
+- `graphql-schema-resolver-drift` — field in frontend query but absent from gateway schema; run `scripts/validate-schema.js` for full scope; escalate if also missing from backend resolver
+
+**Structure:** each pattern has Symptoms, Likely cause, Investigation steps (ordered), Escalation criteria. No expected findings — that belongs in `docs/agent-test-scenarios.md`.
+
+### DT-12 — Per-project env restructuring ✅
+Each sub-project now owns its own `.env.example` — separate teams, separate secrets:
+- `agents/.env.example` — `ANTHROPIC_API_KEY`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG_SLUG`, `RENDER_API_KEY`, `GITHUB_TOKEN`
+- `backend/.env.example` — all FastAPI vars (was misdocumented in root `.env.example`)
+- `graphql-gateway/.env.example` — `BACKEND_URL`, `NODE_ENV`, `GATEWAY_SENTRY_DSN`, `GATEWAY_SENTRY_RELEASE`
+- root `.env.example` — trimmed to frontend-only (`VITE_SENTRY_DSN`, `VITE_SENTRY_RELEASE`)
+- `agents/requirements.txt` — added `python-dotenv==1.1.0`
+- `agents/config.py` — added `load_dotenv(dotenv_path=agents/.env, override=False)` so CI/Render env vars are never overridden
+- `README.md` — full rewrite of setup section; sub-project overview table; gateway and agents setup steps added
+
+### D.1 production smoke test — pending
+**What to check:**
+- Agent calls `query_sentry_errors` in turn 1 (not skipping to end_turn immediately)
+- YAML finding is returned with correct shape (all required fields present)
+- `pii_flag` behaviour on real Sentry error data
+- `status: partial` fallback does NOT appear (turn budget not exhausted)
+
+**Env vars required locally:** `ANTHROPIC_API_KEY`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG_SLUG`
+
+**Run command:**
+```bash
+source agents/.venv/Scripts/activate
+python -c "from agents.frontend_sentry_agent import run; print(run())"
+```
+
+**D.1 complete.** `agents/frontend_sentry_agent.py` fully implemented and test green. Next: A.5 runbook.
+
+### D.1 — Frontend Sentry Agent ✅
+`agents/frontend_sentry_agent.py` — complete:
+- `query_sentry_errors(project_slug)` — GET `/projects/{org}/{slug}/issues/` with `is:unresolved` filter, limit 25
+- `get_stack_trace(issue_id)` — GET `/issues/{id}/events/latest/`
+- `get_affected_releases(issue_id)` — GET `/issues/{id}/tags/release/`, extracts `topValues[].value` list
+- `TOOLS` — Anthropic SDK JSON Schema definitions for all 3 functions
+- `SYSTEM_PROMPT` — read-only observability persona; PII/injection guard rules; YAML shape from `FINDING_YAML_TEMPLATE`; wrapped with `build_system_prompt()` for prompt caching
+- `run()` — bounded agentic loop (`FRONTEND_SENTRY_MAX_TURNS`); appends assistant messages and tool results each turn; returns YAML string on `end_turn`; returns `status: partial` fallback if turn budget exhausted
+- TDD test green: `test_frontend_sentry_identifies_schema_drift` — mocks 2-turn conversation (tool_use → end_turn); asserts 10 fields in parsed YAML output
+
+---
 
 ## Session Progress (2026-05-01)
 
@@ -95,7 +146,7 @@ Files created:
 | A.2 | Sentry release tagging in CI | Separate `sentry-release.yml` workflow fires on push to main; tags release with Git SHA via `getsentry/action-release@v1` | ✅ Done — extended to create releases for all three Sentry projects (`restaurant-backend`, `restaurant-frontend`, `restaurant-gateway`) using the same commit SHA so agents can correlate errors across projects. **Validated 2026-04-30:** all three Sentry projects show release `cfe6747` matching merge commit `cfe6747637e4` on main |
 | A.3 | Frontend Sentry + Gateway Sentry | Wire React frontend and GraphQL gateway to their own Sentry projects; all three layers (backend, frontend, gateway) must be on separate projects with release tagging so agents can query each independently | ✅ Done — **(1)** `SENTRY_DSN`, `VITE_SENTRY_DSN`, `GATEWAY_SENTRY_DSN` added to `.env.example`; **(2)** `release: import.meta.env.VITE_SENTRY_RELEASE` added to `main.tsx`; **(3)** `VITE_SENTRY_RELEASE=$VERCEL_GIT_COMMIT_SHA` set in Vercel for frontend; **(4)** gateway updated to read `GATEWAY_SENTRY_DSN` and `GATEWAY_SENTRY_RELEASE` in both `index.ts` and `api/graphql.ts`; **(5)** `GATEWAY_SENTRY_DSN` and `GATEWAY_SENTRY_RELEASE=$VERCEL_GIT_COMMIT_SHA` set in Vercel for gateway; new `restaurant-gateway` Sentry project created. **Next remaining step:** trigger a test error in each layer post-D.1 to confirm errors link to release SHA in Sentry |
 | A.4 | Test scenarios file | Write `docs/agent-test-scenarios.md` — 5 real bugs introduced one at a time to production; each scenario defines trigger, expected agent routing, expected findings per agent, expected recommendation | ✅ Done — all 5 scenarios written (reservation validation spike, Render cold start, missing allergens, seed data price error, schema drift); file is the acceptance criteria for all Phase D agents |
-| A.5 | Runbook coverage | Create `docs/runbooks/troubleshooting.md` — cover all 5 test scenarios with named pattern, investigation steps, and expected findings | ⏳ Pending |
+| A.5 | Runbook coverage | Create `docs/runbooks/troubleshooting.md` — cover all 5 test scenarios with named pattern, investigation steps, and expected findings | ✅ Done — all 5 patterns written (reservation-validation-spike, render-cold-start-503, missing-field-frontend-query, seed-data-price-error, graphql-schema-resolver-drift); no expected findings section (belongs in test scenarios, not runbook) |
 | A.6 | Render logs access | Confirm Render API key is available as env variable; document which log endpoints the Render Logs Agent will call | ⏳ Pending |
 | A.7 | Sequence diagram | Add sequence diagram to agent architecture doc showing agent transitive dependencies and Sentry release → error correlation flow | ✅ Done — release ID end-to-end flow diagram and both orchestration flow diagrams added to `agent-architecture.md` under Monitoring Workflows and Orchestration Flow sections |
 
@@ -134,7 +185,7 @@ Files created:
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| D.1 | Frontend Sentry Agent | `agents/frontend_sentry_agent.py` — Anthropic SDK agentic loop; tools: `query_sentry_errors`, `get_stack_trace`, `get_affected_releases` (frontend project only); returns YAML finding conforming to `finding-schema.json`; validate against Scenario 5 (schema drift) | 🔄 In Progress — 3 tool functions written; still to write: `TOOLS` list, system prompt, `run()` loop; TDD test written and red phase confirmed |
+| D.1 | Frontend Sentry Agent | `agents/frontend_sentry_agent.py` — Anthropic SDK agentic loop; tools: `query_sentry_errors`, `get_stack_trace`, `get_affected_releases` (frontend project only); returns YAML finding conforming to `finding-schema.json`; validate against Scenario 5 (schema drift) | ✅ Done — all 4 parts written (`TOOLS`, system prompt, `run()` loop, partial fallback); TDD test green; merged via PR #64 `feat/d1-frontend-sentry-agent` |
 | D.2 | Backend Sentry Agent | `agents/backend_sentry_agent.py` — same structure as D.1 but scoped to backend Sentry project; adds `endpoint` and `status_code` to agent-specific fields; validate against Scenario 1 (reservation failures) and Scenario 3 (allergens) | ⏳ Pending |
 | D.3 | Render Logs Agent | `agents/render_logs_agent.py` — tools: `get_service_logs`, `get_deployment_events`; returns structured log entries and startup/crash events; validate against Scenario 2 (cold start) | ⏳ Pending |
 | D.4 | GitHub Agent | `agents/github_agent.py` — tools: `get_issue`, `get_recent_commits`, `get_pr_history` (read-only); validate against Scenario 3 (allergens issue) and Scenario 4 (wrong total) | ⏳ Pending |
