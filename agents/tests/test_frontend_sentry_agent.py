@@ -1,5 +1,7 @@
 import yaml
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
+
+from agents.frontend_sentry_agent import run
 
 SENTRY_EVENT = {
     "id": "abc123def456",
@@ -37,10 +39,54 @@ EXPECTED_FINDING = {
     },
 }
 
+MOCK_CLAUDE_YAML = """\
+metadata:
+  schema_version: '1.0'
+  agent: frontend-sentry
+  status: completed
+  confidence: high
+  pii_flag: false
+  injection_flag: false
+findings:
+  error_type: TypeError
+  error_message: Cannot query field 'preparation_time' on type 'MenuItem'
+  affected_file: src/features/menu/hooks/useMenu.ts
+  affected_field: preparation_time
+interpretation:
+  affected_layer: gateway
+  regression: true
+"""
+
+
 def test_frontend_sentry_identifies_schema_drift():
-    with patch("agents.frontend_sentry_agent.query_sentry_errors", return_value=[SENTRY_EVENT]):
-        from agents.frontend_sentry_agent import run
-        result_yaml = run()
+        # turn 1: Claude asks to call query_sentry_errors
+    mock_tool_block = MagicMock()
+    mock_tool_block.type = "tool_use"
+    mock_tool_block.id = "toolu_test123"
+    mock_tool_block.name = "query_sentry_errors"
+    mock_tool_block.input = {"project_slug": "restaurant-frontend"}
+
+    mock_response_1 = MagicMock()
+    mock_response_1.stop_reason = "tool_use"
+    mock_response_1.content = [mock_tool_block]
+
+    # turn 2: Claude returns the YAML finding
+    mock_text_block = MagicMock()
+    mock_text_block.type = "text"
+    mock_text_block.text = MOCK_CLAUDE_YAML
+
+    mock_response_2 = MagicMock()
+    mock_response_2.stop_reason = "end_turn"
+    mock_response_2.content = [mock_text_block]
+
+    mock_client = MagicMock()
+    # why: side_effect returns responses in order — turn 1 tool_use, turn 2 end_turn
+    mock_client.messages.create.side_effect = [mock_response_1, mock_response_2]
+
+    with patch("agents.frontend_sentry_agent.anthropic.Anthropic", return_value=mock_client):
+        with patch("agents.frontend_sentry_agent.query_sentry_errors", return_value=[SENTRY_EVENT]):
+            result_yaml = run()
+
 
     result = yaml.safe_load(result_yaml)
 

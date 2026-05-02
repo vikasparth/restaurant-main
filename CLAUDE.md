@@ -53,12 +53,7 @@ Before designing any solution, consider:
    must guide a capable but unfamiliar engineer to the root cause without hand-holding
    from the original author.
 
-3. **Configuration over hardcoding.** URLs, thresholds, credentials, and feature flags
-   belong in configuration files or environment variables — never hardcoded in
-   application code, skill files, or specs. If a value could change per environment,
-   per deployment, or per engineer, it must be configurable. Use sensible defaults for
-   values that are stable but overridable; require explicit configuration only for
-   secrets and environment-specific values.
+3. **Check config before writing any hardcoded value in code.** Before using any model name, URL, threshold, limit, or credential as a literal in code: (1) check the relevant config file first; (2) if the value is not there, define it in config first; (3) then reference the constant. Every configurable value has exactly one home — its config file. Use typed config (enums, Pydantic `BaseSettings`) so the type checker enforces this automatically, not a human reviewer.
 
 4. **Avoid technical debt — legacy fallbacks are a last resort.** When a modern standard
    fails, diagnose and fix the root cause first. Only fall back to a legacy approach
