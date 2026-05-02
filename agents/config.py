@@ -1,5 +1,12 @@
 from __future__ import annotations
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# why: load agents/.env before reading any os.getenv() calls below —
+# override=False means vars already set in the shell (CI, Render) take precedence
+load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=False)
+
 _SONNET = "claude-sonnet-4-6"
 _HAIKU = "claude-haiku-4-5-20251001"
 
