@@ -22,6 +22,10 @@ requests==2.33.1
 # YAML parsing — extracts and parses YAML blocks from agent finding comments
 pyyaml==6.0.3
 
+# Loads agents/.env into os.environ at import time — skips vars already set in the shell
+# so CI/Render env vars are never overridden by the local file
+python-dotenv==1.1.0
+
 # Testing
 pytest==9.0.3
 colorama==0.4.6
