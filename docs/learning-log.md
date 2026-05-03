@@ -205,3 +205,11 @@ Without an observability layer, a feature or business owner has no way to correl
 The fix was to accumulate `usage_by_turn` during the agentic loop from existing API responses (zero extra Anthropic calls), then call `record_agent_run()` once at the end of every `run()` to send a Sentry Performance transaction carrying token totals, turn count, and confidence as numeric data. This makes token budget planning, agent efficiency comparison, and confidence trend analysis available in a dashboard without any custom infrastructure.
 
 **Guardrail created:** Every agent `run()` must instrument token usage and confidence via `record_agent_run()` — observability is not optional and must be wired at the time the agent is built, not added later.
+
+## Agent Tool Results — Raw API Responses Must Never Enter LLM Context
+
+When building the frontend Sentry agent, the tool functions were returning raw API responses directly into the LLM conversation — 25 full Sentry issue objects per call, and complete stack trace payloads including breadcrumbs, request headers, environment variables, and dozens of framework frames. The agent was also fetching issues with no time boundary, meaning month-old stale errors were being sent alongside recent ones. None of this extra data improved the quality of findings — it was pure token waste.
+
+Left unchallenged, this pattern would compound with every agent added to the system. Each tool call that dumps a full API response into context multiplies token spend with no benefit. At 25k tokens per run on a Haiku model, costs would become prohibitive before the orchestration layer is even built, and the agentic loop would hit context limits mid-investigation on complex issues. The fix is to trim at the boundary — tool functions must extract only the fields the LLM needs to reason about, apply time windows to exclude stale data, and return the smallest payload that answers the question.
+
+**Guardrail created:** Tool result functions must trim API responses before returning — extract only the fields the LLM needs, limit results to 3–5 items, and apply time windows where relevant. Raw API responses must never be passed directly into LLM context.

@@ -14,6 +14,14 @@
 - The agentic loop must be bounded by a max turns constant from `agents/config.py` — never an unbounded `while True`.
 - Partial fallback YAML (`status: partial`) must be returned — never raise or return `None` when the turn budget is exhausted.
 
+## Token Efficiency — ALWAYS ACTIVE
+
+- **Never pass raw API responses into LLM context.** Tool functions must extract only the fields the LLM needs to reason about — not the full response object.
+- **Apply time windows to all list queries.** Fetch only recent data (e.g. last 1 hour for live issues). Stale data is noise that wastes tokens.
+- **Limit list results to 3–5 items maximum.** The agent investigates one issue at a time — the orchestrator decides which one. Fetching 25 issues to let Claude pick one is the wrong design.
+- **Trim stack traces to the essential fields only:** exception type, exception message, culprit file, and top 1–2 frames. Breadcrumbs, request headers, and framework frames must be dropped before returning.
+- **Target under 5k tokens per agent run** on Haiku. If a run exceeds this, review tool result payloads first.
+
 ## Observability Wiring Checklist
 
 Before marking any agent task done, verify:
