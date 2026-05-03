@@ -82,12 +82,18 @@ Each MCP server is a thin adapter over an existing backend system (CRM, knowledg
 
 ```mermaid
 sequenceDiagram
-    actor FW as Field Worker
-    participant Copilot as Microsoft Copilot Studio
-    participant LLM as Azure OpenAI (GPT-4o)
-    participant KB as Knowledge Base MCP Server
-    participant FS as Field Service MCP Server
-    participant INV as Inventory MCP Server
+    box Field Worker Device
+        actor FW as Field Worker
+    end
+    box Microsoft Cloud
+        participant Copilot as Copilot Studio
+        participant LLM as Azure OpenAI (GPT-4o)
+    end
+    box Company Backend (Azure / on-prem)
+        participant KB as Knowledge Base MCP Server
+        participant FS as Field Service MCP Server
+        participant INV as Inventory MCP Server
+    end
 
     FW->>Copilot: "Camera not connecting after power cut — model DS-2CD2143G2"
     Copilot->>LLM: Forward query with system prompt + tool manifest
