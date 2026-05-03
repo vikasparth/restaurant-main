@@ -82,65 +82,79 @@ Each MCP server is a thin adapter over an existing backend system (CRM, knowledg
 
 ```mermaid
 sequenceDiagram
-    box Field Worker Device (thin client — no MCP installed)
+    box Field Worker Device
         actor FW as Field Worker
+        participant App as Copilot App (MCP Client)
+        participant LocalMCP as Local MCP Server
     end
     box Microsoft Cloud
         participant Entra as Microsoft Entra ID
-        participant Copilot as Copilot Studio (MCP Client)
         participant LLM as Azure OpenAI (GPT-4o)
     end
-    box Company Backend (Azure / on-prem — MCP servers hosted here)
+    box Company Backend (Azure / on-prem)
         participant KB as Knowledge Base MCP Server
         participant FS as Field Service MCP Server
         participant INV as Inventory MCP Server
     end
 
     Note over FW,Entra: ① Field Worker Auth (OAuth 2.0 — Authorization Code flow)
-    FW->>Copilot: Opens Copilot app
-    Copilot->>Entra: Redirect to login (client_id, scope, redirect_uri)
-    Entra-->>FW: Login prompt (company SSO)
+    FW->>App: Opens Copilot app
+    App->>Entra: Login redirect (client_id, scope, redirect_uri)
+    Entra-->>FW: SSO login prompt
     FW->>Entra: Enters credentials
-    Entra-->>Copilot: Authorization code
-    Copilot->>Entra: Exchange code for tokens (client_secret)
-    Entra-->>Copilot: Access token + ID token (JWT, expires 1h)
-    Note over Copilot: Token identifies the worker — scopes control which tools they can call
+    Entra-->>App: Authorization code
+    App->>Entra: Exchange code for tokens (client_secret)
+    Entra-->>App: Access token + ID token (JWT, expires 1h)
+    Note over App: Token identifies the worker — scopes control which tools they can call
 
-    Note over Copilot,INV: ② Copilot → MCP Server Auth (OAuth 2.0 — Client Credentials flow, machine-to-machine)
-    Copilot->>Entra: Request token for MCP servers (client_id + client_secret)
-    Entra-->>Copilot: Service access token (scoped to MCP API)
-    Note over Copilot,INV: Copilot uses this token for all MCP tool calls — workers never see it
+    Note over App,INV: ② Machine-to-Machine Auth (Client Credentials flow — runs in background)
+    App->>Entra: Request service token for remote MCP servers (client_id + client_secret)
+    Entra-->>App: Service access token (scoped to MCP API)
+    Note over App,INV: App uses this token for all remote MCP calls — worker never sees it
 
-    Note over FW,INV: ③ Tool Call Flow (HTTPS from Copilot Studio — not from field worker device)
-    FW->>Copilot: "Camera not connecting after power cut — model DS-2CD2143G2"
-    Copilot->>LLM: Forward query with system prompt + tool manifest
-    LLM-->>Copilot: Call tool: search_troubleshooting_guide(model="DS-2CD2143G2", symptom="no connection after power")
-    Copilot->>KB: HTTPS POST /tools/search_troubleshooting_guide [Bearer: service token]
-    KB-->>Copilot: Returns top 3 diagnostic steps from KB article #4821
+    Note over FW,INV: ③ Tool Call Flow — App routes each call to local or remote MCP based on tool type
+    FW->>App: "Camera not connecting after power cut — model DS-2CD2143G2"
+    App->>LLM: Forward query + full tool manifest (local + remote tools)
+    LLM-->>App: Call tool: search_troubleshooting_guide(model="DS-2CD2143G2", symptom="no connection after power")
 
-    LLM-->>Copilot: Call tool: get_service_history(device_serial="XYZ123")
-    Copilot->>FS: HTTPS POST /tools/get_service_history [Bearer: service token]
-    FS-->>Copilot: Last visit: 2024-11, replaced PoE switch — no open tickets
+    Note over App,KB: KB search — try local cache first to handle poor signal on site
+    alt Cache hit (offline KB on device)
+        App->>LocalMCP: search_offline_kb(model, symptom)
+        LocalMCP-->>App: KB article #4821 from local cache
+    else Cache miss — fetch from remote KB
+        App->>KB: HTTPS POST /tools/search_troubleshooting_guide [Bearer: service token]
+        KB-->>App: KB article #4821 from live KB
+        App->>LocalMCP: cache_article(#4821) — store locally for future offline use
+    end
 
-    Copilot->>LLM: KB result + service history → generate response
-    LLM-->>Copilot: "Check PoE injector first — this model loses its IP lease after a hard reboot. Steps: 1) ... 2) ... 3) ..."
-    Copilot-->>FW: Displays step-by-step diagnostic
+    LLM-->>App: Call tool: get_service_history(device_serial="XYZ123")
+    Note over App,FS: Service history is live CRM data — always remote, never cached
+    App->>FS: HTTPS POST /tools/get_service_history [Bearer: service token]
+    FS-->>App: Last visit: 2024-11, replaced PoE switch — no open tickets
 
-    FW->>Copilot: "Step 2 didn't work — need to replace the PoE injector. What part?"
-    Copilot->>LLM: Forward follow-up
-    LLM-->>Copilot: Call tool: lookup_part_by_model(model="DS-2CD2143G2", component="PoE injector")
-    Copilot->>INV: HTTPS POST /tools/lookup_part_by_model [Bearer: service token]
-    INV-->>Copilot: Part #POE-48V-15W, in stock at Bristol depot (3 units)
+    App->>LLM: KB result + service history → generate response
+    LLM-->>App: "Check PoE injector first — this model loses its IP lease after a hard reboot. Steps: 1) ... 2) ... 3) ..."
+    App-->>FW: Displays step-by-step diagnostic
 
-    Copilot->>LLM: Part result → generate response
-    LLM-->>Copilot: "Part #POE-48V-15W — 3 in stock at Bristol depot. Want me to raise a parts request?"
-    Copilot-->>FW: Displays part info + action prompt
+    FW->>App: "Let me take a photo of the fault"
+    App->>LLM: Forward request
+    LLM-->>App: Call tool: capture_photo()
+    Note over App,LocalMCP: Device hardware — always local, no internet needed
+    App->>LocalMCP: capture_photo()
+    LocalMCP-->>App: photo_ref: /local/job_photos/img_001.jpg
+    App->>LLM: Photo captured → acknowledge
+    LLM-->>App: "Photo saved. Want me to attach it to the job report?"
+    App-->>FW: Confirms photo captured
 
-    FW->>Copilot: "Yes, raise the parts request and generate my job report"
-    LLM-->>Copilot: Call tool: create_job_report(worker_id, job_summary, parts_used)
-    Copilot->>FS: HTTPS POST /tools/create_job_report [Bearer: service token]
-    FS-->>Copilot: Report #JR-20240502-089 created
-    Copilot-->>FW: "Done — job report #JR-20240502-089 submitted, parts request raised."
+    FW->>App: "Yes, and what part do I need for the PoE injector?"
+    LLM-->>App: Call tool: lookup_part_by_model(model="DS-2CD2143G2", component="PoE injector")
+    App->>INV: HTTPS POST /tools/lookup_part_by_model [Bearer: service token]
+    INV-->>App: Part #POE-48V-15W, in stock at Bristol depot (3 units)
+
+    LLM-->>App: Call tool: create_job_report(worker_id, job_summary, photo_ref, parts_used)
+    App->>FS: HTTPS POST /tools/create_job_report [Bearer: service token]
+    FS-->>App: Report #JR-20240502-089 created with photo attached
+    App-->>FW: "Done — report #JR-20240502-089 submitted with photo, parts request raised."
 ```
 
 ---
