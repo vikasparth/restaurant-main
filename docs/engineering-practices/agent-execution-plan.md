@@ -9,50 +9,49 @@
 
 ## Current Focus
 
-**Next task: D.1 production smoke test** — Run `agents/frontend_sentry_agent.py` against live Sentry; confirm real YAML finding returned, verify tool call sequence, check pii_flag behaviour on real data. Then commit A.5 + proceed to D.2.
+**Next task: DT-13 — Agent Observability via Sentry (TDD)**
 
-**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ ~~D.1~~ ~~A.5~~ → D.1 prod smoke test → D.2 → D.3 → D.4 → D.5 → D.6 → E (orchestration)
+Sequence:
+1. Create `restaurant-agents` Sentry project (free tier) → get DSN → add to `agents/.env` as `AGENTS_SENTRY_DSN`
+2. Write failing tests in `agents/tests/test_sentry_utils.py` (red phase) — 4 tests: `test_record_agent_run_completed`, `test_record_agent_run_partial`, `test_record_agent_run_no_dsn`, `test_confidence_numeric_mapping`
+3. Implement `agents/sentry_utils.py` — green phase
+4. Update `agents/config.py` (add `AGENTS_SENTRY_DSN`), `agents/requirements.txt` (add `sentry-sdk`), `agents/.env.example`
+5. Wire `record_agent_run()` into `frontend_sentry_agent.py` — accumulate `usage_by_turn` each turn, call at end of `run()`
+6. Verify transaction appears in Sentry → build dashboard
+7. Commit + PR → then proceed to D.2
+
+**Spec:** `agents/specs/dt13_agent_observability.md` — signed off. Decisions locked:
+- New `restaurant-agents` Sentry project (free, clean separation)
+- Tag transactions with Git SHA (tracks impact of agent code changes on confidence)
+- `AGENTS_SENTRY_DSN` empty = observability opt-in locally; always set in CI/Render
+
+**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ ~~D.1~~ ~~A.5~~ ~~DT-12~~ ~~D.1 smoke test~~ → DT-13 → D.2 → D.3 → D.4 → D.5 → D.6 → E (orchestration)
 
 **Deferred:** 8 pre-existing ESLint warnings (`react-refresh/only-export-components`) in shadcn/ui components — separate task, not blocking agents
 
+---
+
 ## Session Progress (2026-05-02)
 
-**D.1 complete. A.5 complete. DT-12 complete.** Env restructuring done, production smoke test pending.
+**D.1 smoke test complete. DT-13 spec written and signed off.**
+
+### D.1 production smoke test — ✅ complete (2026-05-02)
+Real Sentry finding returned: `EADDRINUSE :::4000` in `graphql-gateway/index.ts`. All 4 checks passed: tool called turn 1, valid YAML shape, `status: completed`, `pii_flag: false`. Cost: $0.02 (Haiku, ~3 turns) — baseline for DT-13 budget constants.
+
+### DT-13 spec — ✅ signed off (2026-05-02)
+`agents/specs/dt13_agent_observability.md` written. Key design:
+- `agents/sentry_utils.py` — `record_agent_run(agent_name, result_yaml, usage_by_turn)` wraps each run in a Sentry Performance transaction
+- Measurements: `input_tokens`, `output_tokens`, `total_tokens`, `turns_used`, `confidence_numeric` (high=3, medium=2, low=1)
+- Tags: `agent`, `release` (Git SHA)
+- Transaction status: `ok` for completed, `deadline_exceeded` for partial
+- `AGENTS_SENTRY_DSN` empty string = opt-in; never breaks local dev without DSN
+- Sentry dashboard: token trend, confidence by agent, partial run rate
 
 ### A.5 — Runbook ✅
-`docs/runbooks/troubleshooting.md` — created with all 5 patterns:
-- `reservation-validation-spike` — inverted comparison operator in `validate_reservation_time`; investigate `backend/services/reservation_service.py`; escalate if error predates current release
-- `render-cold-start-503` — Render free tier suspension; confirm via Render startup logs overlapping 503 window; escalate if 503s persist past 60s or no startup log found
-- `missing-field-frontend-query` — field in types and UI but absent from GraphQL query; trace field through all 5 layers; escalate if also missing from gateway schema
-- `seed-data-price-error` — decimal point error in seed data or migration; trace via git log on seed/migration files; escalate if already applied to production DB
-- `graphql-schema-resolver-drift` — field in frontend query but absent from gateway schema; run `scripts/validate-schema.js` for full scope; escalate if also missing from backend resolver
-
-**Structure:** each pattern has Symptoms, Likely cause, Investigation steps (ordered), Escalation criteria. No expected findings — that belongs in `docs/agent-test-scenarios.md`.
+`docs/runbooks/troubleshooting.md` — 5 patterns: `reservation-validation-spike`, `render-cold-start-503`, `missing-field-frontend-query`, `seed-data-price-error`, `graphql-schema-resolver-drift`. Each has Symptoms, Likely cause, Investigation steps, Escalation criteria.
 
 ### DT-12 — Per-project env restructuring ✅
-Each sub-project now owns its own `.env.example` — separate teams, separate secrets:
-- `agents/.env.example` — `ANTHROPIC_API_KEY`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG_SLUG`, `RENDER_API_KEY`, `GITHUB_TOKEN`
-- `backend/.env.example` — all FastAPI vars (was misdocumented in root `.env.example`)
-- `graphql-gateway/.env.example` — `BACKEND_URL`, `NODE_ENV`, `GATEWAY_SENTRY_DSN`, `GATEWAY_SENTRY_RELEASE`
-- root `.env.example` — trimmed to frontend-only (`VITE_SENTRY_DSN`, `VITE_SENTRY_RELEASE`)
-- `agents/requirements.txt` — added `python-dotenv==1.1.0`
-- `agents/config.py` — added `load_dotenv(dotenv_path=agents/.env, override=False)` so CI/Render env vars are never overridden
-- `README.md` — full rewrite of setup section; sub-project overview table; gateway and agents setup steps added
-
-### D.1 production smoke test — pending
-**What to check:**
-- Agent calls `query_sentry_errors` in turn 1 (not skipping to end_turn immediately)
-- YAML finding is returned with correct shape (all required fields present)
-- `pii_flag` behaviour on real Sentry error data
-- `status: partial` fallback does NOT appear (turn budget not exhausted)
-
-**Env vars required locally:** `ANTHROPIC_API_KEY`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG_SLUG`
-
-**Run command:**
-```bash
-source agents/.venv/Scripts/activate
-python -c "from agents.frontend_sentry_agent import run; print(run())"
-```
+`agents/.env.example`, `backend/.env.example`, `graphql-gateway/.env.example` — each sub-project owns its own env file. Root `.env.example` trimmed to frontend-only vars. `agents/config.py` loads `agents/.env` via `load_dotenv(override=False)`.
 
 **D.1 complete.** `agents/frontend_sentry_agent.py` fully implemented and test green. Next: A.5 runbook.
 
