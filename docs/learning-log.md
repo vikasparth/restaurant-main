@@ -195,3 +195,13 @@ When the user asked about tracking agent token usage and visualising it over tim
 Building custom observability scripts when a capable platform is already running adds unnecessary maintenance burden, splits the team's operational view across multiple tools, and signals a failure to think about the project holistically before proposing solutions. The correct move is to audit existing infrastructure first — new tooling is the right answer only when nothing covers the need.
 
 **Principle enforced:** Before proposing new tooling, check what observability infrastructure is already running in the project. When Sentry is already wired in, it is almost always the right answer for token tracking, performance measurement, and visualisation — not a custom script.
+
+## Agentic Observability — Token Usage and Confidence Must Be Logged
+
+Every Anthropic SDK call returns token usage data on the response object at no extra cost — `response.usage.input_tokens` and `response.usage.output_tokens` are always present. The initial agent implementation discarded this data silently, meaning there was no visibility into how many tokens each agent consumed per run, which agents were expensive, or whether confidence levels were improving or degrading over time.
+
+Without an observability layer, a feature or business owner has no way to correlate token spend with finding quality, identify agents that consistently exhaust their turn budget, or spot opportunities to tighten prompts and reduce cost. A low-confidence agent that also burns 3x the tokens of its peers is invisible without instrumentation — and so is a prompt regression that silently doubles token spend across all runs.
+
+The fix was to accumulate `usage_by_turn` during the agentic loop from existing API responses (zero extra Anthropic calls), then call `record_agent_run()` once at the end of every `run()` to send a Sentry Performance transaction carrying token totals, turn count, and confidence as numeric data. This makes token budget planning, agent efficiency comparison, and confidence trend analysis available in a dashboard without any custom infrastructure.
+
+**Guardrail created:** Every agent `run()` must instrument token usage and confidence via `record_agent_run()` — observability is not optional and must be wired at the time the agent is built, not added later.
