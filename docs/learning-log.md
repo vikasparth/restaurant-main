@@ -175,3 +175,23 @@ When pre-commit hooks were first set up, Husky was chosen for the frontend and t
 The correct choice from the beginning was the `pre-commit` framework for the entire repo. Despite its Python origins, `pre-commit` is a language-agnostic hook manager that handles frontend, backend, and gateway checks from a single config file. It does not get overwritten by `npm install`, and each hook only fires when files in its designated layer are staged. Using Husky for a multi-language repo is a misapplication of the tool — it is designed for Node.js projects and has no awareness of Python or gateway code. The migration to `pre-commit` for all three layers (backend, frontend, gateway) was recorded in `docs/developer-tooling.md`.
 
 **Guardrail created:** In a multi-language monorepo, use the `pre-commit` framework as the single hook manager for all layers. Never use Husky alongside `pre-commit` — they conflict over `core.hooksPath` and `npm install` silently breaks the setup. New engineers must run `pre-commit install` after every fresh clone.
+
+---
+
+## Per-Project Env Ownership — Single Root `.env.example` Becomes a Liability
+
+As a monorepo grows to include multiple sub-projects (frontend, backend, GraphQL gateway, agents), there is a temptation to maintain a single root `.env.example` as the one place to document all environment variables. This feels convenient early on, but the file grows verbose and loses structure quickly — variables for the agents team sit next to frontend `VITE_*` keys and backend database credentials with no clear ownership boundaries. When teams eventually split, or when a new engineer onboards to just one sub-project, they have no clean starting point and must mentally filter out everything irrelevant to their context.
+
+DT-12 corrected this by giving each sub-project its own `.env.example`: `agents/.env.example`, `backend/.env.example`, `graphql-gateway/.env.example`, and a trimmed root `.env.example` covering only frontend vars. Each file is owned by the team that runs that sub-project — a change to backend secrets never touches the agents config, and vice versa. This is the same separation-of-concerns principle applied to configuration rather than code.
+
+**Guardrail created:** Each sub-project owns its own `.env.example`; never consolidate environment variables into a root file as a project scales — separate teams need separate ownership boundaries.
+
+---
+
+## Observability Tooling — Defaulted to Custom Scripts When Sentry Was Already Running
+
+When the user asked about tracking agent token usage and visualising it over time, the AI immediately proposed building custom tooling: a flat JSONL log file and a matplotlib script. Sentry was already wired into three layers of the project (frontend, backend, gateway) and has built-in support for exactly this use case — Performance transactions, custom measurements via `set_measurement()`, and dashboards. The proposal to build new infrastructure was never challenged against what was already in place.
+
+Building custom observability scripts when a capable platform is already running adds unnecessary maintenance burden, splits the team's operational view across multiple tools, and signals a failure to think about the project holistically before proposing solutions. The correct move is to audit existing infrastructure first — new tooling is the right answer only when nothing covers the need.
+
+**Principle enforced:** Before proposing new tooling, check what observability infrastructure is already running in the project. When Sentry is already wired in, it is almost always the right answer for token tracking, performance measurement, and visualisation — not a custom script.
