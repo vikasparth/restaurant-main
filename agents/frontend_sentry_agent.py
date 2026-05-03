@@ -9,6 +9,7 @@ from agents.prompt_utils import build_system_prompt
 
 
 from agents.config import FRONTEND_SENTRY_MAX_TURNS, FRONTEND_SENTRY_MAX_TOKENS, FRONTEND_SENTRY_MODEL, SENTRY_API_BASE
+from agents.sentry_utils import record_agent_run
 
 
 def query_sentry_errors(project_slug: str) -> list[dict]:
@@ -152,6 +153,7 @@ def run() -> str:
         {"role": "user", "content": "Investigate the latest unresolved errors in the restaurant-frontend Sentry project and produce a YAML finding."}
     ]
     turn_count = 0
+    usage_by_turn = []
 
     # why: bounded loop prevents runaway token spend if Claude keeps requesting tools
     while turn_count < FRONTEND_SENTRY_MAX_TURNS:
@@ -162,9 +164,12 @@ def run() -> str:
             tools=TOOLS,
             messages=messages,
         )
+        usage_by_turn.append({"input_tokens": response.usage.input_tokens, "output_tokens": response.usage.output_tokens})
+
         if response.stop_reason == "end_turn":
             for block in response.content:
                 if block.type == "text":
+                    record_agent_run("frontend-sentry", block.text, usage_by_turn)
                     return block.text
         # why: assistant message must be appended before tool_result —
         # the API requires the full conversation history in order
@@ -189,7 +194,7 @@ def run() -> str:
         turn_count += 1
     # why: partial status signals to the orchestrator that the finding is incomplete —
     # caller can decide whether to retry or escalate rather than silently getting nothing
-    return (
+    partial_yaml = (
         "metadata:\n"
         "  schema_version: '1.0'\n"
         "  agent: frontend-sentry\n"
@@ -200,3 +205,6 @@ def run() -> str:
         "findings: {}\n"
         "interpretation: {}\n"
     )
+    record_agent_run("frontend-sentry", partial_yaml, usage_by_turn)
+    return partial_yaml
+

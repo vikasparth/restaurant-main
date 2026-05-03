@@ -34,5 +34,9 @@ packaging==26.2
 pluggy==1.6.0
 pygments==2.20.0
 
+# Sentry SDK — agent observability, Performance transactions for token usage and confidence tracking
+sentry-sdk==2.58.0
+certifi==2025.4.26
+urllib3==2.4.0
 
 

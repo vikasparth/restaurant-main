@@ -85,7 +85,8 @@ def test_frontend_sentry_identifies_schema_drift():
 
     with patch("agents.frontend_sentry_agent.anthropic.Anthropic", return_value=mock_client):
         with patch("agents.frontend_sentry_agent.query_sentry_errors", return_value=[SENTRY_EVENT]):
-            result_yaml = run()
+            with patch("agents.frontend_sentry_agent.record_agent_run"):
+                result_yaml = run()
 
 
     result = yaml.safe_load(result_yaml)
