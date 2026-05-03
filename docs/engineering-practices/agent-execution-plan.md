@@ -32,17 +32,18 @@ Sequence:
 **DT-13 complete. Next: D.2 Backend Sentry Agent.**
 
 ### DT-13 — Agent Observability via Sentry ✅ complete (2026-05-03)
-- `agents/sentry_utils.py` — `record_agent_run()` wraps each `run()` in a Sentry Performance transaction; uses `set_data()` (not deprecated `set_measurement()`); records `input_tokens`, `output_tokens`, `total_tokens`, `turns_used`, `confidence_numeric`; sets status `ok`/`deadline_exceeded`
+- `agents/sentry_utils.py` — `record_agent_run()` wraps each `run()` in a Sentry transaction; `_strip_code_fence()` defensive helper added for YAML parsing; `set_data()` used (not deprecated `set_measurement()`)
 - `agents/config.py` — `AGENTS_SENTRY_DSN` added (empty default = opt-in locally)
 - `agents/requirements.txt` — `sentry-sdk==2.58.0` + `certifi` + `urllib3` pinned
-- `agents/frontend_sentry_agent.py` — `usage_by_turn` accumulated each turn; `record_agent_run()` called before every return path including partial fallback
-- `agents/tests/test_sentry_utils.py` — 4 TDD tests all green: `test_record_agent_run_completed`, `test_record_agent_run_partial`, `test_record_agent_run_no_dsn`, `test_confidence_numeric_mapping`
-- `agents/tests/test_frontend_sentry_agent.py` — `record_agent_run` mocked to prevent real Sentry calls during unit tests
-- `agents/CLAUDE.md` — new file; observability guardrail + wiring checklist for all future agents
+- `agents/frontend_sentry_agent.py` — `usage_by_turn` accumulated each turn; `record_agent_run()` called before every return path; tool results trimmed: `query_sentry_errors` uses `age:-1h` + limit 3 + 6-field trim; `get_stack_trace` trimmed to exception essentials + top 2 frames only
+- Token cost: 26k → 5k per run (80% reduction) after trimming
+- `agents/tests/test_sentry_utils.py` — 4 TDD tests green; `COMPLETED_HIGH_YAML` uses code-fenced input to cover `_strip_code_fence`
+- `agents/tests/test_frontend_sentry_agent.py` — `record_agent_run` mocked to prevent real Sentry calls
+- `agents/CLAUDE.md` — observability guardrail + token efficiency rules + wiring checklist
 - `.gitignore` — `agents/__pycache__/` patterns added
-- PR: `feat/dt13-agent-observability` — 5/5 tests passing, no warnings
-- Sentry `restaurant-agents` project created; DSN added to `agents/.env`
-- **Pending:** build Sentry dashboard (manual step — do after first real agent run lands in production)
+- `agents/specs/dt13_agent_observability.md` — post-implementation findings documented
+- PR: `feat/dt13-agent-observability` — 5/5 tests passing
+- **Pending:** switch `record_agent_run` to `capture_event` (Performance not on free plan); build Sentry dashboard after first production run
 
 ---
 
