@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-02**
+**Last updated: 2026-05-03**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,25 +9,40 @@
 
 ## Current Focus
 
-**Next task: DT-13 — Agent Observability via Sentry (TDD)**
+**Next task: D.2 — Backend Sentry Agent**
+
+Build `agents/backend_sentry_agent.py` — same structure as D.1 but targets the `restaurant-backend` Sentry project. Follow the observability wiring checklist in `agents/CLAUDE.md`.
 
 Sequence:
-1. Create `restaurant-agents` Sentry project (free tier) → get DSN → add to `agents/.env` as `AGENTS_SENTRY_DSN`
-2. Write failing tests in `agents/tests/test_sentry_utils.py` (red phase) — 4 tests: `test_record_agent_run_completed`, `test_record_agent_run_partial`, `test_record_agent_run_no_dsn`, `test_confidence_numeric_mapping`
-3. Implement `agents/sentry_utils.py` — green phase
-4. Update `agents/config.py` (add `AGENTS_SENTRY_DSN`), `agents/requirements.txt` (add `sentry-sdk`), `agents/.env.example`
-5. Wire `record_agent_run()` into `frontend_sentry_agent.py` — accumulate `usage_by_turn` each turn, call at end of `run()`
-6. Verify transaction appears in Sentry → build dashboard
-7. Commit + PR → then proceed to D.2
+1. Write spec `agents/specs/d2_backend_sentry_agent.md` — wait for sign-off
+2. Write failing test in `agents/tests/test_backend_sentry_agent.py` (red phase)
+3. Implement `agents/backend_sentry_agent.py` — green phase
+4. Wire `record_agent_run()` per `agents/CLAUDE.md` checklist
+5. Smoke test against real backend Sentry project
+6. Commit + PR → then proceed to D.3
 
-**Spec:** `agents/specs/dt13_agent_observability.md` — signed off. Decisions locked:
-- New `restaurant-agents` Sentry project (free, clean separation)
-- Tag transactions with Git SHA (tracks impact of agent code changes on confidence)
-- `AGENTS_SENTRY_DSN` empty = observability opt-in locally; always set in CI/Render
-
-**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ ~~D.1~~ ~~A.5~~ ~~DT-12~~ ~~D.1 smoke test~~ → DT-13 → D.2 → D.3 → D.4 → D.5 → D.6 → E (orchestration)
+**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ ~~D.1~~ ~~A.5~~ ~~DT-12~~ ~~D.1 smoke test~~ ~~DT-13~~ → D.2 → D.3 → D.4 → D.5 → D.6 → E (orchestration)
 
 **Deferred:** 8 pre-existing ESLint warnings (`react-refresh/only-export-components`) in shadcn/ui components — separate task, not blocking agents
+
+---
+
+## Session Progress (2026-05-03)
+
+**DT-13 complete. Next: D.2 Backend Sentry Agent.**
+
+### DT-13 — Agent Observability via Sentry ✅ complete (2026-05-03)
+- `agents/sentry_utils.py` — `record_agent_run()` wraps each `run()` in a Sentry Performance transaction; uses `set_data()` (not deprecated `set_measurement()`); records `input_tokens`, `output_tokens`, `total_tokens`, `turns_used`, `confidence_numeric`; sets status `ok`/`deadline_exceeded`
+- `agents/config.py` — `AGENTS_SENTRY_DSN` added (empty default = opt-in locally)
+- `agents/requirements.txt` — `sentry-sdk==2.58.0` + `certifi` + `urllib3` pinned
+- `agents/frontend_sentry_agent.py` — `usage_by_turn` accumulated each turn; `record_agent_run()` called before every return path including partial fallback
+- `agents/tests/test_sentry_utils.py` — 4 TDD tests all green: `test_record_agent_run_completed`, `test_record_agent_run_partial`, `test_record_agent_run_no_dsn`, `test_confidence_numeric_mapping`
+- `agents/tests/test_frontend_sentry_agent.py` — `record_agent_run` mocked to prevent real Sentry calls during unit tests
+- `agents/CLAUDE.md` — new file; observability guardrail + wiring checklist for all future agents
+- `.gitignore` — `agents/__pycache__/` patterns added
+- PR: `feat/dt13-agent-observability` — 5/5 tests passing, no warnings
+- Sentry `restaurant-agents` project created; DSN added to `agents/.env`
+- **Pending:** build Sentry dashboard (manual step — do after first real agent run lands in production)
 
 ---
 
