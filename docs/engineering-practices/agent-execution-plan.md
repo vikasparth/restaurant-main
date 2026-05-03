@@ -14,16 +14,55 @@
 Build `agents/backend_sentry_agent.py` — same structure as D.1 but targets the `restaurant-backend` Sentry project. Follow the observability wiring checklist in `agents/CLAUDE.md`.
 
 Sequence:
-1. Write spec `agents/specs/d2_backend_sentry_agent.md` — wait for sign-off
-2. Write failing test in `agents/tests/test_backend_sentry_agent.py` (red phase)
-3. Implement `agents/backend_sentry_agent.py` — green phase
-4. Wire `record_agent_run()` per `agents/CLAUDE.md` checklist
-5. Smoke test against real backend Sentry project
-6. Commit + PR → then proceed to D.3
+1. **Resolve open design question below before writing spec**
+2. Write spec `agents/specs/d2_backend_sentry_agent.md` — wait for sign-off
+3. Write failing test in `agents/tests/test_backend_sentry_agent.py` (red phase)
+4. Implement `agents/backend_sentry_agent.py` — green phase
+5. Wire `record_agent_run()` per `agents/CLAUDE.md` checklist
+6. Smoke test against real backend Sentry project
+7. Commit + PR → then proceed to D.3
 
 **Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ ~~D.1~~ ~~A.5~~ ~~DT-12~~ ~~D.1 smoke test~~ ~~DT-13~~ → D.2 → D.3 → D.4 → D.5 → D.6 → E (orchestration)
 
 **Deferred:** 8 pre-existing ESLint warnings (`react-refresh/only-export-components`) in shadcn/ui components — separate task, not blocking agents
+
+---
+
+## ⚠️ Open Design Question — Agent Time Window Strategy (resolve before D.2 spec)
+
+**Context:** During DT-13 we discovered the frontend Sentry agent was fetching 25 issues with no time boundary, pulling month-old stale errors and wasting ~21k tokens per run. We fixed it to `age:-1h` with limit 3, cutting cost from 26k to 5k tokens.
+
+**The question:** Who controls the time window — the agent or the orchestrator?
+
+**Constraints agreed:**
+- Each agent must be **lean and confined to a fixed scope** — no superpowers across the landscape
+- Each agent has one job and one data source (e.g. `restaurant-frontend` Sentry project only)
+- `project_slug` must be hardcoded inside the agent — orchestrator cannot redirect an agent to a different project
+- Raw API responses must never enter LLM context — trim at the boundary always
+
+**The tension:**
+- A fixed `age:-1h` window is right for live incident response but wrong for a nightly health sweep (needs 24h)
+- The orchestrator knows *why* it's running — live incident vs scheduled sweep — but should not have open access to agent internals
+
+**Proposed solution (needs sign-off):**
+Agent defines a fixed menu of allowed windows. Orchestrator picks from the menu — it cannot pass arbitrary values:
+
+```python
+ALLOWED_WINDOWS = {
+    "live": "age:-1h",    # default — incident response, on-call
+    "daily": "age:-24h",  # morning health sweep
+}
+
+def run(window: str = "live") -> str:
+    query_filter = ALLOWED_WINDOWS.get(window, ALLOWED_WINDOWS["live"])
+```
+
+- Agent stays in control of its scope — orchestrator gets a safe, bounded knob
+- Unknown window values fall back to `"live"` silently — no injection possible
+- All agents adopt the same `run(window="live")` signature from D.2 onwards
+- D.1 `frontend_sentry_agent.py` to be retrofitted with the same signature after D.2 confirms the pattern
+
+**Needs decision:** Is `ALLOWED_WINDOWS` the right pattern, or should time window be fully fixed per agent with no orchestrator input at all?
 
 ---
 
