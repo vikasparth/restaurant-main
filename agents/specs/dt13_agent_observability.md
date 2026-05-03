@@ -135,6 +135,35 @@ Tests must be written before implementation (red phase first):
 
 ---
 
+## Post-implementation Findings (2026-05-03)
+
+### Sentry Performance not available on free plan
+`start_transaction()` sent events but they did not appear in the Performance tab.
+Sentry confirmed Performance requires a paid plan for full visibility.
+**Decision:** Switch `record_agent_run()` to `capture_event()` — works on all plans,
+lands in Issues/Events, fully queryable in dashboards via tags and extras.
+This change is pending — tracked as a follow-up before D.2.
+
+### Tool result trimming — token cost dropped from 26k to 5k per run
+Raw API responses were being passed directly into LLM context:
+- `query_sentry_errors` was fetching 25 full issue objects with no time boundary
+- `get_stack_trace` was returning the full event payload (breadcrumbs, headers, all frames)
+
+**Fixes applied:**
+- `query_sentry_errors` — `age:-1h` Sentry query filter (not a `start` param — Sentry query syntax); limit reduced to 3; response trimmed to 6 fields per issue
+- `get_stack_trace` — trimmed to `exception_type`, `exception_message`, `culprit`, top 2 frames only
+
+**Orchestrator note:** The orchestrator (Phase E) should pass a specific `issue_id` directly
+to the agent rather than relying on `query_sentry_errors` to browse. At that point
+`query_sentry_errors` becomes a discovery tool only, not the primary input path.
+
+### Claude wraps YAML in markdown code fences
+Despite prompt instruction "no prose before or after", Claude wraps output in ` ```yaml ` fences.
+`_strip_code_fence()` added to `sentry_utils.py` as a defensive strip before `yaml.safe_load()`.
+All future agents should assume fenced output is possible and use the same helper.
+
+---
+
 ## Sequence of work
 
 1. Answer open questions above
