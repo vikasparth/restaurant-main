@@ -21,15 +21,27 @@ def query_sentry_errors(project_slug: str) -> list[dict]:
     response = requests.get(
         url,
         headers={"Authorization": f"Bearer {token}"},
-        # is:unresolved excludes already-closed issues so the agent never re-investigates
-        # fixed bugs; limit 25 keeps tool result small enough to stay within Claude's
-        # per-turn token budget without flooding the context with low-signal issues
-        params={"query": "is:unresolved", "limit": 25},
+        # why: age:-1h filters to issues active in the last hour — Sentry query syntax,
+        # not a separate param; keeps agent focused on live problems not month-old noise
+        # limit 3 — agent investigates one issue; orchestrator decides which one to pass
+        params={"query": "is:unresolved age:-1h", "limit": 3},
     )
     # turns any 4xx/5xx into an exception — without this, a 401 returns an error body
     # that Claude would try to interpret as real Sentry data
     response.raise_for_status()
-    return response.json()
+    # why: trim to essential fields only — raw issue objects contain metadata, tags,
+    # stats and assignee data the agent never needs, wasting tokens per item
+    return [
+        {
+            "id": issue["id"],
+            "title": issue.get("title", ""),
+            "culprit": issue.get("culprit", ""),
+            "count": issue.get("count", 0),
+            "firstSeen": issue.get("firstSeen", ""),
+            "lastSeen": issue.get("lastSeen", ""),
+        }
+        for issue in response.json()
+    ]
 
 def get_stack_trace(issue_id: str) -> dict:
     token = os.environ["SENTRY_AUTH_TOKEN"]
@@ -41,7 +53,28 @@ def get_stack_trace(issue_id: str) -> dict:
         headers={"Authorization": f"Bearer {token}"},
     )
     response.raise_for_status()
-    return response.json()
+    data = response.json()
+    # why: full event payloads include breadcrumbs, request headers, environment vars
+    # and all framework frames — none of this helps Claude find the root cause;
+    # trim to exception essentials and top 2 app frames only
+    exception_values = (
+        data.get("entries", [{}])[0]
+        .get("data", {})
+        .get("values", [{}])
+    )
+    exc = exception_values[0] if exception_values else {}
+    frames = exc.get("stacktrace", {}).get("frames", [])
+    # top 2 frames closest to the error (frames are ordered oldest-first)
+    top_frames = [
+        {"filename": f.get("filename", ""), "lineno": f.get("lineNo", ""), "function": f.get("function", "")}
+        for f in frames[-2:]
+    ]
+    return {
+        "exception_type": exc.get("type", ""),
+        "exception_message": exc.get("value", ""),
+        "culprit": data.get("culprit", ""),
+        "top_frames": top_frames,
+    }
 
 def get_affected_releases(issue_id: str) -> list[str]:
     token = os.environ["SENTRY_AUTH_TOKEN"]
