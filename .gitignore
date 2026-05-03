@@ -7,6 +7,9 @@ agents/.venv/
 backend/__pycache__/
 backend/**/__pycache__/
 backend/**/*.pyc
+agents/__pycache__/
+agents/**/__pycache__/
+agents/**/*.pyc
 backend/.env
 .env
 
