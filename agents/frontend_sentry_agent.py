@@ -8,7 +8,7 @@ import anthropic
 from agents.prompt_utils import build_system_prompt
 
 
-from agents.config import FRONTEND_SENTRY_MAX_TURNS, FRONTEND_SENTRY_MAX_TOKENS, FRONTEND_SENTRY_MODEL, SENTRY_API_BASE
+from agents.config import FRONTEND_SENTRY_MAX_TURNS, FRONTEND_SENTRY_MAX_TOKENS, FRONTEND_SENTRY_MODEL, SENTRY_API_BASE, SENTRY_QUERY_WINDOW, SENTRY_QUERY_LIMIT
 from agents.sentry_utils import record_agent_run
 
 
@@ -24,7 +24,7 @@ def query_sentry_errors(project_slug: str) -> list[dict]:
         # why: age:-1h filters to issues active in the last hour — Sentry query syntax,
         # not a separate param; keeps agent focused on live problems not month-old noise
         # limit 3 — agent investigates one issue; orchestrator decides which one to pass
-        params={"query": "is:unresolved age:-1h", "limit": 3},
+        params={"query": f"is:unresolved {SENTRY_QUERY_WINDOW}", "limit": SENTRY_QUERY_LIMIT},
     )
     # turns any 4xx/5xx into an exception — without this, a 401 returns an error body
     # that Claude would try to interpret as real Sentry data
