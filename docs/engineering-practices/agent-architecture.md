@@ -1,7 +1,7 @@
 # Agent Architecture — Aap ki Rasoi
 
 **Status: DRAFT**
-**Last updated: 2026-04-29**
+**Last updated: 2026-05-04**
 **Workflow context:** See `docs/engineering-practices/ai-agent-workflow.md` — two-loop model (inner/outer), signal sources, and recommended agent behaviour.
 **Implementation plan:** See `docs/engineering-practices/agent-execution-plan.md` — phases, tasks, and validation scenarios.
 
@@ -13,6 +13,7 @@
 |---|---|
 | [Principles](#principles) | Core design rules all agents follow |
 | [Agent Catalog](#agent-catalog) | Frontend Sentry, Backend Sentry, Render Logs, GitHub, Codebase, Recommendation, Orchestrator |
+| [Sentry Agent Query Contract](#sentry-agent-query-contract) | Investigation flow, minimum data fields, time window escalation, exit conditions, guardrails |
 | [Agent Runtime](#agent-runtime) | Packaging decision, directory structure, tool definitions, entry points, model selection |
 | [Finding Schema](#finding-schema) | Common YAML envelope, required fields, schema file location, versioning, agent tag |
 | [Monitoring Workflows](#monitoring-workflows) | Pipeline overview, de-duplication rule, handoff contract |
@@ -46,16 +47,16 @@
 ## Agent Catalog
 
 ### Frontend Sentry Agent
-**Responsibility:** Query the frontend Sentry project for JS errors, React breadcrumbs, and gateway exceptions.
+**Responsibility:** Query the frontend Sentry project for JS errors and identify root cause with minimum API calls.
 **Access:** Frontend Sentry project — read-only (no access to backend Sentry project)
-**Inputs:** time range, component filter, error type filter
-**Outputs:** JS error list with stack traces, ARIA breadcrumb sequences, error frequency trends, affected release tags
+**Inputs:** none — agent controls its own query window via escalation ladder (see [Sentry Agent Query Contract](#sentry-agent-query-contract))
+**Outputs:** findings (error type, message, affected file, top 3 app frames, first/last seen) + interpretation (root cause, affected layer, regression flag, confidence). Metadata envelope assembled by Python wrapper — not produced by Claude.
 
 ### Backend Sentry Agent
-**Responsibility:** Query the backend Sentry project for Python exceptions and FastAPI errors.
+**Responsibility:** Query the backend Sentry project for Python exceptions and FastAPI errors and identify root cause with minimum API calls.
 **Access:** Backend Sentry project — read-only (no access to frontend Sentry project)
-**Inputs:** time range, endpoint filter, error type filter
-**Outputs:** Python exception list with stack traces, request context (endpoint, status code), error frequency trends, affected release tags
+**Inputs:** none — agent controls its own query window via escalation ladder (see [Sentry Agent Query Contract](#sentry-agent-query-contract))
+**Outputs:** findings (exception type, message, affected file, top 3 app frames, endpoint, first/last seen) + interpretation (root cause, affected layer, regression flag, confidence). Metadata envelope assembled by Python wrapper — not produced by Claude.
 
 ### Render Logs Agent
 **Responsibility:** Read runtime and deployment logs from Render.
@@ -86,6 +87,135 @@
 **Access:** Can invoke all agents; can open GitHub Issues and send email (Resend) for notifications; executes write actions only after human approval
 **Inputs:** trigger event (see Trigger Types); human approval/rejection responses
 **Outputs:** GitHub Issue with investigation findings; email notification for high-confidence findings; approved actions executed post human sign-off
+
+---
+
+## Sentry Agent Query Contract
+
+Applies to both Frontend Sentry Agent and Backend Sentry Agent. These rules govern what data is fetched, when the agent stops, and what Claude is asked to produce.
+
+### Core Principle — Fetch Per Decision, Not Upfront
+
+Every tool call fetches only what the next decision requires. The agent never dumps a broad data set into Claude's context for it to filter. Each step answers one question; if the answer is definitive, no further fetching occurs.
+
+### Investigation Flow
+
+The agent works through four questions in order:
+
+| Step | Question | Data fetched | Stop condition |
+|---|---|---|---|
+| 1 | Is there an active problem? | Issue severity (`level`), `lastSeen`, count — top 3 issues in current window | No issues → escalate window or exit `no_data` |
+| 2 | Which issue to investigate? | None — deterministic: highest severity first, most recent if tied | Always continues to Step 3 |
+| 3 | What broke and where? | Exception type, message, culprit file, top 3 app frames | Root cause clear → return immediately. No further fetching. |
+| 4 | Is it a regression? | `firstSeen` + affected release SHA | Only reached if Step 3 confidence is `medium` or `low` |
+
+Step 2 requires no Claude call — it is a deterministic Python sort. Claude is only invoked at Steps 3 and 4.
+
+### Time Window Escalation
+
+The agent starts with the shortest window and escalates only when zero issues are found. Once any issue is found the window is locked — the agent never widens further.
+
+```
+Window ladder (default): ["age:-1h", "age:-6h", "age:-24h"]
+
+Try age:-1h  → issues found? → investigate. Done.
+             → none found?  → try age:-6h
+Try age:-6h  → issues found? → investigate. Done.
+             → none found?  → try age:-24h
+Try age:-24h → issues found? → investigate. Done.
+             → none found?  → return status: no_data. Done.
+```
+
+**Hard cap:** The ladder never exceeds `age:-24h`. Wider windows pull stale noise and drive up token cost without improving root cause accuracy.
+
+Config key: `SENTRY_WINDOW_LADDER` (comma-separated, e.g. `"1h,6h,24h"`). Defaults above apply when not set.
+
+### Minimum Data Fields
+
+**Issue list (Step 1) — 5 fields only:**
+
+| Field | Why needed |
+|---|---|
+| `id` | Required to fetch stack trace in Step 3 |
+| `title` | Human-readable label for the finding |
+| `level` | Severity — determines investigation priority (`fatal` > `error` > `warning`) |
+| `count` | Frequency — how bad is it |
+| `firstSeen` | Regression check — did this start recently |
+| `lastSeen` | Confirms issue is still active |
+
+All other Sentry issue fields (tags, assignee, stats, metadata) are dropped before entering Claude's context.
+
+**Stack trace (Step 3) — app frames only:**
+
+| Field | Why needed |
+|---|---|
+| `exception_type` | What class of error |
+| `exception_message` | What went wrong |
+| `culprit` | File + function where exception was raised |
+| `top_frames` | Top 3 app frames (ordered nearest-to-error first) |
+
+Each frame contains: `filename`, `lineno`, `function`. Framework frames (React internals, Django middleware, node_modules) are always stripped before entering Claude's context.
+
+Frame limit config key: `SENTRY_STACK_FRAME_LIMIT` (default: `3`).
+
+**Per-window issue limit config key:** `SENTRY_QUERY_LIMIT` (default: `3`). Agent investigates one issue per run — the orchestrator decides which one if multiple are present.
+
+### What Claude Produces vs What the Python Wrapper Assembles
+
+Claude is prompted to produce only `findings` and `interpretation`. It never sees or produces metadata fields — those are assembled by the Python wrapper after Claude returns, at zero token cost.
+
+**Claude produces:**
+```yaml
+findings:
+  error_type:
+  error_message:
+  affected_file:
+  top_frames: []
+  first_seen:
+  last_seen:
+  event_count:
+
+interpretation:
+  root_cause:
+  affected_layer: frontend | backend | gateway | infrastructure | unknown
+  regression: true | false
+  confidence: high | medium | low
+```
+
+**Python wrapper assembles (zero tokens):**
+```python
+metadata.schema_version  = "1.0"           # constant
+metadata.agent           = "frontend-sentry" # hardcoded per agent file
+metadata.status          = derive_status(yaml) # parse confidence + findings
+metadata.source          = "sentry-frontend"  # hardcoded per agent file
+metadata.time_window     = {from, to}        # recorded before the run starts
+metadata.pii_flag        = scan_for_pii(yaml) # regex on Claude's output
+metadata.injection_flag  = False              # set True only if detected mid-run
+metadata.findings_count  = count_findings(yaml)
+metadata.release_id      = extract_sha(yaml)  # parsed from interpretation
+```
+
+### Exit Conditions
+
+| Status | Trigger |
+|---|---|
+| `completed` | Claude identifies root cause with `high` or `medium` confidence |
+| `no_data` | All windows in the ladder exhausted with zero issues found |
+| `partial` | Turn budget (`SENTRY_MAX_TURNS`) exhausted before root cause identified |
+| `injection_detected` | Prompt injection attempt found in Sentry payload — stop immediately, return flag |
+
+`no_data` and `injection_detected` are set by the Python wrapper, not by Claude.
+
+### Guardrails Summary
+
+| Guardrail | Rule |
+|---|---|
+| Window cap | Never exceed `age:-24h` regardless of findings |
+| Issue cap | Max 3 issues fetched per window — agent investigates one |
+| Frame cap | Max 3 app frames — framework frames always stripped |
+| Turn cap | `SENTRY_MAX_TURNS` (from config) bounds the agentic loop |
+| Stop early | As soon as Claude returns `high` or `medium` confidence — no further tool calls |
+| No upfront dump | Each tool call fetches only what the next decision step requires |
 
 ---
 
@@ -154,9 +284,9 @@ Every agent posts its findings as a GitHub Issue comment. Each comment begins wi
 
 Every finding has three top-level sections:
 
-1. **`metadata`** — common envelope fields shared by all agents (schema version, agent name, confidence, flags)
-2. **`findings`** — what the agent actually observed (errors, stack traces, affected files, counts). Fields differ per agent.
-3. **`interpretation`** — what the agent concluded from those findings (root cause hypothesis, affected layer, regression or pre-existing). This is what the Recommendation Agent reads to produce its fix.
+1. **`metadata`** — common envelope assembled by the Python wrapper after Claude returns. Claude never produces these fields — they cost zero tokens.
+2. **`findings`** — what Claude observed from the Sentry data (errors, stack traces, counts). Claude produces this.
+3. **`interpretation`** — what Claude concluded (root cause, affected layer, regression, confidence). Claude produces this. This is what the Recommendation Agent reads to produce its fix.
 
 ### Format
 
@@ -207,7 +337,7 @@ interpretation:
 |---|---|---|
 | `schema_version` | string | Current: `"1.0"` |
 | `agent` | string | `frontend-sentry`, `backend-sentry`, `render-logs`, `github`, `codebase`, `recommendation` |
-| `status` | string | `completed`, `partial`, `failed`, `injection_detected` |
+| `status` | string | `completed`, `partial`, `no_data`, `failed`, `injection_detected` — set by Python wrapper, never by Claude |
 | `source` | string | Which external system was queried |
 | `time_window.from` / `.to` | ISO 8601 datetime | Coverage window of the investigation |
 | `confidence` | string | `high`, `medium`, `low` |
