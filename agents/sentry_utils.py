@@ -7,6 +7,17 @@ def confidence_to_numeric(confidence: str) -> int:
     mapping = {"high": 3, "medium": 2, "low": 1}
     return mapping.get(confidence, 0)
 
+# why: Claude sometimes wraps YAML output in markdown code fences despite prompt instructions —
+# strip them defensively so yaml.safe_load never receives backtick characters
+def _strip_code_fence(text: str) -> str:
+    lines = text.strip().splitlines()
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines)
+
+
 def record_agent_run(
     agent_name: str,
     result_yaml: str,
@@ -16,7 +27,7 @@ def record_agent_run(
         return
     sentry_sdk.init(dsn=AGENTS_SENTRY_DSN, traces_sample_rate=1.0)
 
-    parsed = yaml.safe_load(result_yaml)
+    parsed = yaml.safe_load(_strip_code_fence(result_yaml))
     status = parsed.get("metadata", {}).get("status", "partial")
     confidence = parsed.get("metadata", {}).get("confidence", "")
 

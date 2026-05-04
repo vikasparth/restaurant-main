@@ -4,11 +4,13 @@ from agents.sentry_utils import record_agent_run
 import agents.config as config
 
 COMPLETED_HIGH_YAML = """\
+```yaml
 metadata:
   agent: frontend-sentry
   status: completed
   confidence: high
-"""
+  """
+
 def test_record_agent_run_completed():
     usage = [
         {"input_tokens": 900, "output_tokens": 120},
