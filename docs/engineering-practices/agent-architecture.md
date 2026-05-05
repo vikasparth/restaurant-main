@@ -78,12 +78,32 @@
 **Inputs:** release SHA or commit range from Orchestrator
 **Outputs:** structured findings — commits (SHA, message, changed files), PR title and merge time. No interpretation.
 
-### Codebase Agent
-**Type:** Pure Python data extractor — zero Claude API calls.
-**Responsibility:** Read and return relevant source file excerpts, runbook sections, and schema definitions.
-**Access:** Filesystem — read-only, scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`
-**Inputs:** file paths and line ranges from Orchestrator (derived from stack trace frames)
-**Outputs:** structured findings — code snippets at the affected lines, matching runbook section if found. No interpretation.
+### Codebase Extractor
+**Type:** Claude-assisted navigator — read-only filesystem access, no write access anywhere.
+**Responsibility:** Navigate the codebase to trace the root cause location and return structured findings — not raw code snippets.
+**Access:** Filesystem — read-only, strictly scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`. No access to GitHub, Sentry, Render, or any external system.
+**Inputs:** crash location (file + line from Sentry stack frames), symbol name, time window from Orchestrator
+**Outputs:** structured findings — crash location, root cause file + line, missing or incorrect field, fix location, fix type (~50 tokens). No raw code snippets, no interpretation, no fix narrative.
+
+**Why Claude is needed here (navigation, not interpretation):**
+Pure Python can only read files it is told to read. Tracing a crash from `MenuItemCard.tsx:42` back through `useMenuItems.ts` to a missing GraphQL field requires reasoning about what to read next — Python cannot do that. Claude navigates the codebase iteratively (read crash line → identify symbol → follow to source → stop when root cause is clear) and returns the minimal structured result.
+
+**Why this agent does not produce the fix recommendation:**
+The Codebase Extractor has full read access to the codebase. Giving it write access to GitHub as well (to open PRs) would violate least privilege — a compromised agent could read sensitive source files and embed that data into a PR. The fix narrative and PR are produced by the Recommendation Agent, which has GitHub write access but no codebase read access. Neither agent alone can do both.
+
+**Handoff to Recommendation Agent — structured findings only (~50 tokens):**
+```python
+{
+  "crash_location":  "src/components/MenuItemCard.tsx:42",
+  "root_cause_file": "src/hooks/useMenuItems.ts:23",
+  "missing_field":   "price",
+  "fix_location":    "graphql/menu.graphql — MenuItem type",
+  "fix_type":        "add_field",
+  "fix_detail":      "Add price: Float! to MenuItem type and populate in useMenuItems hook",
+  "runbook_match":   "missing-field-frontend-query"
+}
+```
+Raw code snippets are never passed to the Recommendation Agent — only structured conclusions. Token budget target: under 100 tokens per codebase finding.
 
 ### Recommendation Agent
 **Type:** The single Claude API caller in the entire pipeline.
