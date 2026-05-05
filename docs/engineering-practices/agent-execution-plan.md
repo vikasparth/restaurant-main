@@ -63,13 +63,13 @@ If a Sentry finding has raw stack frames in `findings` that the Recommendation A
 
 **Next task: D.2 — Backend Sentry Agent**
 
-Build `agents/backend_sentry_agent.py` — same structure as D.1 but targets the `restaurant-backend` Sentry project. Follow the observability wiring checklist in `agents/CLAUDE.md`.
+Build `agents/backend_sentry_extractor.py` — same structure as D.1 but targets the `restaurant-backend` Sentry project. Follow the observability wiring checklist in `agents/CLAUDE.md`.
 
 Sequence:
 1. **Resolve open design question below before writing spec**
-2. Write spec `agents/specs/d2_backend_sentry_agent.md` — wait for sign-off
-3. Write failing test in `agents/tests/test_backend_sentry_agent.py` (red phase)
-4. Implement `agents/backend_sentry_agent.py` — green phase
+2. Write spec `agents/specs/d2_backend_sentry_extractor.md` — wait for sign-off
+3. Write failing test in `agents/tests/test_backend_sentry_extractor.py` (red phase)
+4. Implement `agents/backend_sentry_extractor.py` — green phase
 5. Wire `record_agent_run()` per `agents/CLAUDE.md` checklist
 6. Smoke test against real backend Sentry project
 7. Commit + PR → then proceed to D.3
@@ -112,7 +112,7 @@ def run(window: str = "live") -> str:
 - Agent stays in control of its scope — orchestrator gets a safe, bounded knob
 - Unknown window values fall back to `"live"` silently — no injection possible
 - All agents adopt the same `run(window="live")` signature from D.2 onwards
-- D.1 `frontend_sentry_agent.py` to be retrofitted with the same signature after D.2 confirms the pattern
+- D.1 `frontend_sentry_extractor.py` to be retrofitted with the same signature after D.2 confirms the pattern
 
 **Needs decision:** Is `ALLOWED_WINDOWS` the right pattern, or should time window be fully fixed per agent with no orchestrator input at all?
 
@@ -126,10 +126,10 @@ def run(window: str = "live") -> str:
 - `agents/sentry_utils.py` — `record_agent_run()` wraps each `run()` in a Sentry transaction; `_strip_code_fence()` defensive helper added for YAML parsing; `set_data()` used (not deprecated `set_measurement()`)
 - `agents/config.py` — `AGENTS_SENTRY_DSN` added (empty default = opt-in locally)
 - `agents/requirements.txt` — `sentry-sdk==2.58.0` + `certifi` + `urllib3` pinned
-- `agents/frontend_sentry_agent.py` — `usage_by_turn` accumulated each turn; `record_agent_run()` called before every return path; tool results trimmed: `query_sentry_errors` uses `age:-1h` + limit 3 + 6-field trim; `get_stack_trace` trimmed to exception essentials + top 2 frames only
+- `agents/frontend_sentry_extractor.py` — `usage_by_turn` accumulated each turn; `record_agent_run()` called before every return path; tool results trimmed: `query_sentry_errors` uses `age:-1h` + limit 3 + 6-field trim; `get_stack_trace` trimmed to exception essentials + top 2 frames only
 - Token cost: 26k → 5k per run (80% reduction) after trimming
 - `agents/tests/test_sentry_utils.py` — 4 TDD tests green; `COMPLETED_HIGH_YAML` uses code-fenced input to cover `_strip_code_fence`
-- `agents/tests/test_frontend_sentry_agent.py` — `record_agent_run` mocked to prevent real Sentry calls
+- `agents/tests/test_frontend_sentry_extractor.py` — `record_agent_run` mocked to prevent real Sentry calls
 - `agents/CLAUDE.md` — observability guardrail + token efficiency rules + wiring checklist
 
 **DT-13 gap identified (2026-05-04):** `usage_by_turn` currently captures only `input_tokens` and `output_tokens`. Two cache fields are missing:
@@ -147,7 +147,7 @@ Add `cache_read_input_tokens` and `cache_creation_input_tokens` to `usage_by_tur
 **Why:** We use `build_system_prompt()` with `cache_control` on every agent. Cache reads cost 10% of normal input token price. Without capturing these fields the token cost reported in Sentry is incorrect — it overstates cost when the cache is warm and understates the creation cost on the first call.
 
 **Scope:**
-1. Update `usage_by_turn.append()` in `frontend_sentry_agent.py` to include both cache fields
+1. Update `usage_by_turn.append()` in `frontend_sentry_extractor.py` to include both cache fields
 2. Update `record_agent_run()` in `sentry_utils.py` to sum and record `cache_read_input_tokens` and `cache_creation_input_tokens` as separate Sentry measurements
 3. Apply the same pattern to every subsequent agent as it is built (D.2 onwards)
 
@@ -181,10 +181,10 @@ Real Sentry finding returned: `EADDRINUSE :::4000` in `graphql-gateway/index.ts`
 ### DT-12 — Per-project env restructuring ✅
 `agents/.env.example`, `backend/.env.example`, `graphql-gateway/.env.example` — each sub-project owns its own env file. Root `.env.example` trimmed to frontend-only vars. `agents/config.py` loads `agents/.env` via `load_dotenv(override=False)`.
 
-**D.1 complete.** `agents/frontend_sentry_agent.py` fully implemented and test green. Next: A.5 runbook.
+**D.1 complete.** `agents/frontend_sentry_extractor.py` fully implemented and test green. Next: A.5 runbook.
 
 ### D.1 — Frontend Sentry Agent ✅
-`agents/frontend_sentry_agent.py` — complete:
+`agents/frontend_sentry_extractor.py` — complete:
 - `query_sentry_errors(project_slug)` — GET `/projects/{org}/{slug}/issues/` with `is:unresolved` filter, limit 25
 - `get_stack_trace(issue_id)` — GET `/issues/{id}/events/latest/`
 - `get_affected_releases(issue_id)` — GET `/issues/{id}/tags/release/`, extracts `topValues[].value` list
@@ -211,15 +211,15 @@ Real Sentry finding returned: `EADDRINUSE :::4000` in `graphql-gateway/index.ts`
 Added `pytest==9.0.3` and its 5 transitive dependencies (colorama, iniconfig, packaging, pluggy, pygments) — all pinned.
 
 ### D.1 TDD test written — red phase confirmed
-- `agents/tests/__init__.py` — empty; required so pytest resolves `from agents.frontend_sentry_agent import run` correctly when run from repo root
-- `agents/tests/test_frontend_sentry_agent.py` — acceptance test for Scenario 5 (schema drift: `preparation_time` field in frontend query but missing from gateway schema)
+- `agents/tests/__init__.py` — empty; required so pytest resolves `from agents.frontend_sentry_extractor import run` correctly when run from repo root
+- `agents/tests/test_frontend_sentry_extractor.py` — acceptance test for Scenario 5 (schema drift: `preparation_time` field in frontend query but missing from gateway schema)
   - `SENTRY_EVENT` — mock Sentry issue dict with TypeError on `useMenu.ts`
   - `EXPECTED_FINDING` — expected agent output: `agent=frontend-sentry`, `confidence=high`, `affected_layer=gateway`, `regression=True`, `affected_field=preparation_time`
   - `test_frontend_sentry_identifies_schema_drift()` — patches `query_sentry_errors`, calls `run()`, asserts 10 specific fields
-  - **Red phase confirmed:** `AttributeError: module 'agents' has no attribute 'frontend_sentry_agent'` — module does not exist yet
+  - **Red phase confirmed:** `AttributeError: module 'agents' has no attribute 'frontend_sentry_extractor'` — module does not exist yet
 
 ### D.1 agent file started — 3 of 4 parts written
-`agents/frontend_sentry_agent.py` — in progress:
+`agents/frontend_sentry_extractor.py` — in progress:
 - Imports: `os`, `requests`, `FRONTEND_SENTRY_MAX_TURNS`, `FRONTEND_SENTRY_MAX_TOKENS`, `SENTRY_API_BASE` from config
 - `query_sentry_errors(project_slug)` — GET `/projects/{org}/{slug}/issues/` with `is:unresolved` filter, limit 25
 - `get_stack_trace(issue_id)` — GET `/issues/{id}/events/latest/`
@@ -312,11 +312,11 @@ Files created:
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| D.1 | Frontend Sentry Agent | `agents/frontend_sentry_agent.py` — Anthropic SDK agentic loop; tools: `query_sentry_errors`, `get_stack_trace`, `get_affected_releases` (frontend project only); returns YAML finding conforming to `finding-schema.json`; validate against Scenario 5 (schema drift) | ✅ Done — all 4 parts written (`TOOLS`, system prompt, `run()` loop, partial fallback); TDD test green; merged via PR #64 `feat/d1-frontend-sentry-agent` |
-| D.2 | Backend Sentry Agent | `agents/backend_sentry_agent.py` — same structure as D.1 but scoped to backend Sentry project; adds `endpoint` and `status_code` to agent-specific fields; validate against Scenario 1 (reservation failures) and Scenario 3 (allergens) | ⏳ Pending |
-| D.3 | Render Logs Agent | `agents/render_logs_agent.py` — tools: `get_service_logs`, `get_deployment_events`; returns structured log entries and startup/crash events; validate against Scenario 2 (cold start) | ⏳ Pending |
-| D.4 | GitHub Agent | `agents/github_agent.py` — tools: `get_issue`, `get_recent_commits`, `get_pr_history` (read-only); validate against Scenario 3 (allergens issue) and Scenario 4 (wrong total) | ⏳ Pending |
-| D.5 | Codebase Agent | `agents/codebase_agent.py` — tools: `read_file`, `grep_symbol`, `git_diff` (filesystem read-only, scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`); traces field/symbol through full stack; reads runbook; validate against all 5 scenarios | ⏳ Pending |
+| D.1 | Frontend Sentry Agent | `agents/frontend_sentry_extractor.py` — Anthropic SDK agentic loop; tools: `query_sentry_errors`, `get_stack_trace`, `get_affected_releases` (frontend project only); returns YAML finding conforming to `finding-schema.json`; validate against Scenario 5 (schema drift) | ✅ Done — all 4 parts written (`TOOLS`, system prompt, `run()` loop, partial fallback); TDD test green; merged via PR #64 `feat/d1-frontend-sentry-agent` |
+| D.2 | Backend Sentry Agent | `agents/backend_sentry_extractor.py` — same structure as D.1 but scoped to backend Sentry project; adds `endpoint` and `status_code` to agent-specific fields; validate against Scenario 1 (reservation failures) and Scenario 3 (allergens) | ⏳ Pending |
+| D.3 | Render Logs Agent | `agents/render_logs_extractor.py` — tools: `get_service_logs`, `get_deployment_events`; returns structured log entries and startup/crash events; validate against Scenario 2 (cold start) | ⏳ Pending |
+| D.4 | GitHub Agent | `agents/github_extractor.py` — tools: `get_issue`, `get_recent_commits`, `get_pr_history` (read-only); validate against Scenario 3 (allergens issue) and Scenario 4 (wrong total) | ⏳ Pending |
+| D.5 | Codebase Agent | `agents/codebase_extractor.py` — tools: `read_file`, `grep_symbol`, `git_diff` (filesystem read-only, scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`); traces field/symbol through full stack; reads runbook; validate against all 5 scenarios | ⏳ Pending |
 | D.6 | Recommendation Agent | `agents/recommendation_agent.py` — no external tool access; receives structured findings from orchestrator as input; produces root cause statement, confidence level (high/medium/low), recommended fix, runbook reference, and escalation flag; validate against all 5 scenarios | ⏳ Pending |
 
 ---

@@ -144,7 +144,7 @@ python -m pytest agents/tests/ -v
 **Run an agent manually (smoke test):**
 
 ```bash
-python -c "from agents.frontend_sentry_agent import run; print(run())"
+python -c "from agents.frontend_sentry_extractor import run; print(run())"
 ```
 
 ---

@@ -1,7 +1,7 @@
 import yaml
 from unittest.mock import patch, MagicMock
 
-from agents.frontend_sentry_agent import run
+from agents.frontend_sentry_extractor import run
 
 SENTRY_EVENT = {
     "id": "abc123def456",
@@ -83,9 +83,9 @@ def test_frontend_sentry_identifies_schema_drift():
     # why: side_effect returns responses in order — turn 1 tool_use, turn 2 end_turn
     mock_client.messages.create.side_effect = [mock_response_1, mock_response_2]
 
-    with patch("agents.frontend_sentry_agent.anthropic.Anthropic", return_value=mock_client):
-        with patch("agents.frontend_sentry_agent.query_sentry_errors", return_value=[SENTRY_EVENT]):
-            with patch("agents.frontend_sentry_agent.record_agent_run"):
+    with patch("agents.frontend_sentry_extractor.anthropic.Anthropic", return_value=mock_client):
+        with patch("agents.frontend_sentry_extractor.query_sentry_errors", return_value=[SENTRY_EVENT]):
+            with patch("agents.frontend_sentry_extractor.record_agent_run"):
                 result_yaml = run()
 
 
