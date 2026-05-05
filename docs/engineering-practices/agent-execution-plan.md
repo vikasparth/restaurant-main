@@ -1,13 +1,65 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-03**
+**Last updated: 2026-05-04**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
 ---
 
 ## Current Focus
+
+**Blocked: Architecture decisions must be completed before D.2 spec is written.**
+
+See open questions below — resolve all three groups before touching any code.
+
+---
+
+## ⚠️ Open Architecture Questions — Resolve Before D.2 (2026-05-04)
+
+Architecture doc (`docs/engineering-practices/agent-architecture.md`) was updated with the Sentry Agent Query Contract. Three groups of decisions remain open.
+
+### Group 1 — Inter-Agent Data Contracts
+
+**Q1 — What does the Orchestrator pass to each specialist agent?**
+Currently `investigate(fingerprint=abc123)` — is that the only input? Does it also pass the GitHub issue body or the error count from the monitoring workflow?
+
+**Q2 — What does the Recommendation Agent receive?**
+Full YAML findings from all agents, or only the `interpretation` sections? Passing full findings exposes raw stack traces the Recommendation Agent doesn't need. Passing only `interpretation` is leaner but may lose context the agent needs to reason well.
+
+**Q3 — Schema validation failure behaviour**
+When the Orchestrator validates a finding against the schema and it fails — does it stop routing entirely, or pass a `failed` envelope downstream?
+
+---
+
+### Group 2 — Per-Agent Guardrails
+
+Sentry agents now have a query contract. The same guardrail thinking has not been applied to other agents:
+
+| Agent | Questions to answer |
+|---|---|
+| Render Logs Agent | Max log lines fetched? Fields stripped before Claude context? Time window? |
+| GitHub Agent | Max commits fetched? Max issue comments? Fields stripped? |
+| Codebase Agent | Max files read? Max lines per file? Which paths are off-limits? |
+| Recommendation Agent | Max findings payload size? Behaviour when one or more findings are `partial`? |
+| Orchestrator | Max agents invoked per investigation? Timeout per agent call? |
+
+**Q4 — Should every agent have its own query contract section in the architecture doc?**
+
+---
+
+### Group 3 — Token Efficiency Rules
+
+**Q5 — Trim-at-boundary as a universal principle**
+Every tool result must be trimmed to only the fields Claude needs before entering context. Currently in `agents/CLAUDE.md` only. Should this be elevated to a Principle in the architecture doc?
+
+**Q6 — Prompt caching strategy**
+`build_system_prompt()` wraps system prompts with `cache_control`. Architecture doc does not mention this. Should the caching strategy be documented — which prompts are cached, TTL implications?
+
+**Q7 — Recommendation Agent payload**
+If a Sentry finding has raw stack frames in `findings` that the Recommendation Agent doesn't need to reason about root cause — should those be stripped before handoff, and who is responsible for stripping them (Orchestrator or the Sentry agent itself)?
+
+---
 
 **Next task: D.2 — Backend Sentry Agent**
 
