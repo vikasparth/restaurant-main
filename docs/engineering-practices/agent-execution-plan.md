@@ -9,112 +9,87 @@
 
 ## Current Focus
 
-**Blocked: Architecture decisions must be completed before D.2 spec is written.**
+**Next: DT-15 — Refactor D.1 to pure Python extractor, then D.2 spec.**
 
-See open questions below — resolve all three groups before touching any code.
-
----
-
-## ⚠️ Open Architecture Questions — Resolve Before D.2 (2026-05-04)
-
-Architecture doc (`docs/engineering-practices/agent-architecture.md`) was updated with the Sentry Agent Query Contract. Three groups of decisions remain open.
-
-### Group 1 — Inter-Agent Data Contracts
-
-**Q1 — What does the Orchestrator pass to each specialist agent?**
-Currently `investigate(fingerprint=abc123)` — is that the only input? Does it also pass the GitHub issue body or the error count from the monitoring workflow?
-
-**Q2 — What does the Recommendation Agent receive?**
-Full YAML findings from all agents, or only the `interpretation` sections? Passing full findings exposes raw stack traces the Recommendation Agent doesn't need. Passing only `interpretation` is leaner but may lose context the agent needs to reason well.
-
-**Q3 — Schema validation failure behaviour**
-When the Orchestrator validates a finding against the schema and it fails — does it stop routing entirely, or pass a `failed` envelope downstream?
+Architecture decisions are all resolved (see below). D.1 (`frontend_sentry_extractor.py`) was built under the old per-agent Claude call design and still has an agentic loop inside. Before building D.2, D.1 must be refactored to match the new architecture — pure Python, zero Claude calls, `run(guardrails: dict) -> dict` signature.
 
 ---
 
-### Group 2 — Per-Agent Guardrails
+## Architecture Decisions — Resolved (2026-05-04)
 
-Sentry agents now have a query contract. The same guardrail thinking has not been applied to other agents:
+All open architecture questions from the previous session are now resolved. The architecture doc has been updated to reflect all decisions below.
 
-| Agent | Questions to answer |
-|---|---|
-| Render Logs Agent | Max log lines fetched? Fields stripped before Claude context? Time window? |
-| GitHub Agent | Max commits fetched? Max issue comments? Fields stripped? |
-| Codebase Agent | Max files read? Max lines per file? Which paths are off-limits? |
-| Recommendation Agent | Max findings payload size? Behaviour when one or more findings are `partial`? |
-| Orchestrator | Max agents invoked per investigation? Timeout per agent call? |
+### Group 1 — Inter-Agent Data Contracts ✅
 
-**Q4 — Should every agent have its own query contract section in the architecture doc?**
+**Q1 — What does the Orchestrator pass to each extractor?** ✅ resolved
+Guardrails only: `time_window`, `max_issues`, `max_frames`, `max_log_errors`, `max_commits`. Extractors receive no free-form instructions — they are bounded by the guardrail values and their own hardcoded project scope.
 
----
+**Q2 — What does the Recommendation Agent receive?** ✅ resolved
+The full combined structured payload from all extractors — not just interpretation summaries. The Orchestrator clubs all extractor dicts into one payload and passes it in a single call. Claude sees everything at once, enabling true cross-source correlation. Per-source limits (token budget targets) keep the combined payload under 3,000 input tokens.
 
-### Group 3 — Token Efficiency Rules
+**Q3 — Schema validation failure behaviour** ✅ resolved
+Orchestrator stops routing entirely. Posts a comment on the GitHub Issue flagging the malformed finding. Does not silently pass invalid data downstream.
+
+### Group 2 — Per-Agent Guardrails ✅
+
+**Q4 — Should every extractor have its own query contract?** ✅ resolved
+Yes — Sentry query contract is documented in the architecture doc. Render Logs, GitHub, and Codebase extractors will each get their own contract section when built (D.3–D.5). The Orchestrator is the single place that applies guardrails — extractors never self-widen.
+
+### Group 3 — Token Efficiency Rules ✅
 
 **Q5 — Trim-at-boundary as a universal principle** ✅ resolved
-Elevated to Principle 9 in the architecture doc: raw data never enters Claude's context — Python trims at the boundary before every tool return.
+Elevated to Principle 9 in architecture doc. Applies to all extractors — raw API responses never reach the Orchestrator or Recommendation Agent.
 
-**Q6 — Prompt caching strategy**
-`build_system_prompt()` wraps system prompts with `cache_control`. Architecture doc does not mention this. Should the caching strategy be documented — which prompts are cached, TTL implications?
+**Q6 — Prompt caching strategy** ✅ resolved
+Only the Recommendation Agent uses the Anthropic SDK — prompt caching applies to that agent only. `build_system_prompt()` wraps its system prompt with `cache_control`. Extractors make zero Claude API calls so caching is not applicable to them.
 
-**Q7 — Recommendation Agent payload**
-If a Sentry finding has raw stack frames in `findings` that the Recommendation Agent doesn't need to reason about root cause — should those be stripped before handoff, and who is responsible for stripping them (Orchestrator or the Sentry agent itself)?
+**Q7 — Recommendation Agent payload — who strips?** ✅ resolved
+The Orchestrator is responsible for the combined payload size. Each extractor already trims to minimum fields at its own boundary. The Orchestrator enforces the final combined token cap before passing to the Recommendation Agent — no further stripping inside Claude's context.
 
 ---
 
-**Next task: D.2 — Backend Sentry Agent**
+**Next task: DT-15 — Refactor D.1 to pure Python extractor**
 
-Build `agents/backend_sentry_extractor.py` — same structure as D.1 but targets the `restaurant-backend` Sentry project. Follow the observability wiring checklist in `agents/CLAUDE.md`.
+Refactor `agents/frontend_sentry_extractor.py` to remove the Claude agentic loop entirely. Replace with a pure Python escalating window loop. This establishes the correct pattern for all subsequent extractors (D.2–D.5).
 
 Sequence:
-1. **Resolve open design question below before writing spec**
-2. Write spec `agents/specs/d2_backend_sentry_extractor.md` — wait for sign-off
-3. Write failing test in `agents/tests/test_backend_sentry_extractor.py` (red phase)
-4. Implement `agents/backend_sentry_extractor.py` — green phase
-5. Wire `record_agent_run()` per `agents/CLAUDE.md` checklist
-6. Smoke test against real backend Sentry project
-7. Commit + PR → then proceed to D.3
+1. Write spec `agents/specs/dt15_refactor_d1_extractor.md` — wait for sign-off
+2. Update failing test to match new `run(guardrails: dict) -> dict` signature (red phase)
+3. Refactor `frontend_sentry_extractor.py` — remove `anthropic` import, remove agentic loop, implement window ladder — green phase
+4. Remove `FRONTEND_SENTRY_MODEL`, `FRONTEND_SENTRY_MAX_TURNS`, `FRONTEND_SENTRY_MAX_TOKENS` from config (no longer needed)
+5. Run all tests → commit + PR → then proceed to D.2
 
-**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ ~~D.1~~ ~~A.5~~ ~~DT-12~~ ~~D.1 smoke test~~ ~~DT-13~~ → D.2 → D.3 → D.4 → D.5 → D.6 → E (orchestration)
+**After DT-15: D.2 — Backend Sentry Extractor**
+
+`agents/backend_sentry_extractor.py` — pure Python extractor targeting `restaurant-backend` Sentry project. First extractor built correctly from the start. Same `run(guardrails: dict) -> dict` signature and window ladder as D.1 post-refactor.
+
+**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ ~~D.1~~ ~~A.5~~ ~~DT-12~~ ~~D.1 smoke test~~ ~~DT-13~~ → DT-15 → D.2 → D.3 → D.4 → D.5 → D.6 → E (orchestration)
 
 **Deferred:** 8 pre-existing ESLint warnings (`react-refresh/only-export-components`) in shadcn/ui components — separate task, not blocking agents
 
 ---
 
-## ⚠️ Open Design Question — Agent Time Window Strategy (resolve before D.2 spec)
+## Time Window Strategy — Resolved (2026-05-04) ✅
 
-**Context:** During DT-13 we discovered the frontend Sentry agent was fetching 25 issues with no time boundary, pulling month-old stale errors and wasting ~21k tokens per run. We fixed it to `age:-1h` with limit 3, cutting cost from 26k to 5k tokens.
+**Decision:** Escalating window ladder controlled by the extractor, bounded by the Orchestrator's guardrails.
 
-**The question:** Who controls the time window — the agent or the orchestrator?
-
-**Constraints agreed:**
-- Each agent must be **lean and confined to a fixed scope** — no superpowers across the landscape
-- Each agent has one job and one data source (e.g. `restaurant-frontend` Sentry project only)
-- `project_slug` must be hardcoded inside the agent — orchestrator cannot redirect an agent to a different project
-- Raw API responses must never enter LLM context — trim at the boundary always
-
-**The tension:**
-- A fixed `age:-1h` window is right for live incident response but wrong for a nightly health sweep (needs 24h)
-- The orchestrator knows *why* it's running — live incident vs scheduled sweep — but should not have open access to agent internals
-
-**Proposed solution (needs sign-off):**
-Agent defines a fixed menu of allowed windows. Orchestrator picks from the menu — it cannot pass arbitrary values:
+The extractor starts at the shortest window (`age:-1h`) and escalates only when zero issues are found. Once any issue is found, the window is locked — the extractor never widens further. The hard cap (`age:-24h`) is enforced by config, not by the Orchestrator at runtime.
 
 ```python
-ALLOWED_WINDOWS = {
-    "live": "age:-1h",    # default — incident response, on-call
-    "daily": "age:-24h",  # morning health sweep
-}
+SENTRY_WINDOW_LADDER = ["age:-1h", "age:-6h", "age:-24h"]  # from config
 
-def run(window: str = "live") -> str:
-    query_filter = ALLOWED_WINDOWS.get(window, ALLOWED_WINDOWS["live"])
+def run(guardrails: dict) -> dict:
+    for window in SENTRY_WINDOW_LADDER:
+        issues = query_sentry_errors(window, guardrails["max_issues"])
+        if issues:
+            return extract_findings(issues, guardrails)
+    return {"status": "no_data"}
 ```
 
-- Agent stays in control of its scope — orchestrator gets a safe, bounded knob
-- Unknown window values fall back to `"live"` silently — no injection possible
-- All agents adopt the same `run(window="live")` signature from D.2 onwards
-- D.1 `frontend_sentry_extractor.py` to be retrofitted with the same signature after D.2 confirms the pattern
-
-**Needs decision:** Is `ALLOWED_WINDOWS` the right pattern, or should time window be fully fixed per agent with no orchestrator input at all?
+- Extractor stays in control of its scope — Orchestrator passes `max_issues` and `max_frames`, not the window
+- Ladder is configurable via `SENTRY_WINDOW_LADDER` in `agents/config.py` — never hardcoded
+- All extractors adopt the same `run(guardrails: dict) -> dict` signature from D.2 onwards
+- **DT-15:** Retrofit `frontend_sentry_extractor.py` with this signature and pure Python loop after D.2 confirms the pattern
 
 ---
 
@@ -140,16 +115,32 @@ These must be added to `usage_by_turn` in every agent and summed in `record_agen
 
 ---
 
+### DT-15 — Refactor D.1 to Pure Python Extractor ⏳ pending
+
+Refactor `agents/frontend_sentry_extractor.py` to remove the Claude agentic loop. This file was built under the old per-agent Claude call architecture and does not match the current design.
+
+**Changes required:**
+1. Remove `import anthropic`, `build_system_prompt`, `TOOLS`, `SYSTEM_PROMPT`, `FINDING_YAML_TEMPLATE`
+2. Replace `run()` agentic loop with a pure Python escalating window ladder
+3. Change signature to `run(guardrails: dict) -> dict` — returns structured dict, not YAML string
+4. Remove `FRONTEND_SENTRY_MAX_TURNS`, `FRONTEND_SENTRY_MAX_TOKENS`, `FRONTEND_SENTRY_MODEL` from `config.py` — no longer applicable
+5. Update test to mock `run(guardrails=...)` and assert structured dict output
+6. Pass `usage_by_turn = []` to `record_agent_run()` — extractor has no Claude calls to measure
+
+**Why now:** D.2 must be built correctly from scratch as a pure Python extractor. D.1 must match the same pattern before D.2 is written, so D.2 has a clean reference to follow.
+
+---
+
 ### DT-14 — Capture Cache Token Usage ⏳ pending
 
-Add `cache_read_input_tokens` and `cache_creation_input_tokens` to `usage_by_turn` in every agent `run()` loop and sum them in `record_agent_run()`.
+Add `cache_read_input_tokens` and `cache_creation_input_tokens` to `usage_by_turn` in the Recommendation Agent and update `record_agent_run()` to sum them.
 
-**Why:** We use `build_system_prompt()` with `cache_control` on every agent. Cache reads cost 10% of normal input token price. Without capturing these fields the token cost reported in Sentry is incorrect — it overstates cost when the cache is warm and understates the creation cost on the first call.
+**Why:** The Recommendation Agent uses `build_system_prompt()` with `cache_control`. Cache reads cost 10% of normal input token price. Without capturing these fields the token cost reported in Sentry is incorrect. Extractors make zero Claude API calls so this does not apply to them.
 
 **Scope:**
-1. Update `usage_by_turn.append()` in `frontend_sentry_extractor.py` to include both cache fields
+1. Update `usage_by_turn.append()` in `recommendation_agent.py` to include both cache fields
 2. Update `record_agent_run()` in `sentry_utils.py` to sum and record `cache_read_input_tokens` and `cache_creation_input_tokens` as separate Sentry measurements
-3. Apply the same pattern to every subsequent agent as it is built (D.2 onwards)
+3. Extractors pass `usage_by_turn = []` (empty) — no change needed there
 
 **Reference:** Architecture doc — Agent Observability section, implementation contract.
 - `.gitignore` — `agents/__pycache__/` patterns added
@@ -259,7 +250,7 @@ Files created:
 - Test scenarios (`docs/agent-test-scenarios.md`) are the acceptance criteria — an agent is not done until it passes its relevant scenarios.
 - Runbook must be updated before each agent is built — agents read the runbook, not the other way around.
 - No agent writes to external systems until the orchestration layer is complete and authorization logic is in place.
-- Agents are Python modules in the `agents/` package using the Anthropic SDK. No Claude Code sub-agents.
+- Extractors (D.1–D.5) are pure Python modules — zero Claude API calls. Recommendation Agent (D.6) is the only component that uses the Anthropic SDK. No Claude Code sub-agents anywhere.
 
 ---
 
@@ -312,12 +303,12 @@ Files created:
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| D.1 | Frontend Sentry Agent | `agents/frontend_sentry_extractor.py` — Anthropic SDK agentic loop; tools: `query_sentry_errors`, `get_stack_trace`, `get_affected_releases` (frontend project only); returns YAML finding conforming to `finding-schema.json`; validate against Scenario 5 (schema drift) | ✅ Done — all 4 parts written (`TOOLS`, system prompt, `run()` loop, partial fallback); TDD test green; merged via PR #64 `feat/d1-frontend-sentry-agent` |
-| D.2 | Backend Sentry Agent | `agents/backend_sentry_extractor.py` — same structure as D.1 but scoped to backend Sentry project; adds `endpoint` and `status_code` to agent-specific fields; validate against Scenario 1 (reservation failures) and Scenario 3 (allergens) | ⏳ Pending |
-| D.3 | Render Logs Agent | `agents/render_logs_extractor.py` — tools: `get_service_logs`, `get_deployment_events`; returns structured log entries and startup/crash events; validate against Scenario 2 (cold start) | ⏳ Pending |
-| D.4 | GitHub Agent | `agents/github_extractor.py` — tools: `get_issue`, `get_recent_commits`, `get_pr_history` (read-only); validate against Scenario 3 (allergens issue) and Scenario 4 (wrong total) | ⏳ Pending |
-| D.5 | Codebase Agent | `agents/codebase_extractor.py` — tools: `read_file`, `grep_symbol`, `git_diff` (filesystem read-only, scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`); traces field/symbol through full stack; reads runbook; validate against all 5 scenarios | ⏳ Pending |
-| D.6 | Recommendation Agent | `agents/recommendation_agent.py` — no external tool access; receives structured findings from orchestrator as input; produces root cause statement, confidence level (high/medium/low), recommended fix, runbook reference, and escalation flag; validate against all 5 scenarios | ⏳ Pending |
+| D.1 | Frontend Sentry Extractor | `agents/frontend_sentry_extractor.py` — ⚠️ built under old architecture (has Claude agentic loop inside); must be refactored via DT-15 before D.2 begins. Post-refactor: pure Python escalating window loop; `run(guardrails: dict) -> dict`; tools: `query_sentry_errors`, `get_stack_trace`, `get_affected_releases` (frontend project only); zero Claude API calls | ✅ Done (old architecture) — ⏳ DT-15 refactor pending |
+| D.2 | Backend Sentry Extractor | `agents/backend_sentry_extractor.py` — pure Python extractor; zero Claude API calls; `run(guardrails: dict) -> dict`; escalating window ladder; same fields as D.1 post-refactor plus `endpoint` and `http_status`; validate against Scenario 1 (reservation failures) and Scenario 3 (allergens) | ⏳ Pending — blocked on DT-15 |
+| D.3 | Render Logs Extractor | `agents/render_logs_extractor.py` — pure Python extractor; zero Claude API calls; fetches Render log lines, filters to error/warn, deduplicates by message, caps at 10 distinct errors; `run(guardrails: dict) -> dict`; validate against Scenario 2 (cold start) | ⏳ Pending |
+| D.4 | GitHub Extractor | `agents/github_extractor.py` — pure Python extractor; zero Claude API calls; fetches commits and PR metadata for a given release SHA; `run(guardrails: dict) -> dict`; validate against Scenario 3 (allergens issue) and Scenario 4 (wrong total) | ⏳ Pending |
+| D.5 | Codebase Extractor | `agents/codebase_extractor.py` — pure Python extractor; zero Claude API calls; reads file excerpts at stack trace line numbers, grep for symbol references, reads matching runbook section; `run(guardrails: dict) -> dict`; validate against all 5 scenarios | ⏳ Pending |
+| D.6 | Recommendation Agent | `agents/recommendation_agent.py` — the only Claude API caller in the pipeline; receives combined structured payload from Orchestrator (all extractor outputs); single Claude call produces `interpretation` (root cause, affected layer, regression flag, confidence, recommended fix, runbook reference); validate against all 5 scenarios | ⏳ Pending |
 
 ---
 
