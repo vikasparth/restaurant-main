@@ -92,7 +92,7 @@ Two changes per agent:
 
 2. **Call `record_agent_run` before returning** — pass `agent_name`, the final YAML string, and `usage_by_turn`.
 
-Applies to: `frontend_sentry_agent.py` (D.1) + all future agents as they are built.
+Applies to: `frontend_sentry_extractor.py` (D.1) + all future agents as they are built.
 
 ---
 
@@ -173,6 +173,6 @@ All future agents should assume fenced output is possible and use the same helpe
 5. Update `agents/config.py`
 6. Update `agents/requirements.txt`
 7. Update `agents/.env.example`
-8. Wire `record_agent_run` into `frontend_sentry_agent.py` + verify transaction appears in Sentry
+8. Wire `record_agent_run` into `frontend_sentry_extractor.py` + verify transaction appears in Sentry
 9. Build Sentry dashboard
 10. Commit + PR

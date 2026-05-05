@@ -251,11 +251,11 @@ agents/
   schemas/
     finding-schema.json         ← common finding schema (single source of truth)
   orchestrator.py               ← receives trigger, routes agents, validates findings, posts to GitHub
-  frontend_sentry_agent.py
-  backend_sentry_agent.py
-  render_logs_agent.py
-  github_agent.py
-  codebase_agent.py
+  frontend_sentry_extractor.py
+  backend_sentry_extractor.py
+  render_logs_extractor.py
+  github_extractor.py
+  codebase_extractor.py
   recommendation_agent.py
 ```
 

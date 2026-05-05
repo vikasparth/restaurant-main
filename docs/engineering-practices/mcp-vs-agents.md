@@ -50,11 +50,11 @@ The Claude API never makes a network call to Sentry. It only sees the text your 
 graph TD
     GHA[GitHub Actions Cron] -->|triggers| ORC[orchestrator.py]
 
-    ORC -->|invokes| FSA[frontend_sentry_agent.py]
-    ORC -->|invokes| BSA[backend_sentry_agent.py]
-    ORC -->|invokes| RLA[render_logs_agent.py]
-    ORC -->|invokes| GHA_A[github_agent.py]
-    ORC -->|invokes| CA[codebase_agent.py]
+    ORC -->|invokes| FSA[frontend_sentry_extractor.py]
+    ORC -->|invokes| BSA[backend_sentry_extractor.py]
+    ORC -->|invokes| RLA[render_logs_extractor.py]
+    ORC -->|invokes| GHA_A[github_extractor.py]
+    ORC -->|invokes| CA[codebase_extractor.py]
     ORC -->|invokes| REC[recommendation_agent.py]
 
     FSA -->|Anthropic SDK| CLAUDE[Claude API]
@@ -78,7 +78,7 @@ Key point: every agent calls the Claude API for reasoning, then executes tool ca
 ```mermaid
 sequenceDiagram
     participant GHA as GitHub Actions
-    participant Agent as frontend_sentry_agent.py
+    participant Agent as frontend_sentry_extractor.py
     participant Claude as Claude API
     participant Sentry as Sentry HTTP API
 
@@ -231,7 +231,7 @@ Yes → SDK Agent. Wrapping three `requests.get` calls in a server adds infrastr
 
 Every agent in `agents/` uses the SDK Agent pattern. Here is the reasoning for each.
 
-### Frontend Sentry Agent (`agents/frontend_sentry_agent.py`)
+### Frontend Sentry Agent (`agents/frontend_sentry_extractor.py`)
 
 **Trigger:** GitHub Actions cron fires `sentry-monitor-frontend.yml`, which creates a GitHub issue, which triggers the orchestrator.
 
@@ -241,11 +241,11 @@ Every agent in `agents/` uses the SDK Agent pattern. Here is the reasoning for e
 
 **Decision:** SDK Agent. Single client, automated trigger, no persistent server needed.
 
-### Backend Sentry Agent (`agents/backend_sentry_agent.py`)
+### Backend Sentry Agent (`agents/backend_sentry_extractor.py`)
 
 Same reasoning as frontend. Different Sentry project (`restaurant-backend`), same pattern.
 
-### Render Logs Agent (`agents/render_logs_agent.py`)
+### Render Logs Agent (`agents/render_logs_extractor.py`)
 
 **Trigger:** Orchestrator invokes it when a cold-start pattern is suspected (Sentry shows 503s).
 
@@ -253,13 +253,13 @@ Same reasoning as frontend. Different Sentry project (`restaurant-backend`), sam
 
 **Decision:** SDK Agent. Only the orchestrator ever needs Render logs. No shared server required.
 
-### GitHub Agent (`agents/github_agent.py`)
+### GitHub Agent (`agents/github_extractor.py`)
 
 **Tools:** `get_issue`, `get_recent_commits`, `get_pr_history` — all read-only GitHub API calls.
 
 **Decision:** SDK Agent. Automated pipeline, single client. Note: if developers ever wanted to query git history interactively via Claude Code, this would be a candidate for MCP.
 
-### Codebase Agent (`agents/codebase_agent.py`)
+### Codebase Agent (`agents/codebase_extractor.py`)
 
 **Tools:** `read_file`, `grep_symbol`, `git_diff` — filesystem reads scoped to `src/`, `backend/`, `graphql-gateway/`, `docs/`.
 
