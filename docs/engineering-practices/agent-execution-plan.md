@@ -50,8 +50,8 @@ Sentry agents now have a query contract. The same guardrail thinking has not bee
 
 ### Group 3 — Token Efficiency Rules
 
-**Q5 — Trim-at-boundary as a universal principle**
-Every tool result must be trimmed to only the fields Claude needs before entering context. Currently in `agents/CLAUDE.md` only. Should this be elevated to a Principle in the architecture doc?
+**Q5 — Trim-at-boundary as a universal principle** ✅ resolved
+Elevated to Principle 9 in the architecture doc: raw data never enters Claude's context — Python trims at the boundary before every tool return.
 
 **Q6 — Prompt caching strategy**
 `build_system_prompt()` wraps system prompts with `cache_control`. Architecture doc does not mention this. Should the caching strategy be documented — which prompts are cached, TTL implications?
@@ -131,6 +131,27 @@ def run(window: str = "live") -> str:
 - `agents/tests/test_sentry_utils.py` — 4 TDD tests green; `COMPLETED_HIGH_YAML` uses code-fenced input to cover `_strip_code_fence`
 - `agents/tests/test_frontend_sentry_agent.py` — `record_agent_run` mocked to prevent real Sentry calls
 - `agents/CLAUDE.md` — observability guardrail + token efficiency rules + wiring checklist
+
+**DT-13 gap identified (2026-05-04):** `usage_by_turn` currently captures only `input_tokens` and `output_tokens`. Two cache fields are missing:
+- `cache_read_input_tokens` — tokens served from prompt cache (billed at 10% rate)
+- `cache_creation_input_tokens` — tokens written to cache on first call
+
+These must be added to `usage_by_turn` in every agent and summed in `record_agent_run()`. Without them the Sentry dashboard cannot show true cost (cache reads are 10x cheaper and skew the total). Tracked as **DT-14** below.
+
+---
+
+### DT-14 — Capture Cache Token Usage ⏳ pending
+
+Add `cache_read_input_tokens` and `cache_creation_input_tokens` to `usage_by_turn` in every agent `run()` loop and sum them in `record_agent_run()`.
+
+**Why:** We use `build_system_prompt()` with `cache_control` on every agent. Cache reads cost 10% of normal input token price. Without capturing these fields the token cost reported in Sentry is incorrect — it overstates cost when the cache is warm and understates the creation cost on the first call.
+
+**Scope:**
+1. Update `usage_by_turn.append()` in `frontend_sentry_agent.py` to include both cache fields
+2. Update `record_agent_run()` in `sentry_utils.py` to sum and record `cache_read_input_tokens` and `cache_creation_input_tokens` as separate Sentry measurements
+3. Apply the same pattern to every subsequent agent as it is built (D.2 onwards)
+
+**Reference:** Architecture doc — Agent Observability section, implementation contract.
 - `.gitignore` — `agents/__pycache__/` patterns added
 - `agents/specs/dt13_agent_observability.md` — post-implementation findings documented
 - PR: `feat/dt13-agent-observability` — 5/5 tests passing
