@@ -87,17 +87,20 @@
 
 ### Recommendation Agent
 **Type:** The single Claude API caller in the entire pipeline.
-**Responsibility:** Receive the combined structured payload from all extractors and produce a full cross-source root cause analysis in one reasoning step.
-**Access:** None — receives only the structured payload assembled by the Orchestrator
+**Responsibility:** Receive the combined structured payload from all extractors, produce a cross-source root cause analysis, and open a draft PR with the proposed fix.
+**Access:** GitHub — write access for opening draft PRs only. No access to Sentry, Render, or any other external system.
 **Inputs:** combined payload from Orchestrator containing structured findings from all relevant extractors, guardrails metadata (time window used, sources queried)
-**Outputs:** `interpretation` — root cause, affected layer, regression flag, confidence level, recommended fix, runbook reference or gap flag
+**Outputs:** `interpretation` (root cause, affected layer, regression flag, confidence, recommended fix, runbook reference or gap flag) + draft PR link. Returns both to the Orchestrator so it can notify the human in one message.
+
+**Why the Recommendation Agent opens the PR (not the Orchestrator):**
+The agent already understands the full root cause and fix. It can write a meaningful PR title, description, and code change in the same reasoning step. Having the Orchestrator open the PR separately would require passing the fix details back and forth — unnecessary indirection. The PR is always a **draft** — it cannot be merged without human approval on GitHub.
 
 ### Orchestrator
-**Responsibility:** Coordinate extractors, apply guardrails, assemble the combined payload, route to Recommendation Agent, notify the human, and execute approved actions.
-**Access:** Invokes all extractor agents; opens GitHub Issues; sends email (Resend); executes write actions only after human approval
-**Inputs:** trigger event (see Trigger Types); human approval/rejection responses
+**Responsibility:** Coordinate extractors, apply guardrails, assemble the combined payload, route to Recommendation Agent, and notify the human with the investigation result and draft PR link.
+**Access:** Invokes all extractor agents; opens GitHub Issues; sends email (Resend); merges approved PRs after human sign-off
+**Inputs:** trigger event (see Trigger Types); PR link + interpretation from Recommendation Agent; human approval/rejection responses
 **Guardrails applied:** time window per source, max issues (Sentry), max frames (stack trace), max distinct errors (Render), max commits (GitHub), max token size of combined payload
-**Outputs:** combined structured payload → Recommendation Agent; GitHub Issue with full investigation; email for high-confidence findings; approved actions post human sign-off
+**Outputs:** combined structured payload → Recommendation Agent; GitHub Issue comment with full investigation + draft PR link; email for high-confidence findings; PR merge after human approves
 
 ---
 
@@ -632,9 +635,12 @@ sequenceDiagram
 
     Note over Orch: clubs sentry + github + codebase structured dicts into one combined payload
     Orch->>Rec: combined structured payload (all sources)
-    Note over Rec: single Claude API call — cross-source synthesis
-    Rec-->>Orch: interpretation { root_cause="MAX_DATE_DAYS reduced in PR #44, line 47",<br/>confidence=high, fix="revert to 90-day window" }
-    Orch->>GH: comment with full investigation (metadata + findings + interpretation) + email notification
+    Note over Rec: single Claude API call — cross-source synthesis + opens draft PR
+    Rec->>GH: open draft PR — "revert MAX_DATE_DAYS to 90 days"
+    GH-->>Rec: draft PR link
+    Rec-->>Orch: interpretation { root_cause="MAX_DATE_DAYS reduced in PR #44, line 47",<br/>confidence=high, fix="revert to 90-day window" } + draft_pr_url
+    Orch->>GH: comment with full investigation + draft PR link + email notification
+    Note over Human: reviews draft PR → merges to fix
 ```
 
 ---
@@ -644,13 +650,13 @@ sequenceDiagram
 | Component | Frontend Sentry | Backend Sentry | Render Logs | GitHub (read) | GitHub (write) | Codebase | Email (Resend) |
 |---|---|---|---|---|---|---|---|
 | **Monitoring Workflows** | ✅ Read (frontend wf only) | ✅ Read (backend wf only) | ❌ | ❌ | ✅ Create issues + comment | ❌ | ❌ |
-| Frontend Sentry Agent | ✅ Read | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Backend Sentry Agent | ❌ | ✅ Read | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Render Logs Agent | ❌ | ❌ | ✅ Read | ❌ | ❌ | ❌ | ❌ |
-| GitHub Agent | ❌ | ❌ | ❌ | ✅ Read | Orchestrator only | ❌ | ❌ |
-| Codebase Agent | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ Read | ❌ |
-| Recommendation Agent | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Orchestrator | Via agents | Via agents | Via agents | Via agents | ✅ Authorized | Via agents | ✅ Notify only |
+| Frontend Sentry Extractor | ✅ Read | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Backend Sentry Extractor | ❌ | ✅ Read | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Render Logs Extractor | ❌ | ❌ | ✅ Read | ❌ | ❌ | ❌ | ❌ |
+| GitHub Extractor | ❌ | ❌ | ❌ | ✅ Read | ❌ | ❌ | ❌ |
+| Codebase Extractor | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ Read | ❌ |
+| Recommendation Agent | ❌ | ❌ | ❌ | ❌ | ✅ Open draft PR only | ❌ | ❌ |
+| Orchestrator | Via extractors | Via extractors | Via extractors | Via extractors | ✅ Merge approved PRs + comment | Via extractors | ✅ Notify only |
 
 ---
 
@@ -705,17 +711,16 @@ sequenceDiagram
     GHAgent-->>Orch: structured data (Python dict, validated against schema)
     Note over Orch: Orchestrator clubs all structured dicts into one combined payload<br/>applies guardrails (max token size) before passing to Recommendation Agent
     Orch->>Rec: combined structured payload (all sources)
-    Note over Rec: single Claude API call — cross-source synthesis
-    Rec-->>Orch: interpretation (root cause, confidence, recommended fix, runbook reference)
-    Orch->>GH: comment with full structured investigation (metadata + findings + interpretation)
+    Note over Rec: single Claude API call — cross-source synthesis + opens draft PR
+    Rec->>GH: open draft PR with proposed fix + description
+    GH-->>Rec: draft PR link
+    Rec-->>Orch: interpretation { root_cause, confidence, fix } + draft_pr_url
+    Orch->>GH: comment on issue — full investigation + draft PR link
     alt high confidence
-        Orch->>Human: email via Resend
+        Orch->>Human: email via Resend — root cause + draft PR link
     end
-    Human->>GH: /approve OR /reject OR /investigate
-    alt approved
-        Note over Orch: open_pull_request added to tool list<br/>only after /approve — not before
-        Orch->>GH: execute recommended action
-    end
+    Note over Human: reviews draft PR on GitHub — no separate /approve step needed
+    Human->>GH: approves and merges PR (or closes it to reject)
 ```
 
 ### Reactive (manual GitHub issue or `/troubleshoot` skill)
@@ -750,23 +755,23 @@ sequenceDiagram
     Code-->>Orch: structured data (Python dict, validated against schema)
     Note over Orch: Orchestrator clubs all structured dicts into one combined payload<br/>applies guardrails (max token size) before passing to Recommendation Agent
     Orch->>Rec: combined structured payload (all sources)
-    Note over Rec: single Claude API call — cross-source synthesis
-    Rec-->>Orch: interpretation (root cause, confidence, recommended fix, runbook reference)
-    Orch->>GH: comment with full structured investigation (metadata + findings + interpretation)
+    Note over Rec: single Claude API call — cross-source synthesis + opens draft PR
+    Rec->>GH: open draft PR with proposed fix + description
+    GH-->>Rec: draft PR link
+    Rec-->>Orch: interpretation { root_cause, confidence, fix } + draft_pr_url
+    Orch->>GH: comment on issue — full investigation + draft PR link
     alt high confidence
-        Orch->>Human: email via Resend
+        Orch->>Human: email via Resend — root cause + draft PR link
     end
-    Human->>GH: /approve OR /reject OR /investigate
-    alt approved
-        Orch->>GH: execute recommended action
-    end
+    Note over Human: reviews draft PR on GitHub — no separate /approve step needed
+    Human->>GH: approves and merges PR (or closes it to reject)
 ```
 
 ---
 
 ## Human in the Loop
 
-No agent recommendation is acted upon without human review. The orchestrator packages the Recommendation Agent's output and notifies the human before taking any write action. The human then approves, rejects, or requests further investigation.
+No fix is merged without human review. The Recommendation Agent opens a draft PR immediately after identifying the root cause — the PR cannot be merged until a human reviews and approves it on GitHub. The Orchestrator notifies the human with the investigation summary and the draft PR link in one message.
 
 ### Notification Channels
 
@@ -779,21 +784,21 @@ The GitHub Issue is the record of the investigation. The email is the nudge that
 
 ### Confidence-Gated Actions
 
-The Recommendation Agent assigns a confidence level to every output. The orchestrator uses this to determine what the agent does next and what the notification says.
+The Recommendation Agent assigns a confidence level to every output. This determines whether a draft PR is opened and whether an email is sent.
 
-| Confidence | Agent action | Notification content |
+| Confidence | Recommendation Agent action | Orchestrator notification |
 |---|---|---|
-| **High** — root cause clear, fix is bounded | Open GitHub Issue with full diagnosis + specific recommended fix; notify human via email | "Root cause identified. Recommended fix attached. Please approve to proceed." |
-| **Medium** — likely cause known, needs human judgement | Open GitHub Issue with diagnosis and 2–3 proposed approaches; no email | "Likely cause identified. Human judgement needed to choose approach." |
-| **Low** — complex or cross-cutting, root cause unclear | Open GitHub Issue with raw findings and what was ruled out; no email | "Investigation inconclusive. Human investigation required." |
+| **High** — root cause clear, fix is bounded | Opens draft PR with specific code fix | Posts GitHub Issue comment with full investigation + PR link; sends email |
+| **Medium** — likely cause known, fix needs human judgement | Opens draft PR with proposed approach; flags that human judgement needed | Posts GitHub Issue comment with investigation + PR link; no email |
+| **Low** — complex or cross-cutting, root cause unclear | No draft PR — too uncertain to propose a fix | Posts GitHub Issue comment with raw findings and what was ruled out; no email |
 
 ### Human Response Options
 
-When the human reviews the GitHub Issue, they have three options:
+The human receives the GitHub Issue comment (and email for high confidence) containing the investigation summary and a link to the draft PR. They have three options:
 
-- **Approve** — comment `/approve` on the issue; orchestrator proceeds with the recommended action (e.g. posts a fix PR, updates configuration)
-- **Reject** — comment `/reject [reason]`; orchestrator closes the investigation and logs the rejection reason
-- **Request more investigation** — comment `/investigate [additional context]`; orchestrator re-runs with the additional context as input
+- **Merge the PR** — review the draft PR on GitHub and merge it; the fix is deployed on next deploy
+- **Close the PR** — close the draft PR with a comment explaining why; Orchestrator marks investigation rejected
+- **Request more investigation** — comment `/investigate [additional context]` on the GitHub Issue; Orchestrator re-runs with the additional context as input
 
 ### Timeout and Escalation
 
@@ -801,16 +806,19 @@ When the human reviews the GitHub Issue, they have three options:
 - If no response within **48 hours**, the issue is escalated with an `escalation-needed` label
 - The orchestrator never acts on a timeout — it only re-notifies; human approval is required regardless of elapsed time
 
-### What the Agent Can Never Do Without Approval
+### What Requires Human Approval
 
-- Post a comment on a GitHub Issue on behalf of the system
-- Open or close a pull request
-- Modify any configuration file or environment variable
-- Trigger a redeployment
-- Send a notification to a customer-facing channel
+- **Merge a PR** — the Recommendation Agent opens a draft PR automatically; only a human can merge it
+- **Close an investigation** — only a human can close or reject a finding
+- **Trigger a redeployment** — no agent ever triggers a deploy; that follows from a merged PR through the normal CI/CD pipeline
+- **Any destructive operation** — delete files, drop tables, truncate data, remove records; no agent ever does this
+
+### What Agents Can Never Do — Unconditionally
+
 - Modify, delete, or refactor data in the database
-- Perform any destructive operation — delete files, drop tables, truncate data, remove records
-- Refactor production code
+- Send a notification to a customer-facing channel (Slack, SMS, email to customers)
+- Modify any production configuration file or environment variable directly
+- Perform any destructive filesystem operation
 
 ---
 
