@@ -1,6 +1,6 @@
 # DT-13 Spec — Agent Observability via Sentry
 
-**Status: Awaiting sign-off**
+**Status: Completed**
 **Execution plan ref:** Developer Tooling → DT-13
 
 ---
@@ -31,7 +31,7 @@ Called once at the end of every `run()` after the agentic loop completes.
 **What it does:**
 1. Initialises Sentry SDK (if `AGENTS_SENTRY_DSN` is set — skips silently if not, so local dev without DSN still works)
 2. Creates a Sentry transaction named `agent.run` with tag `agent=<agent_name>`
-3. Parses `confidence` and `status` from the returned YAML
+3. Reads `status` and `confidence` from the result dict (`result.get("status")`, `result.get("confidence", "")`)
 4. Sums `input_tokens`, `output_tokens`, `total_tokens` across all turns
 5. Records measurements: `input_tokens`, `output_tokens`, `total_tokens`, `turns_used`, `confidence_numeric` (high=3, medium=2, low=1)
 6. Sets transaction status: `ok` for `completed`, `deadline_exceeded` for `partial`
@@ -41,13 +41,18 @@ Called once at the end of every `run()` after the agentic loop completes.
 ```python
 def record_agent_run(
     agent_name: str,
-    result_yaml: str,
-    usage_by_turn: list[dict],  # each dict: {"input_tokens": int, "output_tokens": int}
+    result: dict,              # structured dict returned by run(); not a YAML string
+    usage_by_turn: list[dict], # each dict: {"input_tokens": int, "output_tokens": int}
 ) -> None
 ```
 
 **Why `confidence_numeric`:** Sentry measurements are numeric — mapping high/medium/low
 to 3/2/1 lets us plot average confidence per agent over time as a chart.
+
+**Note on pure Python extractors:** Extractors that make no Claude calls (e.g. frontend-sentry,
+backend-sentry) pass `usage_by_turn = []` so token sums are 0. They also have no `confidence`
+key in their result dict — `confidence_numeric` will record 0 for these, which is correct
+(0 means "not applicable", not "low confidence").
 
 ---
 
@@ -121,8 +126,8 @@ Create a dashboard named `Agent Observability` with:
 
 Tests must be written before implementation (red phase first):
 
-1. `test_record_agent_run_completed` — mock `sentry_sdk`; pass a `completed`/`high` YAML and 2-turn usage; assert transaction name, tag, measurements, and `ok` status were set
-2. `test_record_agent_run_partial` — pass a `partial` YAML; assert `deadline_exceeded` status
+1. `test_record_agent_run_completed` — mock `sentry_sdk`; pass a `{"status": "completed", "confidence": "high"}` dict and 2-turn usage; assert transaction name, tag, measurements, and `ok` status were set
+2. `test_record_agent_run_partial` — pass a `{"status": "partial", "confidence": "low"}` dict; assert `deadline_exceeded` status
 3. `test_record_agent_run_no_dsn` — `AGENTS_SENTRY_DSN` not set; assert function returns without calling `sentry_sdk.init` (observability is opt-in)
 4. `test_confidence_numeric_mapping` — high=3, medium=2, low=1, missing=0
 
@@ -142,7 +147,7 @@ Tests must be written before implementation (red phase first):
 Sentry confirmed Performance requires a paid plan for full visibility.
 **Decision:** Switch `record_agent_run()` to `capture_event()` — works on all plans,
 lands in Issues/Events, fully queryable in dashboards via tags and extras.
-This change is pending — tracked as a follow-up before D.2.
+**Status: Pending** — `sentry_utils.py` still uses `start_transaction`. Must be done before D.2.
 
 ### Tool result trimming — token cost dropped from 26k to 5k per run
 Raw API responses were being passed directly into LLM context:
@@ -160,19 +165,29 @@ to the agent rather than relying on `query_sentry_errors` to browse. At that poi
 ### Claude wraps YAML in markdown code fences
 Despite prompt instruction "no prose before or after", Claude wraps output in ` ```yaml ` fences.
 `_strip_code_fence()` added to `sentry_utils.py` as a defensive strip before `yaml.safe_load()`.
-All future agents should assume fenced output is possible and use the same helper.
+This helper is now unused since extractors return dicts — it can be removed when `sentry_utils.py`
+is updated to accept `result: dict`.
+
+### DT-15 — extractors return dicts, not YAML strings (2026-05-04)
+`frontend_sentry_extractor.py` was refactored to a pure Python escalating window loop that returns
+a structured `dict` directly. `record_agent_run` signature must be updated from `result_yaml: str`
+to `result: dict` before D.2. The YAML parsing logic (`yaml.safe_load`, `_strip_code_fence`,
+`metadata.status` / `metadata.confidence` keys) must be replaced with direct dict key access
+(`result.get("status")`, `result.get("confidence", "")`).
+**Status: Pending** — `sentry_utils.py` and `test_sentry_utils.py` not yet updated.
 
 ---
 
 ## Sequence of work
 
-1. Answer open questions above
-2. Create `restaurant-agents` Sentry project, add DSN to `agents/.env`
-3. Write failing tests (`test_sentry_utils.py`) — red phase
-4. Implement `agents/sentry_utils.py` — green phase
-5. Update `agents/config.py`
-6. Update `agents/requirements.txt`
-7. Update `agents/.env.example`
-8. Wire `record_agent_run` into `frontend_sentry_extractor.py` + verify transaction appears in Sentry
-9. Build Sentry dashboard
-10. Commit + PR
+1. ✅ Answer open questions above
+2. ✅ Create `restaurant-agents` Sentry project, add DSN to `agents/.env`
+3. ✅ Write failing tests (`test_sentry_utils.py`) — red phase
+4. ✅ Implement `agents/sentry_utils.py` — green phase
+5. ✅ Update `agents/config.py`
+6. ✅ Update `agents/requirements.txt`
+7. ✅ Update `agents/.env.example`
+8. ✅ Wire `record_agent_run` into `frontend_sentry_extractor.py`
+9. ⬜ Update `record_agent_run` signature to `result: dict` — remove YAML parsing, `_strip_code_fence`, update `test_sentry_utils.py` (blocked by DT-15 findings, must be done before D.2)
+10. ⬜ Switch to `capture_event()` — free-plan compatible (blocked by free-plan finding, must be done before D.2)
+11. ⬜ Build Sentry dashboard

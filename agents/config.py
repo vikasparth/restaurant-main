@@ -8,37 +8,21 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=False)
 
 _SONNET = "claude-sonnet-4-6"
-_HAIKU = "claude-haiku-4-5-20251001"
 
+# why: only two components call Claude — Recommendation Agent (cross-source synthesis)
+# and Orchestrator (routing + authorization). All extractors are pure Python.
 ORCHESTRATOR_MODEL = os.getenv("ORCHESTRATOR_MODEL", _SONNET)
 RECOMMENDATION_MODEL = os.getenv("RECOMMENDATION_MODEL", _SONNET)
+# why: Codebase Extractor uses Claude for navigation (multi-hop code tracing)
+# but not interpretation — still needs a model, just a different role
 CODEBASE_MODEL = os.getenv("CODEBASE_MODEL", _SONNET)
-FRONTEND_SENTRY_MODEL = os.getenv("FRONTEND_SENTRY_MODEL", _HAIKU)
-BACKEND_SENTRY_MODEL = os.getenv("BACKEND_SENTRY_MODEL", _HAIKU)
-RENDER_LOGS_MODEL = os.getenv("RENDER_LOGS_MODEL", _HAIKU)
-GITHUB_MODEL = os.getenv("GITHUB_MODEL", _HAIKU)
+
 SENTRY_API_BASE = os.getenv("SENTRY_API_BASE", "https://sentry.io/api/0")
 AGENTS_SENTRY_DSN = os.getenv("AGENTS_SENTRY_DSN", "")
 
-
+# why: shared turn/token budgets for the two Claude-calling components
 AGENT_MAX_TURNS = int(os.getenv("AGENT_MAX_TURNS", "5"))
 AGENT_MAX_TOKENS_PER_TURN = int(os.getenv("AGENT_MAX_TOKENS_PER_TURN", "1024"))
-
-FRONTEND_SENTRY_MAX_TURNS = int(os.getenv("FRONTEND_SENTRY_MAX_TURNS", str(AGENT_MAX_TURNS)))
-FRONTEND_SENTRY_MAX_TOKENS = int(os.getenv("FRONTEND_SENTRY_MAX_TOKENS", str(AGENT_MAX_TOKENS_PER_TURN)))
-
-# shared across frontend + backend Sentry agents — override per-env to tune cost vs coverage
-SENTRY_QUERY_WINDOW = os.getenv("SENTRY_QUERY_WINDOW", "age:-1h")
-SENTRY_QUERY_LIMIT = int(os.getenv("SENTRY_QUERY_LIMIT", "3"))
-
-BACKEND_SENTRY_MAX_TURNS = int(os.getenv("BACKEND_SENTRY_MAX_TURNS", str(AGENT_MAX_TURNS)))
-BACKEND_SENTRY_MAX_TOKENS = int(os.getenv("BACKEND_SENTRY_MAX_TOKENS", str(AGENT_MAX_TOKENS_PER_TURN)))
-
-RENDER_LOGS_MAX_TURNS = int(os.getenv("RENDER_LOGS_MAX_TURNS", str(AGENT_MAX_TURNS)))
-RENDER_LOGS_MAX_TOKENS = int(os.getenv("RENDER_LOGS_MAX_TOKENS", str(AGENT_MAX_TOKENS_PER_TURN)))
-
-GITHUB_MAX_TURNS = int(os.getenv("GITHUB_MAX_TURNS", str(AGENT_MAX_TURNS)))
-GITHUB_MAX_TOKENS = int(os.getenv("GITHUB_MAX_TOKENS", str(AGENT_MAX_TOKENS_PER_TURN)))
 
 CODEBASE_MAX_TURNS = int(os.getenv("CODEBASE_MAX_TURNS", "8"))
 CODEBASE_MAX_TOKENS = int(os.getenv("CODEBASE_MAX_TOKENS", str(AGENT_MAX_TOKENS_PER_TURN)))
@@ -46,4 +30,14 @@ CODEBASE_MAX_TOKENS = int(os.getenv("CODEBASE_MAX_TOKENS", str(AGENT_MAX_TOKENS_
 RECOMMENDATION_MAX_TURNS = int(os.getenv("RECOMMENDATION_MAX_TURNS", "1"))
 RECOMMENDATION_MAX_TOKENS = int(os.getenv("RECOMMENDATION_MAX_TOKENS", str(AGENT_MAX_TOKENS_PER_TURN)))
 
+# why: ladder starts at shortest window — extractor escalates only when zero issues found.
+# parsed as comma-separated string so it's overridable per environment without code changes
+SENTRY_WINDOW_LADDER = os.getenv(
+    "SENTRY_WINDOW_LADDER", "age:-1h,age:-6h,age:-24h"
+).split(",")
 
+# why: per-window issue cap — extractor investigates one issue; Orchestrator decides which
+SENTRY_QUERY_LIMIT = int(os.getenv("SENTRY_QUERY_LIMIT", "3"))
+
+# why: app frame cap — framework/library frames are always stripped before handoff
+SENTRY_STACK_FRAME_LIMIT = int(os.getenv("SENTRY_STACK_FRAME_LIMIT", "3"))
