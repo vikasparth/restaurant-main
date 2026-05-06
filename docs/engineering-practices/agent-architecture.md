@@ -606,50 +606,50 @@ sequenceDiagram
     participant Code as Codebase Agent
     participant Rec as Recommendation Agent
 
-    Dev->>GHA_Rel: git push to main (commit "a3f9c12")
-    GHA_Rel->>Sentry: create release "a3f9c12" for restaurant-backend
-    Note over GHA_Rel,Sentry: getsentry/action-release@v1 tags the deploy<br/>so Sentry knows which code is live
+    Dev->>GHA_Rel: git push to main — commit a3f9c12
+    GHA_Rel->>Sentry: create release a3f9c12 for restaurant-backend
+    Note over GHA_Rel,Sentry: getsentry/action-release tags the deploy so Sentry knows which code is live
 
     App->>Sentry: 47 ValidationErrors on POST /reservations
-    Note over App,Sentry: Sentry auto-tags: first_seen_in_release = "a3f9c12"<br/>only works if Sentry.init() passes release=
+    Note over App,Sentry: Sentry auto-tags first_seen_in_release=a3f9c12 — requires Sentry.init passes release=
 
-    GHA_Mon->>Sentry: poll error count (every 30 min)
-    Sentry-->>GHA_Mon: count=47, release="a3f9c12", fingerprint="abc123"
-    GHA_Mon->>GH: create issue (fingerprint=abc123, release=a3f9c12, count=47)
+    GHA_Mon->>Sentry: poll error count every 30 min
+    Sentry-->>GHA_Mon: count=47, release=a3f9c12, fingerprint=abc123
+    GHA_Mon->>GH: create issue — fingerprint=abc123, release=a3f9c12, count=47
     Note over GHA_Mon,GH: labels: needs-analysis + source:backend-sentry
 
-    GH-->>Orch: trigger on: issues labeled needs-analysis
-    Orch->>FEAgent: guardrails (max_frames=3, window=age:-1h)
+    GH-->>Orch: trigger on issues labeled needs-analysis
+    Orch->>FEAgent: guardrails — max_frames=3, window=age:-1h
     Note over FEAgent: pure Python extractor — zero Claude API calls
-    FEAgent->>Sentry: query_sentry_errors(project=restaurant-frontend)
+    FEAgent->>Sentry: query_sentry_errors project=restaurant-frontend
     Sentry-->>FEAgent: no active errors in window
     FEAgent-->>Orch: status=no_data, source=sentry-frontend
 
-    Orch->>SAgent: guardrails (fingerprint=abc123, max_frames=3, window=age:-1h)
+    Orch->>SAgent: guardrails — fingerprint=abc123, max_frames=3, window=age:-1h
     Note over SAgent: pure Python extractor — zero Claude API calls
-    SAgent->>Sentry: get_stack_trace(group=abc123)
-    SAgent->>Sentry: get_affected_releases(group=abc123)
+    SAgent->>Sentry: get_stack_trace group=abc123
+    SAgent->>Sentry: get_affected_releases group=abc123
     Sentry-->>SAgent: ValidationError in reservation_service.py:47, first_seen_in_release=a3f9c12
     SAgent-->>Orch: release=a3f9c12, exception_type=ValidationError, culprit=reservation_service.py:47
 
-    Orch->>GHAgent: release SHA="a3f9c12"
+    Orch->>GHAgent: release SHA a3f9c12
     Note over GHAgent: pure Python extractor — zero Claude API calls
-    GHAgent->>GH: get_recent_commits(sha="a3f9c12")
-    GH-->>GHAgent: PR #44 — "feat: tighten date validation on reservations"
+    GHAgent->>GH: get_recent_commits sha=a3f9c12
+    GH-->>GHAgent: PR 44 — feat: tighten date validation on reservations
     GHAgent-->>Orch: commit=a3f9c12, pr=44, changed_files=reservation_service.py
 
-    Orch->>Code: crash location from stack trace (reservation_service.py:47)
-    Note over Code: Claude-assisted navigator — reads filesystem iteratively<br/>to trace root cause; returns structured findings (~50 tokens)
+    Orch->>Code: crash location — reservation_service.py:47
+    Note over Code: Claude-assisted navigator — reads filesystem to trace root cause
     Code-->>Orch: crash_location=reservation_service.py:47, root_cause_file=core/config.py:12, fix_type=config_change
 
     Note over Orch: clubs all structured dicts into one combined payload
-    Orch->>Rec: combined structured payload (all sources)
-    Note over Rec: Claude API call — cross-source synthesis + opens draft PR<br/>on new feature branch (never against main)
-    Rec->>GH: open draft PR on fix/sentry-abc123 — "revert MAX_DATE_DAYS to 90 days"
+    Orch->>Rec: combined structured payload from all sources
+    Note over Rec: Claude API call — cross-source synthesis, opens draft PR on new feature branch
+    Rec->>GH: open draft PR on fix/sentry-abc123
     GH-->>Rec: draft PR link
-    Rec-->>Orch: root_cause=MAX_DATE_DAYS reduced in PR #44, confidence=high, draft_pr_url=...
-    Orch->>GH: comment with full investigation + draft PR link + email notification
-    Note over Human: reviews draft PR → merges to fix
+    Rec-->>Orch: root_cause=MAX_DATE_DAYS reduced in PR 44, confidence=high, draft_pr_url
+    Orch->>GH: comment with full investigation and draft PR link
+    Note over Human: reviews draft PR and merges to fix
 ```
 
 ---
@@ -687,49 +687,49 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Monitor as sentry-monitor-*.yml
+    participant Monitor as sentry-monitor
     participant Sentry as Sentry API
     participant GH as GitHub Issues
     participant Orch as orchestrator.py
-    participant SAgent as Sentry Agent<br/>(frontend or backend)
-    participant Render as Render Logs Agent
+    participant SAgent as Sentry Extractor
+    participant Render as Render Logs Extractor
     participant Code as Codebase Agent
-    participant GHAgent as GitHub Agent
+    participant GHAgent as GitHub Extractor
     participant Rec as Recommendation Agent
     actor Human as Human
 
     Monitor->>Sentry: check error count against threshold
     alt threshold crossed, no matching open issue
-        Monitor->>GH: create issue (title, labels: needs-analysis + source:*-sentry, fingerprint, count)
+        Monitor->>GH: create issue with needs-analysis label and fingerprint
     else matching open issue exists
         Monitor->>GH: comment with updated count and timestamp
     end
 
-    GH-->>Orch: trigger on: issues labeled needs-analysis
-    Orch->>SAgent: guardrails (time window, max issues, max frames)
+    GH-->>Orch: trigger on issues labeled needs-analysis
+    Orch->>SAgent: guardrails — time window, max issues, max frames
     Note over SAgent: pure Python extractor — zero Claude API calls
-    SAgent-->>Orch: structured data (Python dict, validated against schema)
-    Orch->>Render: guardrails (time window, log levels, max distinct errors)
+    SAgent-->>Orch: structured dict, validated against schema
+    Orch->>Render: guardrails — time window, log levels, max distinct errors
     Note over Render: pure Python extractor — zero Claude API calls
-    Render-->>Orch: structured data (Python dict, validated against schema)
-    Orch->>Code: file paths + line ranges (from stack trace frames)
-    Note over Code: Claude-assisted navigator — reads filesystem iteratively<br/>returns structured findings (~50 tokens), no interpretation
-    Code-->>Orch: structured data (Python dict, validated against schema)
+    Render-->>Orch: structured dict, validated against schema
+    Orch->>Code: file paths and line ranges from stack trace frames
+    Note over Code: Claude-assisted navigator — returns structured findings, no interpretation
+    Code-->>Orch: structured dict, validated against schema
     Orch->>GHAgent: release SHA or commit range
     Note over GHAgent: pure Python extractor — zero Claude API calls
-    GHAgent-->>Orch: structured data (Python dict, validated against schema)
-    Note over Orch: Orchestrator clubs all structured dicts into one combined payload<br/>applies guardrails (max token size) before passing to Recommendation Agent
-    Orch->>Rec: combined structured payload (all sources)
-    Note over Rec: Claude API call — cross-source synthesis + opens draft PR<br/>on new feature branch (never against main)
-    Rec->>GH: open draft PR with proposed fix + description
+    GHAgent-->>Orch: structured dict, validated against schema
+    Note over Orch: clubs all dicts into combined payload, applies token guardrails
+    Orch->>Rec: combined structured payload from all sources
+    Note over Rec: Claude API call — cross-source synthesis, opens draft PR on new feature branch
+    Rec->>GH: open draft PR with proposed fix
     GH-->>Rec: draft PR link
     Rec-->>Orch: root_cause, confidence, fix, draft_pr_url
-    Orch->>GH: comment on issue — full investigation + draft PR link
+    Orch->>GH: comment on issue with full investigation and draft PR link
     alt high confidence
-        Orch->>Human: email via Resend — root cause + draft PR link
+        Orch->>Human: email via Resend with root cause and draft PR link
     end
-    Note over Human: reviews draft PR on GitHub — no separate /approve step needed
-    Human->>GH: approves and merges PR (or closes it to reject)
+    Note over Human: reviews draft PR on GitHub and merges or closes
+    Human->>GH: merges PR to fix or closes to reject
 ```
 
 ### Reactive (manual GitHub issue or `/troubleshoot` skill)
@@ -739,41 +739,41 @@ sequenceDiagram
     actor Human as Human
     participant Skill as /troubleshoot skill
     participant Orch as orchestrator.py
-    participant GHAgent as GitHub Agent
-    participant SAgent as Sentry Agent<br/>(frontend or backend)
-    participant Render as Render Logs Agent
+    participant GHAgent as GitHub Extractor
+    participant SAgent as Sentry Extractor
+    participant Render as Render Logs Extractor
     participant Code as Codebase Agent
     participant Rec as Recommendation Agent
     participant GH as GitHub Issues
 
     Human->>Skill: symptom description or issue number
-    Skill->>Orch: python orchestrator.py --issue <number>
+    Skill->>Orch: python orchestrator.py --issue number
     Note over Skill,Orch: same entry point as the automated path
 
     Orch->>GHAgent: release SHA or commit range from issue body
     Note over GHAgent: pure Python extractor — zero Claude API calls
-    GHAgent-->>Orch: structured data (Python dict, validated against schema)
-    Orch->>SAgent: guardrails (time window, max issues, max frames)
+    GHAgent-->>Orch: structured dict, validated against schema
+    Orch->>SAgent: guardrails — time window, max issues, max frames
     Note over SAgent: pure Python extractor — zero Claude API calls
-    SAgent-->>Orch: structured data (Python dict, validated against schema)
-    Orch->>Render: guardrails (time window, log levels, max distinct errors)
+    SAgent-->>Orch: structured dict, validated against schema
+    Orch->>Render: guardrails — time window, log levels, max distinct errors
     Note over Render: pure Python extractor — zero Claude API calls
-    Render-->>Orch: structured data (Python dict, validated against schema)
-    Orch->>Code: file paths + line ranges (from stack trace frames)
-    Note over Code: Claude-assisted navigator — reads filesystem iteratively<br/>returns structured findings (~50 tokens), no interpretation
-    Code-->>Orch: structured data (Python dict, validated against schema)
-    Note over Orch: Orchestrator clubs all structured dicts into one combined payload<br/>applies guardrails (max token size) before passing to Recommendation Agent
-    Orch->>Rec: combined structured payload (all sources)
-    Note over Rec: Claude API call — cross-source synthesis + opens draft PR<br/>on new feature branch (never against main)
-    Rec->>GH: open draft PR with proposed fix + description
+    Render-->>Orch: structured dict, validated against schema
+    Orch->>Code: file paths and line ranges from stack trace frames
+    Note over Code: Claude-assisted navigator — returns structured findings, no interpretation
+    Code-->>Orch: structured dict, validated against schema
+    Note over Orch: clubs all dicts into combined payload, applies token guardrails
+    Orch->>Rec: combined structured payload from all sources
+    Note over Rec: Claude API call — cross-source synthesis, opens draft PR on new feature branch
+    Rec->>GH: open draft PR with proposed fix
     GH-->>Rec: draft PR link
     Rec-->>Orch: root_cause, confidence, fix, draft_pr_url
-    Orch->>GH: comment on issue — full investigation + draft PR link
+    Orch->>GH: comment on issue with full investigation and draft PR link
     alt high confidence
-        Orch->>Human: email via Resend — root cause + draft PR link
+        Orch->>Human: email via Resend with root cause and draft PR link
     end
-    Note over Human: reviews draft PR on GitHub — no separate /approve step needed
-    Human->>GH: approves and merges PR (or closes it to reject)
+    Note over Human: reviews draft PR on GitHub and merges or closes
+    Human->>GH: merges PR to fix or closes to reject
 ```
 
 ---
