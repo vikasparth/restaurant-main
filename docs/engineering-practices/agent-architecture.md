@@ -615,7 +615,7 @@ sequenceDiagram
 
     GHA_Mon->>Sentry: poll error count (every 30 min)
     Sentry-->>GHA_Mon: count=47, release="a3f9c12", fingerprint="abc123"
-    GHA_Mon->>GH: create issue<br/>fingerprint=abc123, release=a3f9c12, count=47
+    GHA_Mon->>GH: create issue (fingerprint=abc123, release=a3f9c12, count=47)
     Note over GHA_Mon,GH: labels: needs-analysis + source:backend-sentry
 
     GH-->>Orch: trigger on: issues labeled needs-analysis
@@ -629,7 +629,7 @@ sequenceDiagram
     Note over SAgent: pure Python extractor — zero Claude API calls
     SAgent->>Sentry: get_stack_trace(group=abc123)
     SAgent->>Sentry: get_affected_releases(group=abc123)
-    Sentry-->>SAgent: ValidationError in reservation_service.py:47<br/>first_seen_in_release="a3f9c12"
+    Sentry-->>SAgent: ValidationError in reservation_service.py:47, first_seen_in_release=a3f9c12
     SAgent-->>Orch: release=a3f9c12, exception_type=ValidationError, culprit=reservation_service.py:47
 
     Orch->>GHAgent: release SHA="a3f9c12"
@@ -700,7 +700,7 @@ sequenceDiagram
 
     Monitor->>Sentry: check error count against threshold
     alt threshold crossed, no matching open issue
-        Monitor->>GH: create issue<br/>title: [Sentry] error — project<br/>labels: needs-analysis + source:*-sentry<br/>body: fingerprint, count, release, Sentry link
+        Monitor->>GH: create issue (title, labels: needs-analysis + source:*-sentry, fingerprint, count)
     else matching open issue exists
         Monitor->>GH: comment with updated count and timestamp
     end
