@@ -48,22 +48,11 @@ The Orchestrator is responsible for the combined payload size. Each extractor al
 
 ---
 
-**Next task: DT-15 — Refactor D.1 to pure Python extractor**
+**Next: D.2 — Backend Sentry Extractor**
 
-Refactor `agents/frontend_sentry_extractor.py` to remove the Claude agentic loop entirely. Replace with a pure Python escalating window loop. This establishes the correct pattern for all subsequent extractors (D.2–D.5).
+`agents/backend_sentry_extractor.py` — pure Python extractor targeting `restaurant-backend` Sentry project. Same `run(guardrails: dict) -> dict` signature and escalating window ladder as D.1. Returns same fields as D.1 plus `endpoint` and `http_status`. Validate against Scenario 1 (reservation failures) and Scenario 3 (allergens).
 
-Sequence:
-1. Write spec `agents/specs/dt15_refactor_d1_extractor.md` — wait for sign-off
-2. Update failing test to match new `run(guardrails: dict) -> dict` signature (red phase)
-3. Refactor `frontend_sentry_extractor.py` — remove `anthropic` import, remove agentic loop, implement window ladder — green phase
-4. Remove `FRONTEND_SENTRY_MODEL`, `FRONTEND_SENTRY_MAX_TURNS`, `FRONTEND_SENTRY_MAX_TOKENS` from config (no longer needed)
-5. Run all tests → commit + PR → then proceed to D.2
-
-**After DT-15: D.2 — Backend Sentry Extractor**
-
-`agents/backend_sentry_extractor.py` — pure Python extractor targeting `restaurant-backend` Sentry project. First extractor built correctly from the start. Same `run(guardrails: dict) -> dict` signature and window ladder as D.1 post-refactor.
-
-**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ ~~D.1~~ ~~A.5~~ ~~DT-12~~ ~~D.1 smoke test~~ ~~DT-13~~ → DT-15 → D.2 → D.3 → D.4 → D.5 → D.6 → E (orchestration)
+**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ ~~D.1~~ ~~A.5~~ ~~DT-12~~ ~~D.1 smoke test~~ ~~DT-13~~ ~~DT-15~~ → D.2 → D.3 → D.4 → D.5 → D.6 → E (orchestration)
 
 **Deferred:** 8 pre-existing ESLint warnings (`react-refresh/only-export-components`) in shadcn/ui components — separate task, not blocking agents
 
@@ -89,7 +78,7 @@ def run(guardrails: dict) -> dict:
 - Extractor stays in control of its scope — Orchestrator passes `max_issues` and `max_frames`, not the window
 - Ladder is configurable via `SENTRY_WINDOW_LADDER` in `agents/config.py` — never hardcoded
 - All extractors adopt the same `run(guardrails: dict) -> dict` signature from D.2 onwards
-- **DT-15:** Retrofit `frontend_sentry_extractor.py` with this signature and pure Python loop after D.2 confirms the pattern
+- **DT-15 (complete):** `frontend_sentry_extractor.py` retrofitted with this signature and pure Python loop before D.2 — D.1 is now the reference implementation
 
 ---
 
@@ -97,13 +86,11 @@ def run(guardrails: dict) -> dict:
 
 **DT-13 complete. Next: D.2 Backend Sentry Agent.**
 
-### DT-13 — Agent Observability via Sentry ✅ complete (2026-05-03)
-- `agents/sentry_utils.py` — `record_agent_run()` wraps each `run()` in a Sentry transaction; `_strip_code_fence()` defensive helper added for YAML parsing; `set_data()` used (not deprecated `set_measurement()`)
+### DT-13 — Agent Observability via Sentry ✅ complete (2026-05-03), updated 2026-05-05
+- `agents/sentry_utils.py` — `record_agent_run(agent_name, result: dict, usage_by_turn)` uses `capture_event` (not `start_transaction` — Performance tab requires paid plan); signature updated from `result_yaml: str` to `result: dict` after DT-15
 - `agents/config.py` — `AGENTS_SENTRY_DSN` added (empty default = opt-in locally)
 - `agents/requirements.txt` — `sentry-sdk==2.58.0` + `certifi` + `urllib3` pinned
-- `agents/frontend_sentry_extractor.py` — `usage_by_turn` accumulated each turn; `record_agent_run()` called before every return path; tool results trimmed: `query_sentry_errors` uses `age:-1h` + limit 3 + 6-field trim; `get_stack_trace` trimmed to exception essentials + top 2 frames only
-- Token cost: 26k → 5k per run (80% reduction) after trimming
-- `agents/tests/test_sentry_utils.py` — 4 TDD tests green; `COMPLETED_HIGH_YAML` uses code-fenced input to cover `_strip_code_fence`
+- `agents/tests/test_sentry_utils.py` — 4 TDD tests green; pass dicts not YAML strings
 - `agents/tests/test_frontend_sentry_extractor.py` — `record_agent_run` mocked to prevent real Sentry calls
 - `agents/CLAUDE.md` — observability guardrail + token efficiency rules + wiring checklist
 
@@ -115,19 +102,15 @@ These must be added to `usage_by_turn` in every agent and summed in `record_agen
 
 ---
 
-### DT-15 — Refactor D.1 to Pure Python Extractor ⏳ pending
+### DT-15 — Refactor D.1 to Pure Python Extractor ✅ complete (2026-05-05)
 
-Refactor `agents/frontend_sentry_extractor.py` to remove the Claude agentic loop. This file was built under the old per-agent Claude call architecture and does not match the current design.
-
-**Changes required:**
-1. Remove `import anthropic`, `build_system_prompt`, `TOOLS`, `SYSTEM_PROMPT`, `FINDING_YAML_TEMPLATE`
-2. Replace `run()` agentic loop with a pure Python escalating window ladder
-3. Change signature to `run(guardrails: dict) -> dict` — returns structured dict, not YAML string
-4. Remove `FRONTEND_SENTRY_MAX_TURNS`, `FRONTEND_SENTRY_MAX_TOKENS`, `FRONTEND_SENTRY_MODEL` from `config.py` — no longer applicable
-5. Update test to mock `run(guardrails=...)` and assert structured dict output
-6. Pass `usage_by_turn = []` to `record_agent_run()` — extractor has no Claude calls to measure
-
-**Why now:** D.2 must be built correctly from scratch as a pure Python extractor. D.1 must match the same pattern before D.2 is written, so D.2 has a clean reference to follow.
+- Removed `import anthropic`, `build_system_prompt`, `TOOLS`, `SYSTEM_PROMPT`, `FINDING_YAML_TEMPLATE`
+- Replaced `run()` agentic loop with pure Python escalating window ladder (`SENTRY_WINDOW_LADDER`)
+- Signature: `run(guardrails: dict) -> dict` — structured dict, not YAML string
+- Removed `FRONTEND_SENTRY_MAX_TURNS`, `FRONTEND_SENTRY_MAX_TOKENS`, `FRONTEND_SENTRY_MODEL` from `config.py`
+- Added `SENTRY_WINDOW_LADDER`, `SENTRY_STACK_FRAME_LIMIT` to `config.py`
+- 4 tests green: happy path, window escalation, no_data, injection detection
+- D.1 is now the reference implementation for D.2–D.4
 
 ---
 
@@ -146,7 +129,8 @@ Add `cache_read_input_tokens` and `cache_creation_input_tokens` to `usage_by_tur
 - `.gitignore` — `agents/__pycache__/` patterns added
 - `agents/specs/dt13_agent_observability.md` — post-implementation findings documented
 - PR: `feat/dt13-agent-observability` — 5/5 tests passing
-- **Pending:** switch `record_agent_run` to `capture_event` (Performance not on free plan); build Sentry dashboard after first production run
+- **Done (2026-05-05):** switched `record_agent_run` to `capture_event` (Performance tab not on free plan)
+- **Pending:** build Sentry dashboard after first production run
 
 ---
 
@@ -303,11 +287,11 @@ Files created:
 
 | # | Task | Description | Status |
 |---|---|---|---|
-| D.1 | Frontend Sentry Extractor | `agents/frontend_sentry_extractor.py` — ⚠️ built under old architecture (has Claude agentic loop inside); must be refactored via DT-15 before D.2 begins. Post-refactor: pure Python escalating window loop; `run(guardrails: dict) -> dict`; tools: `query_sentry_errors`, `get_stack_trace`, `get_affected_releases` (frontend project only); zero Claude API calls | ✅ Done (old architecture) — ⏳ DT-15 refactor pending |
-| D.2 | Backend Sentry Extractor | `agents/backend_sentry_extractor.py` — pure Python extractor; zero Claude API calls; `run(guardrails: dict) -> dict`; escalating window ladder; same fields as D.1 post-refactor plus `endpoint` and `http_status`; validate against Scenario 1 (reservation failures) and Scenario 3 (allergens) | ⏳ Pending — blocked on DT-15 |
+| D.1 | Frontend Sentry Extractor | `agents/frontend_sentry_extractor.py` — pure Python escalating window loop; `run(guardrails: dict) -> dict`; `query_sentry_errors`, `get_stack_trace`, `get_affected_releases` (frontend project only); zero Claude API calls; injection + PII detection; 4 tests green | ✅ Done (DT-15 refactor complete 2026-05-05) |
+| D.2 | Backend Sentry Extractor | `agents/backend_sentry_extractor.py` — pure Python extractor; zero Claude API calls; `run(guardrails: dict) -> dict`; escalating window ladder; same fields as D.1 plus `endpoint` and `http_status`; validate against Scenario 1 (reservation failures) and Scenario 3 (allergens) | ⏳ Pending |
 | D.3 | Render Logs Extractor | `agents/render_logs_extractor.py` — pure Python extractor; zero Claude API calls; fetches Render log lines, filters to error/warn, deduplicates by message, caps at 10 distinct errors; `run(guardrails: dict) -> dict`; validate against Scenario 2 (cold start) | ⏳ Pending |
 | D.4 | GitHub Extractor | `agents/github_extractor.py` — pure Python extractor; zero Claude API calls; fetches commits and PR metadata for a given release SHA; `run(guardrails: dict) -> dict`; validate against Scenario 3 (allergens issue) and Scenario 4 (wrong total) | ⏳ Pending |
-| D.5 | Codebase Extractor | `agents/codebase_extractor.py` — Claude-assisted navigator; read-only filesystem access scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`; zero GitHub access; uses Claude to navigate multi-hop code traces (crash line → symbol → source → root cause location); returns structured findings ~50 tokens — crash location, root cause file/line, missing field, fix type, runbook match; never passes raw code snippets to Recommendation Agent; `run(guardrails: dict) -> dict`; validate against all 5 scenarios | ⏳ Pending |
+| D.5 | Codebase Agent | `agents/codebase_agent.py` — Claude-assisted navigator; read-only filesystem access scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`; zero GitHub access; uses Claude to navigate multi-hop code traces (crash line → symbol → source → root cause location); returns structured findings ~50 tokens — crash location, root cause file/line, missing field, fix type, runbook match; never passes raw code snippets to Recommendation Agent; `run(guardrails: dict) -> dict`; validate against all 5 scenarios | ⏳ Pending |
 | D.6 | Recommendation Agent | `agents/recommendation_agent.py` — cross-source synthesiser + PR author; receives combined structured payload from Orchestrator (Sentry + Render + GitHub + Codebase structured findings); Claude call produces `interpretation` (root cause, affected layer, regression flag, confidence, recommended fix) and opens a **draft PR** with the proposed fix; returns interpretation + draft PR link to Orchestrator; GitHub write access for draft PRs only — no codebase read access; validate against all 5 scenarios | ⏳ Pending |
 
 ---
@@ -321,7 +305,7 @@ Files created:
 | E.1 | Orchestrator design | Document routing logic for each of the three trigger types (monitoring workflow label event, manual GitHub issue, `/troubleshoot` skill) — which agents are invoked, in what order, under what conditions; confirm no direct Sentry webhook triggers (not used — paid feature) | ⏳ Pending |
 | E.2 | Orchestrator implementation | `agents/orchestrator.py --issue <number>` — reads issue body and labels; routes to the correct Sentry agent based on `source:*` label; invokes Render Logs, Codebase, GitHub agents; validates each finding via `agents/validator.py` before routing (malformed finding → flag on issue, stop); passes validated findings to Recommendation Agent | ⏳ Pending |
 | E.3 | `/troubleshoot` skill | Claude Code skill in `.claude/skills/`; accepts symptom description or GitHub issue number; shell wrapper that calls `python agents/orchestrator.py --issue <number>`; same entry point as automated path | ⏳ Pending |
-| E.4 | GitHub write authorization | Implement tool-list gating in orchestrator: `post_github_comment` and `send_email` are always in the tool list; `open_pull_request` and other write tools are added to the tool list only after human comments `/approve` on the issue — before that the function does not exist in the agent's tool list; compliance flag (`pii_flag: true` in any finding) blocks `/approve` path until human comments `/compliance-acknowledged` | ⏳ Pending |
+| E.4 | GitHub write authorization | Recommendation Agent always has `open_draft_pr` in its tool list — no `/approve` gate before PR creation (draft PRs cannot be merged without human action on GitHub). Orchestrator always has `post_github_comment` and `send_email`. No agent ever has `merge_pr` — merging happens through the normal GitHub UI by a human. Compliance flag (`pii_flag: true` in any finding) adds a compliance notice to the GitHub Issue and PR description — human must acknowledge before merging | ⏳ Pending |
 | E.5 | Confidence-gated notifications | Orchestrator reads `confidence` from Recommendation Agent finding; high → post GitHub comment + send Resend email; medium → post GitHub comment only; low → post GitHub comment only with "investigation inconclusive" framing | ⏳ Pending |
 | E.6 | Timeout and escalation | Orchestrator checks for human response after 24 hours on high-confidence findings → send reminder email; after 48 hours → add `escalation-needed` label; never act autonomously on timeout — only re-notify | ⏳ Pending |
 
