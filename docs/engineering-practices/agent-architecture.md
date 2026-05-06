@@ -623,31 +623,31 @@ sequenceDiagram
     Note over FEAgent: pure Python extractor — zero Claude API calls
     FEAgent->>Sentry: query_sentry_errors(project=restaurant-frontend)
     Sentry-->>FEAgent: no active errors in window
-    FEAgent-->>Orch: { status="no_data", source="sentry-frontend" }
+    FEAgent-->>Orch: status=no_data, source=sentry-frontend
 
     Orch->>SAgent: guardrails (fingerprint=abc123, max_frames=3, window=age:-1h)
     Note over SAgent: pure Python extractor — zero Claude API calls
     SAgent->>Sentry: get_stack_trace(group=abc123)
     SAgent->>Sentry: get_affected_releases(group=abc123)
     Sentry-->>SAgent: ValidationError in reservation_service.py:47<br/>first_seen_in_release="a3f9c12"
-    SAgent-->>Orch: { release="a3f9c12", exception_type="ValidationError",<br/>culprit="reservation_service.py:47", top_frames=[...] }
+    SAgent-->>Orch: release=a3f9c12, exception_type=ValidationError, culprit=reservation_service.py:47
 
     Orch->>GHAgent: release SHA="a3f9c12"
     Note over GHAgent: pure Python extractor — zero Claude API calls
     GHAgent->>GH: get_recent_commits(sha="a3f9c12")
     GH-->>GHAgent: PR #44 — "feat: tighten date validation on reservations"
-    GHAgent-->>Orch: { commit=a3f9c12, pr=44, changed_files=["reservation_service.py"] }
+    GHAgent-->>Orch: commit=a3f9c12, pr=44, changed_files=reservation_service.py
 
     Orch->>Code: crash location from stack trace (reservation_service.py:47)
     Note over Code: Claude-assisted navigator — reads filesystem iteratively<br/>to trace root cause; returns structured findings (~50 tokens)
-    Code-->>Orch: { crash_location="reservation_service.py:47",<br/>root_cause_file="core/config.py:12", missing_field="MAX_DATE_DAYS",<br/>fix_type="config_change" }
+    Code-->>Orch: crash_location=reservation_service.py:47, root_cause_file=core/config.py:12, fix_type=config_change
 
     Note over Orch: clubs all structured dicts into one combined payload
     Orch->>Rec: combined structured payload (all sources)
     Note over Rec: Claude API call — cross-source synthesis + opens draft PR<br/>on new feature branch (never against main)
     Rec->>GH: open draft PR on fix/sentry-abc123 — "revert MAX_DATE_DAYS to 90 days"
     GH-->>Rec: draft PR link
-    Rec-->>Orch: interpretation { root_cause="MAX_DATE_DAYS reduced in PR #44, line 47",<br/>confidence=high, fix="revert to 90-day window" } + draft_pr_url
+    Rec-->>Orch: root_cause=MAX_DATE_DAYS reduced in PR #44, confidence=high, draft_pr_url=...
     Orch->>GH: comment with full investigation + draft PR link + email notification
     Note over Human: reviews draft PR → merges to fix
 ```
@@ -723,7 +723,7 @@ sequenceDiagram
     Note over Rec: Claude API call — cross-source synthesis + opens draft PR<br/>on new feature branch (never against main)
     Rec->>GH: open draft PR with proposed fix + description
     GH-->>Rec: draft PR link
-    Rec-->>Orch: interpretation { root_cause, confidence, fix } + draft_pr_url
+    Rec-->>Orch: root_cause, confidence, fix, draft_pr_url
     Orch->>GH: comment on issue — full investigation + draft PR link
     alt high confidence
         Orch->>Human: email via Resend — root cause + draft PR link
@@ -767,7 +767,7 @@ sequenceDiagram
     Note over Rec: Claude API call — cross-source synthesis + opens draft PR<br/>on new feature branch (never against main)
     Rec->>GH: open draft PR with proposed fix + description
     GH-->>Rec: draft PR link
-    Rec-->>Orch: interpretation { root_cause, confidence, fix } + draft_pr_url
+    Rec-->>Orch: root_cause, confidence, fix, draft_pr_url
     Orch->>GH: comment on issue — full investigation + draft PR link
     alt high confidence
         Orch->>Human: email via Resend — root cause + draft PR link
