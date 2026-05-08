@@ -29,12 +29,12 @@ If adapting code requires a visual change, **stop and ask the user** before proc
 **Before suggesting any code, read `execution-plan.md` to find the current task.**
 
 Before starting any new slice:
-1. **Read `backend/specs/DEPENDENCY_MAP.md`** — check which signatures to pull from prior slices.
-2. **Write the spec first** (`backend/specs/sliceN_name.md`) and wait for sign-off before any code.
+1. **Check the dependency map for your layer** — each layer (backend, agents, frontend) owns its own dependency map. Find it, check which signatures or patterns already exist, and reuse them before writing new ones.
+2. **Write the spec first** and wait for sign-off before any code.
 3. **Write tests before implementation** (TDD) — all tests must fail first, then be made green.
 4. **Run the full test suite after every slice** — not just the new tests. Fix any regressions before moving on.
 5. **Never edit an already-applied migration** — schema changes go in a new migration file (additive only).
-6. **Update `backend/specs/DEPENDENCY_MAP.md` after completing any new slice** — add every new service function, tool, or pattern the slice exposes so future slices can find and reuse them. This is not optional.
+6. **Update the dependency map for your layer after completing any new slice** — add every new function, tool, or pattern the slice exposes so future slices can find and reuse them. This is not optional.
 
 ## Architecture Decision Records (ADR)
 

@@ -1,5 +1,9 @@
 # Agents Project Rules — Aap ki Rasoi
 
+## Slice Rules (Agents)
+
+The agents dependency map is at **`agents/specs/DEPENDENCY_MAP.md`**. Apply the generic slice rules from the root `CLAUDE.md` using this file as the layer's map.
+
 ## Agentic Observability — ALWAYS ACTIVE
 
 - **Every agent `run()` must call `record_agent_run()` before every return path** — observability is not optional and must be wired at the time the agent is built, not retrofitted later.
