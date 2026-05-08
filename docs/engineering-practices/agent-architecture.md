@@ -200,7 +200,7 @@ Frame limit config key: `SENTRY_STACK_FRAME_LIMIT` (default: `3`).
 
 Sentry agents make zero Claude API calls. The agent returns a Python dict of structured findings only — no interpretation. The Orchestrator assembles `metadata` around these findings; the Recommendation Agent adds `interpretation` in the single cross-source Claude call.
 
-**What the Python extractor returns to the Orchestrator (zero Claude tokens):**
+**Frontend Sentry Extractor — what it returns to the Orchestrator (zero Claude tokens):**
 ```python
 {
     "id":               "4823910",
@@ -219,6 +219,31 @@ Sentry agents make zero Claude API calls. The agent returns a Python dict of str
         {"filename": "src/components/MenuItemCard.tsx", "lineno": 42, "function": "render"},
         {"filename": "src/pages/MenuPage.tsx",          "lineno": 87, "function": "MenuPage"},
         {"filename": "src/hooks/useMenuItems.ts",       "lineno": 23, "function": "useMenuItems"}
+    ]
+}
+```
+
+**Backend Sentry Extractor — same shape plus `endpoint` and `http_status`:**
+```python
+{
+    "id":               "5910234",
+    "title":            "ValueError: Reservation date must be at least 24 hours in advance",
+    "level":            "error",
+    "culprit":          "backend/reservations/service.py in create_reservation",
+    "count":            87,
+    "user_count":       23,
+    "is_unhandled":     False,
+    "first_seen":       "2026-05-07T14:02:00Z",
+    "last_seen":        "2026-05-07T14:55:00Z",
+    "release":          "cfe6747",
+    "exception_type":   "ValueError",
+    "exception_message":"Reservation date must be at least 24 hours in advance",
+    "endpoint":         "POST /api/reservations",
+    "http_status":      422,
+    "top_frames": [
+        {"filename": "backend/reservations/service.py",  "lineno": 34, "function": "create_reservation"},
+        {"filename": "backend/reservations/router.py",   "lineno": 19, "function": "create"},
+        {"filename": "backend/main.py",                  "lineno": 8,  "function": "app"}
     ]
 }
 ```
@@ -280,7 +305,7 @@ agents/
   backend_sentry_extractor.py
   render_logs_extractor.py
   github_extractor.py
-  codebase_extractor.py
+  codebase_agent.py
   recommendation_agent.py
 ```
 
@@ -943,19 +968,27 @@ Every `run()` call records a Sentry transaction before returning — regardless 
 | `turns_used` | Count of loop iterations | High turns = agent struggled; budget may need adjustment |
 | `confidence_numeric` | `high=3`, `medium=2`, `low=1` | Enables confidence trend charts in Sentry |
 | `status` | `completed` / `partial` / `no_data` / `injection_detected` | Partial run rate is a leading indicator of budget problems |
+| `issue_number` | GitHub Issue number passed from Orchestrator | Groups all agent events from one investigation in Sentry — filter by `issue_number:47` to see all agents side by side |
+| `usage_by_turn` | Raw list of per-turn usage dicts | Preserved in event `extra` for turn-by-turn drill-down — shows token growth across turns, not just totals |
 
 ### Implementation Contract
 
-`record_agent_run(agent_name, result, usage_by_turn)` in `agents/sentry_utils.py` is the single function responsible for all Sentry instrumentation.
+`record_agent_run(agent_name, result, usage_by_turn, issue_number="")` in `agents/sentry_utils.py` is the single function responsible for all Sentry instrumentation.
+
+`issue_number` is the GitHub Issue number for the current investigation — it tags every Sentry event so all agents from one investigation are groupable in a single Sentry query (e.g. `issue_number:47`). Passed from the Orchestrator through each agent's `run()` call.
+
+The raw `usage_by_turn` list is preserved in the Sentry event `extra` alongside the summed totals. This enables per-turn token drill-down in the event detail view — useful for diagnosing token growth across turns in the Codebase Agent or Orchestrator.
 
 **Claude-calling components** (Orchestrator, Codebase Agent, Recommendation Agent):
 1. Initialise `usage_by_turn = []` before the agentic loop
 2. Append `{"input_tokens": ..., "output_tokens": ..., "cache_read_input_tokens": ..., "cache_creation_input_tokens": ...}` after every `client.messages.create()` call
-3. Call `record_agent_run()` before **every** return path — including `partial` fallback
+3. Accept `issue_number: str = ""` in `run()` and forward it to `record_agent_run()`
+4. Call `record_agent_run()` before **every** return path — including `partial` fallback
 
 **Pure Python extractors** (Sentry, Render Logs, GitHub — zero Claude calls):
 1. Pass `usage_by_turn = []` (empty list) to `record_agent_run()` — no Anthropic API calls to measure
-2. Call `record_agent_run()` before **every** return path — including `no_data` and `injection_detected` exits
+2. Accept `issue_number: str = ""` in `run()` and forward it to `record_agent_run()`
+3. Call `record_agent_run()` before **every** return path — including `no_data` and `injection_detected` exits
 
 No agent may return without calling `record_agent_run()`. This is enforced by the wiring checklist in `agents/CLAUDE.md`.
 
