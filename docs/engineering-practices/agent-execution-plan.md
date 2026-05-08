@@ -84,25 +84,23 @@ def run(guardrails: dict) -> dict:
 
 ## Session Progress (2026-05-07)
 
-**Architecture doc and execution plan aligned. Ready for D.2.**
+**Next: Complete DT-13 steps 13–14, then D.2.**
 
-### Architecture doc audit ✅
-Cross-checked execution plan against architecture doc. Five fixes applied to execution plan:
-- DT-14 rewritten — now covers all three gaps: `issue_number` tag, `usage_by_turn` in extra, cache token fields; scoped to all three Claude callers (Orchestrator, Codebase Agent, Recommendation Agent)
-- "Backend Sentry Agent" → "Backend Sentry Extractor" in session heading
-- "Codebase Extractor" → "Codebase Agent" in Guiding Principles
-- B.5 dependency corrected — prompt caching applies to D.5, D.6, E.2 only (not D.1–D.4)
-- Current Focus updated — DT-15 done, next is D.2
+### DT-13 steps 11–12 ✅ (2026-05-07)
+- `agents/sentry_utils.py` — `issue_number: str = ""` added to `record_agent_run` signature; written to `tags["issue_number"]`; `cache_read_input_tokens` and `cache_creation_input_tokens` summed and added to `extra`; raw `usage_by_turn` list preserved in `extra`
+- `agents/tests/test_sentry_utils.py` — 2 new tests green: `test_record_agent_run_issue_number_tag`, `test_record_agent_run_usage_by_turn_preserved`; 6/6 passing
+- DT-14 merged into DT-13 — was redundant; `agents/specs/dt14_observability_contract.md` deleted; all remaining work tracked in `agents/specs/dt13_agent_observability.md` steps 13–15
 
-Three fixes applied to architecture doc:
-- Backend Sentry return dict added — full example showing `endpoint` and `http_status` fields
-- `record_agent_run` signature updated — `issue_number: str = ""` added; `usage_by_turn` in extra documented; `issue_number` flow (Orchestrator → agent `run()` → `record_agent_run`) documented
-- `usage_by_turn` and `issue_number` added to "What Is Logged Per Run" table
-- Directory structure: `codebase_extractor.py` → `codebase_agent.py`
+### Slice rules and dependency maps ✅ (2026-05-07)
+- Root `CLAUDE.md` — generic slice rule added: every layer has a dependency map; check before, update after
+- `backend/CLAUDE.md` — pointer to `backend/specs/DEPENDENCY_MAP.md`
+- `agents/CLAUDE.md` — pointer to `agents/specs/DEPENDENCY_MAP.md`
+- `agents/specs/DEPENDENCY_MAP.md` — created; captures all existing signatures: `record_agent_run`, `build_system_prompt`, `validate_finding`, all D.1 Sentry functions, `run()` contract pattern, config constants
 
-### DT-13 spec cleaned up ✅
-- Post-Implementation Findings trimmed — only the `capture_event` rationale kept (Sentry Performance requires paid plan); stale YAML/DT-15 findings removed
-- Signature, TDD section, and sequence of work updated to reflect `issue_number` and `usage_by_turn` additions (steps 11–15)
+### Previous session — Architecture doc audit ✅
+- DT-14 rewritten — now covers all three gaps (merged into DT-13)
+- Architecture doc updated — Backend Sentry return dict, `record_agent_run` signature, `usage_by_turn` table row
+- Current Focus updated — DT-15 done, DT-13 steps 11–12 next
 
 ---
 
@@ -140,34 +138,9 @@ Three fixes applied to architecture doc:
 
 ---
 
-### DT-14 — Complete Observability Contract ⏳ pending
+### DT-14 — Merged into DT-13 ✅ (2026-05-07)
 
-**Why:** Three gaps in `record_agent_run` prevent full token visibility in Sentry: missing cache fields skew cost reporting; no `issue_number` tag means agent events from the same investigation cannot be grouped; `usage_by_turn` list is summed away so per-turn token growth is invisible.
-
-**Scope:**
-
-*`agents/sentry_utils.py`:*
-1. Add `issue_number: str = ""` to `record_agent_run` signature — add as `tags["issue_number"]`
-2. Add `usage_by_turn` list to `extra` — preserves per-turn data for troubleshooting token growth across turns
-3. Sum `cache_read_input_tokens` and `cache_creation_input_tokens` from `usage_by_turn`; record as separate `extra` fields
-
-*`agents/tests/test_sentry_utils.py`:*
-4. Add `test_record_agent_run_issue_number_tag` — assert `event["tags"]["issue_number"] == "123"`
-5. Add `test_record_agent_run_usage_by_turn_preserved` — assert `event["extra"]["usage_by_turn"]` equals input list exactly
-
-*Claude-calling agents — all three (Orchestrator, Codebase Agent, Recommendation Agent):*
-6. Each turn's `usage_by_turn.append()` must include `cache_read_input_tokens` and `cache_creation_input_tokens`
-7. Each `run()` must accept `issue_number: str = ""` and forward it to `record_agent_run`
-8. Extractors pass `usage_by_turn = []` (empty) — no change needed there
-
-**Dashboard outcome:** Filter Sentry by `issue_number:47` → see all agents for that investigation with token totals. Open any event → `usage_by_turn` shows turn-by-turn token growth.
-
-**Reference:** `agents/specs/dt13_agent_observability.md` — steps 11–14.
-- `.gitignore` — `agents/__pycache__/` patterns added
-- `agents/specs/dt13_agent_observability.md` — post-implementation findings documented
-- PR: `feat/dt13-agent-observability` — 5/5 tests passing
-- **Done (2026-05-05):** switched `record_agent_run` to `capture_event` (Performance tab not on free plan)
-- **Pending:** build Sentry dashboard after first production run
+DT-14 was redundant — all three gaps were already tracked as steps 11–15 in the DT-13 spec. Merged and `dt14_observability_contract.md` deleted. See `agents/specs/dt13_agent_observability.md` for remaining steps 13–15.
 
 ---
 
