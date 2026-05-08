@@ -50,3 +50,29 @@ def test_confidence_numeric_mapping():
     assert confidence_to_numeric("medium") == 2
     assert confidence_to_numeric("low") == 1
     assert confidence_to_numeric("missing") == 0
+
+
+# why: issue_number groups all agents from one investigation — without this tag,
+# you cannot filter Sentry to "show me every agent that ran for issue #47"
+def test_record_agent_run_issue_number_tag():
+    usage = [{"input_tokens": 900, "output_tokens": 120, "cache_read_input_tokens": 500, "cache_creation_input_tokens": 100}]
+    with patch("agents.sentry_utils.sentry_sdk") as mock_sentry:
+        record_agent_run("backend-sentry", COMPLETED_HIGH, usage, issue_number="123")
+
+        event = mock_sentry.capture_event.call_args[0][0]
+        assert event["tags"]["issue_number"] == "123"
+
+
+# why: usage_by_turn must be preserved as a raw list, not just summed — summing
+# hides which turn caused a token spike; the raw list enables per-turn drill-down in Sentry
+def test_record_agent_run_usage_by_turn_preserved():
+    usage = [
+        {"input_tokens": 300, "output_tokens": 50, "cache_read_input_tokens": 200, "cache_creation_input_tokens": 0},
+        {"input_tokens": 400, "output_tokens": 80, "cache_read_input_tokens": 300, "cache_creation_input_tokens": 0},
+        {"input_tokens": 500, "output_tokens": 100, "cache_read_input_tokens": 400, "cache_creation_input_tokens": 0},
+    ]
+    with patch("agents.sentry_utils.sentry_sdk") as mock_sentry:
+        record_agent_run("backend-sentry", COMPLETED_HIGH, usage)
+
+        event = mock_sentry.capture_event.call_args[0][0]
+        assert event["extra"]["usage_by_turn"] == usage

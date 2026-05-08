@@ -12,6 +12,7 @@ def record_agent_run(
     agent_name: str,
     result: dict,
     usage_by_turn: list[dict],  # each dict: {"input_tokens": int, "output_tokens": int}
+    issue_number: str = "",
 ) -> None:
     if not AGENTS_SENTRY_DSN:
         return
@@ -24,18 +25,24 @@ def record_agent_run(
     input_tokens = sum(t["input_tokens"] for t in usage_by_turn)
     output_tokens = sum(t["output_tokens"] for t in usage_by_turn)
     total_tokens = input_tokens + output_tokens
+    cache_read_tokens = sum(t.get("cache_read_input_tokens", 0) for t in usage_by_turn)
+    cache_creation_tokens = sum(t.get("cache_creation_input_tokens", 0) for t in usage_by_turn)
+
 
     # why: capture_event not start_transaction — Performance tab requires a paid Sentry plan;
     # capture_event lands in Issues/Events on all plans and is queryable by tags/extras in dashboards
     sentry_sdk.capture_event({
         "message": f"agent.run: {agent_name}",
         "level": "info",
-        "tags": {"agent": agent_name, "status": status},
+        "tags": {"agent": agent_name, "status": status, "issue_number": issue_number},
         "extra": {
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": total_tokens,
             "turns_used": len(usage_by_turn),
+            "usage_by_turn": usage_by_turn,
+            "cache_read_input_tokens": cache_read_tokens,
+            "cache_creation_input_tokens": cache_creation_tokens,
             # why: 0 = "not applicable" for pure Python extractors (no Claude calls, no confidence score)
             "confidence_numeric": confidence_to_numeric(confidence),
         },
