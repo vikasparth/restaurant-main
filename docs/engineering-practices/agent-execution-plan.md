@@ -9,9 +9,13 @@
 
 ## Current Focus
 
-**Next: D.2 — Backend Sentry Extractor.**
+**Next: DT-13 step 13 — then D.2.**
 
-D.1 refactor (DT-15) is complete. Architecture doc and execution plan are fully aligned. D.2 spec to be written before implementation — architecture doc has the full contract (Backend Sentry return dict, Sentry Query Contract, observability wiring, guardrails).
+DT-13 steps 11–12 complete. Two small steps remaining before D.2:
+- Step 13: add `issue_number: str = ""` to `frontend_sentry_extractor.run()` and forward to all 3 `record_agent_run` call sites; update `record_agent_run` mock in `test_frontend_sentry_extractor.py`
+- Step 14: update `agents/specs/DEPENDENCY_MAP.md` — reflect new 4-param `record_agent_run` signature
+
+After steps 13–14: D.2 spec → sign-off → TDD → implement `agents/backend_sentry_extractor.py`.
 
 ---
 
