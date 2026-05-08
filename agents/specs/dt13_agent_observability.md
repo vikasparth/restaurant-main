@@ -1,6 +1,6 @@
 # DT-13 Spec — Agent Observability via Sentry
 
-**Status: Completed**
+**Status: Partially Complete — steps 1–12 done, steps 13–15 pending**
 **Execution plan ref:** Developer Tooling → DT-13
 
 ---
@@ -42,7 +42,7 @@ Called once at the end of every `run()` after the agentic loop completes.
 def record_agent_run(
     agent_name: str,
     result: dict,              # structured dict returned by run(); not a YAML string
-    usage_by_turn: list[dict], # each dict: {"input_tokens": int, "output_tokens": int}
+    usage_by_turn: list[dict], # each dict: input_tokens, output_tokens, and optionally cache_read_input_tokens, cache_creation_input_tokens
     issue_number: str = "",    # GitHub Issue number — groups all agents from one investigation
 ) -> None
 ```
@@ -166,8 +166,34 @@ fully queryable in dashboards via tags and extras.
 8. ✅ Wire `record_agent_run` into `frontend_sentry_extractor.py`
 9. ✅ Update `record_agent_run` signature to `result: dict` — YAML parsing and `_strip_code_fence` removed (done 2026-05-05 as part of DT-15)
 10. ✅ Switch to `capture_event()` — free-plan compatible (done 2026-05-05)
-11. ⬜ Add `issue_number: str = ""` param — tag groups all agents from one investigation in Sentry
-12. ⬜ Add `usage_by_turn` list to `extra` — preserves per-turn token data for troubleshooting token growth across turns
-13. ⬜ Update `test_sentry_utils.py` — assert `issue_number` tag and `usage_by_turn` in extra (tests 5 and 6 above)
-14. ⬜ Wire `issue_number` into Orchestrator → passed to each agent's `run()` → forwarded to `record_agent_run` (E.2)
-15. ⬜ Build Sentry dashboard — filter by `issue_number` to see all agents per investigation; `usage_by_turn` visible in event detail
+11. ✅ **Write failing tests first (red phase):**
+    - `test_record_agent_run_issue_number_tag` — call `record_agent_run` with `issue_number="123"`; assert `event["tags"]["issue_number"] == "123"`
+    - `test_record_agent_run_usage_by_turn_preserved` — pass a 3-turn list; assert `event["extra"]["usage_by_turn"]` equals the exact input list (not summed)
+    - Usage dict shape for new tests: `{"input_tokens": 900, "output_tokens": 120, "cache_read_input_tokens": 500, "cache_creation_input_tokens": 100}`
+
+12. ✅ **Update `record_agent_run` in `sentry_utils.py` (green phase):**
+    - Add `issue_number: str = ""` param; write to `tags["issue_number"]`
+    - Sum `cache_read_input_tokens` and `cache_creation_input_tokens` from `usage_by_turn` using `.get(..., 0)` — pure Python extractors pass empty list so this safely returns 0
+    - Add `cache_read_input_tokens`, `cache_creation_input_tokens`, and raw `usage_by_turn` list to `extra`
+
+13. ⬜ **Update `frontend_sentry_extractor.py`:**
+    - Add `issue_number: str = ""` to `run()` signature
+    - Forward `issue_number` to all 3 `record_agent_run` call sites inside `run()`
+    - Update `test_frontend_sentry_extractor.py` mock to match the new 4-argument call — no new assertions needed, just prevent the test breaking
+
+14. ⬜ **Update `agents/specs/DEPENDENCY_MAP.md`** — reflect the new `record_agent_run` signature (4 params)
+
+15. ⬜ **Deferred — Claude-calling agents** (Orchestrator, Codebase Agent, Recommendation Agent):
+    - When each is built, accept `issue_number: str = ""` in `run()` and forward to `record_agent_run`
+    - Append all 4 token fields per turn: `input_tokens`, `output_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`
+    - Build Sentry dashboard — filter by `issue_number` to see all agents per investigation; `usage_by_turn` visible in event detail
+
+**Files touched (steps 11–14):**
+
+| File | Change |
+|---|---|
+| `agents/sentry_utils.py` | Add `issue_number` param; add cache token sums; add `usage_by_turn` to extra |
+| `agents/tests/test_sentry_utils.py` | 2 new tests (tests 5 and 6) |
+| `agents/frontend_sentry_extractor.py` | Add `issue_number` to `run()` signature; update 3 call sites |
+| `agents/tests/test_frontend_sentry_extractor.py` | Update `record_agent_run` mock signature |
+| `agents/specs/DEPENDENCY_MAP.md` | Update `record_agent_run` signature entry |

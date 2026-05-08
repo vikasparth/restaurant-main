@@ -1,5 +1,9 @@
 # Backend Rules — Restaurant Management System
 
+## Slice Rules (Backend)
+
+The backend dependency map is at **`backend/specs/DEPENDENCY_MAP.md`**. Apply the generic slice rules from the root `CLAUDE.md` using this file as the layer's map.
+
 ## Backend Expectations
 - Backend lives only in main_project.
 - Do not generate backend code inside lovable_project.
