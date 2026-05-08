@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-04**
+**Last updated: 2026-05-07**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,9 +9,9 @@
 
 ## Current Focus
 
-**Next: DT-15 — Refactor D.1 to pure Python extractor, then D.2 spec.**
+**Next: D.2 — Backend Sentry Extractor.**
 
-Architecture decisions are all resolved (see below). D.1 (`frontend_sentry_extractor.py`) was built under the old per-agent Claude call design and still has an agentic loop inside. Before building D.2, D.1 must be refactored to match the new architecture — pure Python, zero Claude calls, `run(guardrails: dict) -> dict` signature.
+D.1 refactor (DT-15) is complete. Architecture doc and execution plan are fully aligned. D.2 spec to be written before implementation — architecture doc has the full contract (Backend Sentry return dict, Sentry Query Contract, observability wiring, guardrails).
 
 ---
 
@@ -41,7 +41,7 @@ Yes — Sentry query contract is documented in the architecture doc. Render Logs
 Elevated to Principle 9 in architecture doc. Applies to all extractors — raw API responses never reach the Orchestrator or Recommendation Agent.
 
 **Q6 — Prompt caching strategy** ✅ resolved
-Only the Recommendation Agent uses the Anthropic SDK — prompt caching applies to that agent only. `build_system_prompt()` wraps its system prompt with `cache_control`. Extractors make zero Claude API calls so caching is not applicable to them.
+Three components call the Anthropic SDK — Orchestrator, Codebase Agent, and Recommendation Agent. All three must use `build_system_prompt()` to wrap their system prompt with `cache_control`. System prompts do not change between runs so every subsequent call should hit the cache (~90% cheaper on input tokens). Pure Python extractors make zero Claude API calls so caching is not applicable to them.
 
 **Q7 — Recommendation Agent payload — who strips?** ✅ resolved
 The Orchestrator is responsible for the combined payload size. Each extractor already trims to minimum fields at its own boundary. The Orchestrator enforces the final combined token cap before passing to the Recommendation Agent — no further stripping inside Claude's context.
@@ -82,9 +82,33 @@ def run(guardrails: dict) -> dict:
 
 ---
 
+## Session Progress (2026-05-07)
+
+**Architecture doc and execution plan aligned. Ready for D.2.**
+
+### Architecture doc audit ✅
+Cross-checked execution plan against architecture doc. Five fixes applied to execution plan:
+- DT-14 rewritten — now covers all three gaps: `issue_number` tag, `usage_by_turn` in extra, cache token fields; scoped to all three Claude callers (Orchestrator, Codebase Agent, Recommendation Agent)
+- "Backend Sentry Agent" → "Backend Sentry Extractor" in session heading
+- "Codebase Extractor" → "Codebase Agent" in Guiding Principles
+- B.5 dependency corrected — prompt caching applies to D.5, D.6, E.2 only (not D.1–D.4)
+- Current Focus updated — DT-15 done, next is D.2
+
+Three fixes applied to architecture doc:
+- Backend Sentry return dict added — full example showing `endpoint` and `http_status` fields
+- `record_agent_run` signature updated — `issue_number: str = ""` added; `usage_by_turn` in extra documented; `issue_number` flow (Orchestrator → agent `run()` → `record_agent_run`) documented
+- `usage_by_turn` and `issue_number` added to "What Is Logged Per Run" table
+- Directory structure: `codebase_extractor.py` → `codebase_agent.py`
+
+### DT-13 spec cleaned up ✅
+- Post-Implementation Findings trimmed — only the `capture_event` rationale kept (Sentry Performance requires paid plan); stale YAML/DT-15 findings removed
+- Signature, TDD section, and sequence of work updated to reflect `issue_number` and `usage_by_turn` additions (steps 11–15)
+
+---
+
 ## Session Progress (2026-05-03)
 
-**DT-13 complete. Next: D.2 Backend Sentry Agent.**
+**DT-13 complete. Next: D.2 Backend Sentry Extractor.**
 
 ### DT-13 — Agent Observability via Sentry ✅ complete (2026-05-03), updated 2026-05-05
 - `agents/sentry_utils.py` — `record_agent_run(agent_name, result: dict, usage_by_turn)` uses `capture_event` (not `start_transaction` — Performance tab requires paid plan); signature updated from `result_yaml: str` to `result: dict` after DT-15
@@ -94,11 +118,13 @@ def run(guardrails: dict) -> dict:
 - `agents/tests/test_frontend_sentry_extractor.py` — `record_agent_run` mocked to prevent real Sentry calls
 - `agents/CLAUDE.md` — observability guardrail + token efficiency rules + wiring checklist
 
-**DT-13 gap identified (2026-05-04):** `usage_by_turn` currently captures only `input_tokens` and `output_tokens`. Two cache fields are missing:
-- `cache_read_input_tokens` — tokens served from prompt cache (billed at 10% rate)
-- `cache_creation_input_tokens` — tokens written to cache on first call
+**DT-13 gaps identified (2026-05-04 / 2026-05-07):**
 
-These must be added to `usage_by_turn` in every agent and summed in `record_agent_run()`. Without them the Sentry dashboard cannot show true cost (cache reads are 10x cheaper and skew the total). Tracked as **DT-14** below.
+`usage_by_turn` currently captures only `input_tokens` and `output_tokens`. Three additions are needed — tracked as **DT-14** below:
+
+1. **Cache token fields** — `cache_read_input_tokens` and `cache_creation_input_tokens` missing; cache reads cost 10% of normal rate and skew the total without them
+2. **`issue_number` tag** — no correlation ID today; without it, Sentry cannot group all agents from one investigation together; pass GitHub Issue number from Orchestrator → each agent's `run()` → `record_agent_run`
+3. **`usage_by_turn` in extra** — raw per-turn list is currently summed away; preserving it in the Sentry event `extra` enables drill-down to diagnose token growth across turns
 
 ---
 
@@ -114,18 +140,29 @@ These must be added to `usage_by_turn` in every agent and summed in `record_agen
 
 ---
 
-### DT-14 — Capture Cache Token Usage ⏳ pending
+### DT-14 — Complete Observability Contract ⏳ pending
 
-Add `cache_read_input_tokens` and `cache_creation_input_tokens` to `usage_by_turn` in the Recommendation Agent and update `record_agent_run()` to sum them.
-
-**Why:** The Recommendation Agent uses `build_system_prompt()` with `cache_control`. Cache reads cost 10% of normal input token price. Without capturing these fields the token cost reported in Sentry is incorrect. Extractors make zero Claude API calls so this does not apply to them.
+**Why:** Three gaps in `record_agent_run` prevent full token visibility in Sentry: missing cache fields skew cost reporting; no `issue_number` tag means agent events from the same investigation cannot be grouped; `usage_by_turn` list is summed away so per-turn token growth is invisible.
 
 **Scope:**
-1. Update `usage_by_turn.append()` in `recommendation_agent.py` to include both cache fields
-2. Update `record_agent_run()` in `sentry_utils.py` to sum and record `cache_read_input_tokens` and `cache_creation_input_tokens` as separate Sentry measurements
-3. Extractors pass `usage_by_turn = []` (empty) — no change needed there
 
-**Reference:** Architecture doc — Agent Observability section, implementation contract.
+*`agents/sentry_utils.py`:*
+1. Add `issue_number: str = ""` to `record_agent_run` signature — add as `tags["issue_number"]`
+2. Add `usage_by_turn` list to `extra` — preserves per-turn data for troubleshooting token growth across turns
+3. Sum `cache_read_input_tokens` and `cache_creation_input_tokens` from `usage_by_turn`; record as separate `extra` fields
+
+*`agents/tests/test_sentry_utils.py`:*
+4. Add `test_record_agent_run_issue_number_tag` — assert `event["tags"]["issue_number"] == "123"`
+5. Add `test_record_agent_run_usage_by_turn_preserved` — assert `event["extra"]["usage_by_turn"]` equals input list exactly
+
+*Claude-calling agents — all three (Orchestrator, Codebase Agent, Recommendation Agent):*
+6. Each turn's `usage_by_turn.append()` must include `cache_read_input_tokens` and `cache_creation_input_tokens`
+7. Each `run()` must accept `issue_number: str = ""` and forward it to `record_agent_run`
+8. Extractors pass `usage_by_turn = []` (empty) — no change needed there
+
+**Dashboard outcome:** Filter Sentry by `issue_number:47` → see all agents for that investigation with token totals. Open any event → `usage_by_turn` shows turn-by-turn token growth.
+
+**Reference:** `agents/specs/dt13_agent_observability.md` — steps 11–14.
 - `.gitignore` — `agents/__pycache__/` patterns added
 - `agents/specs/dt13_agent_observability.md` — post-implementation findings documented
 - PR: `feat/dt13-agent-observability` — 5/5 tests passing
@@ -234,7 +271,7 @@ Files created:
 - Test scenarios (`docs/agent-test-scenarios.md`) are the acceptance criteria — an agent is not done until it passes its relevant scenarios.
 - Runbook must be updated before each agent is built — agents read the runbook, not the other way around.
 - No agent writes to external systems until the orchestration layer is complete and authorization logic is in place.
-- D.1–D.4 extractors (Sentry, Render, GitHub) are pure Python — zero Claude API calls. D.5 (Codebase Extractor) uses Claude for navigation only — read-only filesystem, no write access anywhere. D.6 (Recommendation Agent) uses Claude for cross-source synthesis and opens draft PRs — GitHub write access, no codebase read access. No Claude Code sub-agents anywhere.
+- D.1–D.4 extractors (Sentry, Render, GitHub) are pure Python — zero Claude API calls. D.5 (Codebase Agent) uses Claude for navigation only — read-only filesystem, no write access anywhere. D.6 (Recommendation Agent) uses Claude for cross-source synthesis and opens draft PRs — GitHub write access, no codebase read access. No Claude Code sub-agents anywhere.
 
 ---
 
@@ -341,7 +378,7 @@ B.1 (agents/ package) ───────────────────�
 B.2 (finding schema) ──────────────────────────────→ B.3 (validator), D.1–D.6 (agents conform to schema)
 B.3 (schema validator) ────────────────────────────→ E.2 (orchestrator validates before routing)
 B.4 (model config) ────────────────────────────────→ D.1–D.6, E.2
-B.5 (prompt caching) ──────────────────────────────→ D.1–D.6, E.2 (all agents must cache system prompts)
+B.5 (prompt caching) ──────────────────────────────→ D.5, D.6, E.2 only (Claude callers only — D.1–D.4 are pure Python extractors with zero Claude calls)
 
 C.1 (backend monitor workflow) ────────────────────→ C.3 (orchestrator triggered by label)
 C.2 (frontend monitor workflow) ───────────────────→ C.3 (orchestrator triggered by label)

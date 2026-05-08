@@ -33,9 +33,9 @@ Called once at the end of every `run()` after the agentic loop completes.
 2. Creates a Sentry transaction named `agent.run` with tag `agent=<agent_name>`
 3. Reads `status` and `confidence` from the result dict (`result.get("status")`, `result.get("confidence", "")`)
 4. Sums `input_tokens`, `output_tokens`, `total_tokens` across all turns
-5. Records measurements: `input_tokens`, `output_tokens`, `total_tokens`, `turns_used`, `confidence_numeric` (high=3, medium=2, low=1)
-6. Sets transaction status: `ok` for `completed`, `deadline_exceeded` for `partial`
-7. Finishes the transaction
+5. Records tags: `agent`, `status`, `issue_number` (empty string if not provided — still queryable)
+6. Records extra: `input_tokens`, `output_tokens`, `total_tokens`, `turns_used`, `confidence_numeric` (high=3, medium=2, low=1), `usage_by_turn` (raw list preserved for per-turn drill-down)
+7. Calls `capture_event` — `issue_number` tag groups all agents from one investigation; `usage_by_turn` in extra shows token growth across turns for troubleshooting
 
 **Signature:**
 ```python
@@ -43,6 +43,7 @@ def record_agent_run(
     agent_name: str,
     result: dict,              # structured dict returned by run(); not a YAML string
     usage_by_turn: list[dict], # each dict: {"input_tokens": int, "output_tokens": int}
+    issue_number: str = "",    # GitHub Issue number — groups all agents from one investigation
 ) -> None
 ```
 
@@ -126,10 +127,12 @@ Create a dashboard named `Agent Observability` with:
 
 Tests must be written before implementation (red phase first):
 
-1. `test_record_agent_run_completed` — mock `sentry_sdk`; pass a `{"status": "completed", "confidence": "high"}` dict and 2-turn usage; assert transaction name, tag, measurements, and `ok` status were set
-2. `test_record_agent_run_partial` — pass a `{"status": "partial", "confidence": "low"}` dict; assert `deadline_exceeded` status
+1. `test_record_agent_run_completed` — mock `sentry_sdk`; pass a `{"status": "completed", "confidence": "high"}` dict, 2-turn usage, and `issue_number="47"`; assert `tags["agent"]`, `tags["status"]`, `tags["issue_number"]`, `extra["input_tokens"]`, `extra["output_tokens"]`, `extra["total_tokens"]`, `extra["turns_used"]`, `extra["confidence_numeric"]`, and `extra["usage_by_turn"]` (full list preserved)
+2. `test_record_agent_run_partial` — pass a `{"status": "partial", "confidence": "low"}` dict; assert `tags["status"] == "partial"` and `extra["confidence_numeric"] == 1`
 3. `test_record_agent_run_no_dsn` — `AGENTS_SENTRY_DSN` not set; assert function returns without calling `sentry_sdk.init` (observability is opt-in)
 4. `test_confidence_numeric_mapping` — high=3, medium=2, low=1, missing=0
+5. `test_record_agent_run_issue_number_tag` — pass `issue_number="123"`; assert `event["tags"]["issue_number"] == "123"`
+6. `test_record_agent_run_usage_by_turn_preserved` — pass 3-turn usage list; assert `event["extra"]["usage_by_turn"]` equals the exact input list (not summed)
 
 ---
 
@@ -145,36 +148,9 @@ Tests must be written before implementation (red phase first):
 ### Sentry Performance not available on free plan
 `start_transaction()` sent events but they did not appear in the Performance tab.
 Sentry confirmed Performance requires a paid plan for full visibility.
-**Decision:** Switch `record_agent_run()` to `capture_event()` — works on all plans,
-lands in Issues/Events, fully queryable in dashboards via tags and extras.
-**Status: Pending** — `sentry_utils.py` still uses `start_transaction`. Must be done before D.2.
-
-### Tool result trimming — token cost dropped from 26k to 5k per run
-Raw API responses were being passed directly into LLM context:
-- `query_sentry_errors` was fetching 25 full issue objects with no time boundary
-- `get_stack_trace` was returning the full event payload (breadcrumbs, headers, all frames)
-
-**Fixes applied:**
-- `query_sentry_errors` — `age:-1h` Sentry query filter (not a `start` param — Sentry query syntax); limit reduced to 3; response trimmed to 6 fields per issue
-- `get_stack_trace` — trimmed to `exception_type`, `exception_message`, `culprit`, top 2 frames only
-
-**Orchestrator note:** The orchestrator (Phase E) should pass a specific `issue_id` directly
-to the agent rather than relying on `query_sentry_errors` to browse. At that point
-`query_sentry_errors` becomes a discovery tool only, not the primary input path.
-
-### Claude wraps YAML in markdown code fences
-Despite prompt instruction "no prose before or after", Claude wraps output in ` ```yaml ` fences.
-`_strip_code_fence()` added to `sentry_utils.py` as a defensive strip before `yaml.safe_load()`.
-This helper is now unused since extractors return dicts — it can be removed when `sentry_utils.py`
-is updated to accept `result: dict`.
-
-### DT-15 — extractors return dicts, not YAML strings (2026-05-04)
-`frontend_sentry_extractor.py` was refactored to a pure Python escalating window loop that returns
-a structured `dict` directly. `record_agent_run` signature must be updated from `result_yaml: str`
-to `result: dict` before D.2. The YAML parsing logic (`yaml.safe_load`, `_strip_code_fence`,
-`metadata.status` / `metadata.confidence` keys) must be replaced with direct dict key access
-(`result.get("status")`, `result.get("confidence", "")`).
-**Status: Pending** — `sentry_utils.py` and `test_sentry_utils.py` not yet updated.
+**Decision:** `capture_event()` used instead — works on all plans, lands in Issues/Events,
+fully queryable in dashboards via tags and extras.
+**Status: Done (2026-05-05)**
 
 ---
 
@@ -188,6 +164,10 @@ to `result: dict` before D.2. The YAML parsing logic (`yaml.safe_load`, `_strip_
 6. ✅ Update `agents/requirements.txt`
 7. ✅ Update `agents/.env.example`
 8. ✅ Wire `record_agent_run` into `frontend_sentry_extractor.py`
-9. ⬜ Update `record_agent_run` signature to `result: dict` — remove YAML parsing, `_strip_code_fence`, update `test_sentry_utils.py` (blocked by DT-15 findings, must be done before D.2)
-10. ⬜ Switch to `capture_event()` — free-plan compatible (blocked by free-plan finding, must be done before D.2)
-11. ⬜ Build Sentry dashboard
+9. ✅ Update `record_agent_run` signature to `result: dict` — YAML parsing and `_strip_code_fence` removed (done 2026-05-05 as part of DT-15)
+10. ✅ Switch to `capture_event()` — free-plan compatible (done 2026-05-05)
+11. ⬜ Add `issue_number: str = ""` param — tag groups all agents from one investigation in Sentry
+12. ⬜ Add `usage_by_turn` list to `extra` — preserves per-turn token data for troubleshooting token growth across turns
+13. ⬜ Update `test_sentry_utils.py` — assert `issue_number` tag and `usage_by_turn` in extra (tests 5 and 6 above)
+14. ⬜ Wire `issue_number` into Orchestrator → passed to each agent's `run()` → forwarded to `record_agent_run` (E.2)
+15. ⬜ Build Sentry dashboard — filter by `issue_number` to see all agents per investigation; `usage_by_turn` visible in event detail
