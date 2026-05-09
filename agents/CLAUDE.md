@@ -11,6 +11,14 @@ The agents dependency map is at **`agents/specs/DEPENDENCY_MAP.md`**. Apply the 
 - **No separate Anthropic calls for observability data** — read token counts from existing responses only.
 - Confidence must be recorded numerically (high=3, medium=2, low=1) so trends can be charted over time in Sentry.
 
+## Agent and Skill Design Principles
+
+- **Skills are a packaging mechanism, not a reasoning mechanism.** Claude reasons equally well about which tool to call whether invoked via a skill or directly by an agent — MCP tools are visible in context either way.
+- **A skill earns its place when a capability is reused across multiple agents, routable by name, or invocable by a human.** If none of these apply, putting the logic in the agent is simpler.
+- **Write skills at intent level, not implementation level.** Describe what to accomplish and what output to produce — not which tool to call or in what order. A skill that names specific tools is tightly coupled and breaks silently when tools are renamed.
+- **Hardcode tool names in a skill only when invoked directly by a human** with no agent layer. In that case determinism matters more than flexibility.
+- **Agents own orchestration, routing, and one-off tasks. Skills own reusable, named, composable capabilities.**
+
 ## Agent Structure Rules
 
 - Every agent lives in its own file: `agents/<name>_agent.py`.

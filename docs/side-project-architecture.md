@@ -199,6 +199,115 @@ sequenceDiagram
 
 ---
 
+---
+
+## MCP Flow — Claude vs Copilot (Side-by-Side Reference)
+
+Simple use case for both diagrams: **"Is the server healthy?"**
+Maps to our `check_health_endpoint` MCP tool in the restaurant project.
+
+---
+
+### Claude — Without Agent (Skill invoked directly by human)
+
+The LLM is Claude. The host is Claude Code. The skill names the tool explicitly
+because there is no agent layer — Claude needs the hint to be deterministic.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Host as Claude Code (MCP Host)
+    participant LLM as Claude (LLM)
+    participant Client as MCP Client
+    participant Server as MCP Server
+
+    User->>Host: /monitor-check
+    Host->>Host: Loads SKILL.md into context
+    Host->>LLM: User message + tool definitions + skill instructions
+    Note over LLM: Reads skill: "Call check_health_endpoint()"
+    LLM-->>Host: tool_use block — check_health_endpoint()
+    Host->>Client: Execute tool call
+    Client->>Server: POST /tools/check_health_endpoint
+    Server-->>Client: { status: "healthy", latency_ms: 42 }
+    Client-->>Host: Tool result
+    Host->>LLM: Tool result — generate response
+    LLM-->>Host: "Server is healthy. Latency 42ms, all metrics within threshold."
+    Host-->>User: Displays response
+```
+
+---
+
+### Claude — With Agent (Agent owns the loop)
+
+The LLM still generates the tool_use block. The Agent manages the loop,
+feeds results back, and decides when to stop — the LLM never talks to the MCP Server directly.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Agent as Agent (loop + state)
+    participant LLM as Claude (LLM)
+    participant Client as MCP Client
+    participant Server as MCP Server
+
+    User->>Agent: "Is the server healthy?"
+    Note over Agent: Registers tools from MCP Server at startup
+    Agent->>LLM: Message + registered tool definitions
+    Note over LLM: Reasons: "I should call check_health_endpoint"
+    LLM-->>Agent: tool_use block — check_health_endpoint()
+    Agent->>Client: Execute tool call
+    Client->>Server: POST /tools/check_health_endpoint
+    Server-->>Client: { status: "healthy", latency_ms: 42 }
+    Client-->>Agent: Tool result
+    Agent->>LLM: Tool result — continue?
+    Note over LLM: No more tools needed — generate final response
+    LLM-->>Agent: "Server is healthy. Latency 42ms."
+    Agent-->>User: Final response
+```
+
+---
+
+### Microsoft Copilot — Azure OpenAI (GPT) as LLM
+
+Architecture is identical. GPT replaces Claude. Copilot Studio replaces Claude Code.
+`function_call` replaces `tool_use`. The MCP Client still owns the transport in both.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Host as Copilot Studio (MCP Host)
+    participant LLM as Azure OpenAI / GPT (LLM)
+    participant Client as MCP Client
+    participant Server as MCP Server
+
+    User->>Host: "Is the server healthy?"
+    Host->>LLM: User message + tool definitions (from MCP Server manifest)
+    Note over LLM: Reasons: "I should call check_health_endpoint"
+    LLM-->>Host: function_call — check_health_endpoint()
+    Host->>Client: Execute tool call
+    Client->>Server: POST /tools/check_health_endpoint
+    Server-->>Client: { status: "healthy", latency_ms: 42 }
+    Client-->>Host: Tool result
+    Host->>LLM: Tool result — generate response
+    LLM-->>Host: "Server is healthy. Latency 42ms."
+    Host-->>User: Displays response
+```
+
+---
+
+### Key Differences at a Glance
+
+| | Claude (no agent) | Claude (with agent) | Copilot / GPT |
+|---|---|---|---|
+| Host | Claude Code | Your Python Agent | Copilot Studio |
+| LLM | Claude | Claude | Azure OpenAI / GPT |
+| Tool call format | `tool_use` block | `tool_use` block | `function_call` JSON |
+| Loop management | Claude Code (single turn) | Agent (multi-turn) | Copilot Studio |
+| Tool name in skill? | Yes — determinism needed | No — agent owns routing | No — host owns routing |
+| Transport owner | MCP Client | MCP Client | MCP Client |
+
+---
+
 ## Key Design Decisions
 
 | Decision | Rationale |
