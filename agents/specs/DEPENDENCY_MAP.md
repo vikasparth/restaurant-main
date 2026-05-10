@@ -21,7 +21,7 @@ For each new agent or tooling task, check which signatures already exist and reu
 
 | Function | Signature | File | Used by |
 |---|---|---|---|
-| `record_agent_run` | `record_agent_run(agent_name: str, result: dict, usage_by_turn: list[dict]) -> None` | `agents/sentry_utils.py` | All agents — call before every `return` in `run()` |
+| `record_agent_run` | `record_agent_run(agent_name: str, result: dict, usage_by_turn: list[dict], issue_number: str = "") -> None` | `agents/sentry_utils.py` | All agents — call before every `return` in `run()` |
 | `confidence_to_numeric` | `confidence_to_numeric(confidence: str) -> int` | `agents/sentry_utils.py` | Any agent that produces a confidence field; high→3, medium→2, low→1, unknown→0 |
 | `build_system_prompt` | `build_system_prompt(text: str) -> list[dict]` | `agents/prompt_utils.py` | All Claude-calling agents (D.5, D.6, E) — wraps system prompt with `cache_control: ephemeral` |
 | `validate_finding` | `validate_finding(yaml_str: str) -> dict` | `agents/validator.py` | Orchestrator — validates finding YAML against `agents/schemas/finding-schema.json` before routing |
@@ -44,7 +44,7 @@ For each new agent or tooling task, check which signatures already exist and reu
 ## Extractor `run()` Contract (D.1 — reference pattern for all pure Python extractors)
 
 ```python
-def run(guardrails: dict) -> dict:
+def run(guardrails: dict, issue_number: str = "") -> dict:
     usage_by_turn = []          # empty for pure Python extractors — no Claude calls
     max_issues = guardrails.get("max_issues", SENTRY_QUERY_LIMIT)
     max_frames = guardrails.get("max_frames", SENTRY_STACK_FRAME_LIMIT)
@@ -54,11 +54,11 @@ def run(guardrails: dict) -> dict:
         if not issues:
             continue
         # ... pick, guard, extract ...
-        record_agent_run("<agent-name>", result, usage_by_turn)
+        record_agent_run("<agent-name>", result, usage_by_turn, issue_number)
         return result
 
     result = {"status": "no_data", "source": "<source-name>"}
-    record_agent_run("<agent-name>", result, usage_by_turn)
+    record_agent_run("<agent-name>", result, usage_by_turn, issue_number)
     return result
 ```
 

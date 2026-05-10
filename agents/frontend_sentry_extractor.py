@@ -118,7 +118,7 @@ def _contains_pii(issue: dict) -> bool:
     return bool(_EMAIL_RE.search(text) or _PHONE_RE.search(text))
 
 
-def run(guardrails: dict) -> dict:
+def run(guardrails: dict, issue_number: str = "") -> dict:
     # why: empty list — no Claude API calls, nothing to measure; passed to
     # record_agent_run so the observability contract is satisfied uniformly
     usage_by_turn = []
@@ -138,7 +138,7 @@ def run(guardrails: dict) -> dict:
                 "source": "sentry-frontend",
                 "time_window": window,
             }
-            record_agent_run("frontend-sentry", result, usage_by_turn)
+            record_agent_run("frontend-sentry", result, usage_by_turn, issue_number)
             return result
 
         stack = get_stack_trace(issue["id"], max_frames)
@@ -156,9 +156,9 @@ def run(guardrails: dict) -> dict:
             # GitHub Extractor for regression correlation
             "releases": releases[:1],
         }
-        record_agent_run("frontend-sentry", result, usage_by_turn)
+        record_agent_run("frontend-sentry", result, usage_by_turn, issue_number)
         return result
 
     result = {"status": "no_data", "source": "sentry-frontend"}
-    record_agent_run("frontend-sentry", result, usage_by_turn)
+    record_agent_run("frontend-sentry", result, usage_by_turn, issue_number)
     return result

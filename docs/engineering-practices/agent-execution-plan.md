@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-07**
+**Last updated: 2026-05-09**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,13 +9,15 @@
 
 ## Current Focus
 
-**Next: DT-13 step 13 — then D.2.**
+**Next: D.2 — Backend Sentry Extractor.**
 
-DT-13 steps 11–12 complete. Two small steps remaining before D.2:
-- Step 13: add `issue_number: str = ""` to `frontend_sentry_extractor.run()` and forward to all 3 `record_agent_run` call sites; update `record_agent_run` mock in `test_frontend_sentry_extractor.py`
-- Step 14: update `agents/specs/DEPENDENCY_MAP.md` — reflect new 4-param `record_agent_run` signature
+DT-13 fully complete (steps 13–14 done 2026-05-09):
+- `frontend_sentry_extractor.run()` now accepts `issue_number: str = ""`
+- All 3 `record_agent_run` call sites forward `issue_number`
+- `agents/specs/DEPENDENCY_MAP.md` updated — 4-param `record_agent_run` and updated `run()` contract
+- 10/10 agent tests green
 
-After steps 13–14: D.2 spec → sign-off → TDD → implement `agents/backend_sentry_extractor.py`.
+Next: D.2 spec → sign-off → TDD → implement `agents/backend_sentry_extractor.py`.
 
 ---
 
@@ -56,7 +58,7 @@ The Orchestrator is responsible for the combined payload size. Each extractor al
 
 `agents/backend_sentry_extractor.py` — pure Python extractor targeting `restaurant-backend` Sentry project. Same `run(guardrails: dict) -> dict` signature and escalating window ladder as D.1. Returns same fields as D.1 plus `endpoint` and `http_status`. Validate against Scenario 1 (reservation failures) and Scenario 3 (allergens).
 
-**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ ~~D.1~~ ~~A.5~~ ~~DT-12~~ ~~D.1 smoke test~~ ~~DT-13~~ ~~DT-15~~ → D.2 → D.3 → D.4 → D.5 → D.6 → E (orchestration)
+**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ ~~D.1~~ ~~A.5~~ ~~DT-12~~ ~~D.1 smoke test~~ ~~DT-13~~ ~~DT-15~~ ~~DT-13 steps 13–14~~ → D.2 → D.3 → D.4 → D.5 → D.6 → E (orchestration)
 
 **Deferred:** 8 pre-existing ESLint warnings (`react-refresh/only-export-components`) in shadcn/ui components — separate task, not blocking agents
 
@@ -83,6 +85,17 @@ def run(guardrails: dict) -> dict:
 - Ladder is configurable via `SENTRY_WINDOW_LADDER` in `agents/config.py` — never hardcoded
 - All extractors adopt the same `run(guardrails: dict) -> dict` signature from D.2 onwards
 - **DT-15 (complete):** `frontend_sentry_extractor.py` retrofitted with this signature and pure Python loop before D.2 — D.1 is now the reference implementation
+
+---
+
+## Session Progress (2026-05-09)
+
+**Next: D.2 Backend Sentry Extractor.**
+
+### DT-13 steps 13–14 ✅ (2026-05-09)
+- `agents/frontend_sentry_extractor.py` — `run()` signature updated to `run(guardrails: dict, issue_number: str = "") -> dict`; `issue_number` forwarded to all 3 `record_agent_run` call sites
+- `agents/specs/DEPENDENCY_MAP.md` — `record_agent_run` row updated to 4-param signature; `run()` contract pattern updated to match
+- 10/10 agent tests green, no regressions
 
 ---
 
