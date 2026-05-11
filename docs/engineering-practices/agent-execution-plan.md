@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-07**
+**Last updated: 2026-05-11**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,13 +9,20 @@
 
 ## Current Focus
 
-**Next: DT-13 step 13 — then D.2.**
+**Next: D.3 — Render Logs Extractor.**
 
-DT-13 steps 11–12 complete. Two small steps remaining before D.2:
-- Step 13: add `issue_number: str = ""` to `frontend_sentry_extractor.run()` and forward to all 3 `record_agent_run` call sites; update `record_agent_run` mock in `test_frontend_sentry_extractor.py`
-- Step 14: update `agents/specs/DEPENDENCY_MAP.md` — reflect new 4-param `record_agent_run` signature
+D.2 fully complete (2026-05-11):
+- `agents/specs/d1_frontend_sentry_extractor.md` — retrospective spec written
+- `agents/specs/d2_backend_sentry_extractor.md` — spec written and signed off
+- `agents/sentry_api.py` — new shared module; 6 helpers extracted from D.1 (no cross-feature imports)
+- `agents/backend_sentry_extractor.py` — implemented; `_get_status_code` adds `endpoint` + `status_code` fields
+- `agents/tests/test_backend_sentry_extractor.py` — 5 TDD tests green
+- `agents/config.py` — `STATUS_COMPLETED`, `STATUS_NO_DATA`, `STATUS_INJECTION_DETECTED` constants added; no more hardcoded status strings in extractors
+- `agents/sentry_api.py`, `agents/sentry_utils.py`, `agents/validator.py` — module-level purpose comments added
+- `agents/CLAUDE.md` — spec-first rule added; cross-feature import guardrail in root `CLAUDE.md`
+- 15/15 agent tests green
 
-After steps 13–14: D.2 spec → sign-off → TDD → implement `agents/backend_sentry_extractor.py`.
+Next: D.3 spec → sign-off → TDD → implement `agents/render_logs_extractor.py`.
 
 ---
 
@@ -56,7 +63,7 @@ The Orchestrator is responsible for the combined payload size. Each extractor al
 
 `agents/backend_sentry_extractor.py` — pure Python extractor targeting `restaurant-backend` Sentry project. Same `run(guardrails: dict) -> dict` signature and escalating window ladder as D.1. Returns same fields as D.1 plus `endpoint` and `http_status`. Validate against Scenario 1 (reservation failures) and Scenario 3 (allergens).
 
-**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ ~~D.1~~ ~~A.5~~ ~~DT-12~~ ~~D.1 smoke test~~ ~~DT-13~~ ~~DT-15~~ → D.2 → D.3 → D.4 → D.5 → D.6 → E (orchestration)
+**Path:** ~~B.2~~ ~~B.4~~ ~~B.5~~ ~~A.4~~ ~~D.1~~ ~~A.5~~ ~~DT-12~~ ~~D.1 smoke test~~ ~~DT-13~~ ~~DT-15~~ ~~DT-13 steps 13–14~~ ~~D.2~~ → D.3 → D.4 → D.5 → D.6 → E (orchestration)
 
 **Deferred:** 8 pre-existing ESLint warnings (`react-refresh/only-export-components`) in shadcn/ui components — separate task, not blocking agents
 
@@ -83,6 +90,28 @@ def run(guardrails: dict) -> dict:
 - Ladder is configurable via `SENTRY_WINDOW_LADDER` in `agents/config.py` — never hardcoded
 - All extractors adopt the same `run(guardrails: dict) -> dict` signature from D.2 onwards
 - **DT-15 (complete):** `frontend_sentry_extractor.py` retrofitted with this signature and pure Python loop before D.2 — D.1 is now the reference implementation
+
+---
+
+## Session Progress (2026-05-11)
+
+**Next: D.3 Render Logs Extractor.**
+
+### D.2 — Backend Sentry Extractor ✅ (2026-05-11)
+- `agents/specs/d1_frontend_sentry_extractor.md` — retrospective spec written for D.1
+- `agents/specs/d2_backend_sentry_extractor.md` — spec written; shared helpers moved to `sentry_api.py` (no cross-feature imports)
+- `agents/sentry_api.py` — new shared module with 6 query helpers and guards; `frontend_sentry_extractor.py` refactored to import from here
+- `agents/backend_sentry_extractor.py` — implemented; adds `endpoint` and `status_code` fields via `_get_status_code()`
+- `agents/tests/test_backend_sentry_extractor.py` — 5 TDD tests; 15/15 total green
+- `agents/config.py` — `STATUS_COMPLETED`, `STATUS_NO_DATA`, `STATUS_INJECTION_DETECTED` constants; hardcoded status strings removed from both extractors
+- `agents/CLAUDE.md` — spec-first rule enforced for all new agents/extractors
+- Root `CLAUDE.md` — cross-feature import guardrail added under Coding Best Practices
+- `docs/learning-log.md` — two new entries: cross-feature imports, pair programming violation
+
+### DT-13 steps 13–14 ✅ (2026-05-09)
+- `agents/frontend_sentry_extractor.py` — `run()` signature updated to `run(guardrails: dict, issue_number: str = "") -> dict`; `issue_number` forwarded to all 3 `record_agent_run` call sites
+- `agents/specs/DEPENDENCY_MAP.md` — `record_agent_run` row updated to 4-param signature; `run()` contract pattern updated to match
+- 10/10 agent tests green, no regressions
 
 ---
 

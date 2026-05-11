@@ -8,7 +8,7 @@ For each new agent or tooling task, check which signatures already exist and reu
 
 | Task being written | Must pull signatures from |
 |---|---|
-| D.2 Backend Sentry Extractor | D.1: `query_sentry_errors`, `get_stack_trace`, `get_affected_releases`, `_pick_issue`, `_looks_like_injection`, `_contains_pii`, `run` pattern |
+| D.2 Backend Sentry Extractor | `sentry_api`: `query_sentry_errors`, `get_stack_trace`, `get_affected_releases`, `_pick_issue`, `_looks_like_injection`, `_contains_pii`; D.1 `run` pattern |
 | D.3 Render Logs Extractor | D.1 `run` pattern; `sentry_utils.record_agent_run` |
 | D.4 GitHub Extractor | D.1 `run` pattern; `sentry_utils.record_agent_run` |
 | D.5 Codebase Agent | D.1 `run` pattern; `prompt_utils.build_system_prompt`; `sentry_utils.record_agent_run` |
@@ -21,30 +21,30 @@ For each new agent or tooling task, check which signatures already exist and reu
 
 | Function | Signature | File | Used by |
 |---|---|---|---|
-| `record_agent_run` | `record_agent_run(agent_name: str, result: dict, usage_by_turn: list[dict]) -> None` | `agents/sentry_utils.py` | All agents — call before every `return` in `run()` |
+| `record_agent_run` | `record_agent_run(agent_name: str, result: dict, usage_by_turn: list[dict], issue_number: str = "") -> None` | `agents/sentry_utils.py` | All agents — call before every `return` in `run()` |
 | `confidence_to_numeric` | `confidence_to_numeric(confidence: str) -> int` | `agents/sentry_utils.py` | Any agent that produces a confidence field; high→3, medium→2, low→1, unknown→0 |
 | `build_system_prompt` | `build_system_prompt(text: str) -> list[dict]` | `agents/prompt_utils.py` | All Claude-calling agents (D.5, D.6, E) — wraps system prompt with `cache_control: ephemeral` |
 | `validate_finding` | `validate_finding(yaml_str: str) -> dict` | `agents/validator.py` | Orchestrator — validates finding YAML against `agents/schemas/finding-schema.json` before routing |
 
 ---
 
-## Sentry Extractor Functions (D.1 — reference implementation for all Sentry extractors)
+## Sentry Shared Helpers (`agents/sentry_api.py` — import from here, not from extractor files)
 
 | Function | Signature | Notes |
 |---|---|---|
-| `query_sentry_errors` | `query_sentry_errors(project_slug: str, window: str, limit: int) -> list[dict]` | Reuse in D.2 — pass `"restaurant-backend"` as slug. Returns trimmed issue fields only. |
-| `get_stack_trace` | `get_stack_trace(issue_id: str, max_frames: int) -> dict` | Returns `exception_type`, `exception_message`, `culprit`, `top_frames` — D.2 adds `endpoint` and `http_status` |
+| `query_sentry_errors` | `query_sentry_errors(project_slug: str, window: str, limit: int) -> list[dict]` | Pass project slug per extractor. Returns trimmed issue fields only. |
+| `get_stack_trace` | `get_stack_trace(issue_id: str, max_frames: int) -> dict` | Returns `exception_type`, `exception_message`, `culprit`, `top_frames` |
 | `get_affected_releases` | `get_affected_releases(issue_id: str) -> list[str]` | Returns list of release version strings |
-| `_pick_issue` | `_pick_issue(issues: list[dict]) -> dict` | Severity-first, then most recent `last_seen`. Reuse unchanged in D.2. |
-| `_looks_like_injection` | `_looks_like_injection(issue: dict) -> bool` | Checks `title` + `culprit` against injection regex. Reuse unchanged in D.2. |
-| `_contains_pii` | `_contains_pii(issue: dict) -> bool` | Checks `title` + `culprit` for email/phone patterns. Reuse unchanged in D.2. |
+| `_pick_issue` | `_pick_issue(issues: list[dict]) -> dict` | Severity-first, then most recent `last_seen` |
+| `_looks_like_injection` | `_looks_like_injection(issue: dict) -> bool` | Checks `title` + `culprit` against injection regex |
+| `_contains_pii` | `_contains_pii(issue: dict) -> bool` | Checks `title` + `culprit` for email/phone patterns |
 
 ---
 
 ## Extractor `run()` Contract (D.1 — reference pattern for all pure Python extractors)
 
 ```python
-def run(guardrails: dict) -> dict:
+def run(guardrails: dict, issue_number: str = "") -> dict:
     usage_by_turn = []          # empty for pure Python extractors — no Claude calls
     max_issues = guardrails.get("max_issues", SENTRY_QUERY_LIMIT)
     max_frames = guardrails.get("max_frames", SENTRY_STACK_FRAME_LIMIT)
@@ -54,11 +54,11 @@ def run(guardrails: dict) -> dict:
         if not issues:
             continue
         # ... pick, guard, extract ...
-        record_agent_run("<agent-name>", result, usage_by_turn)
+        record_agent_run("<agent-name>", result, usage_by_turn, issue_number)
         return result
 
     result = {"status": "no_data", "source": "<source-name>"}
-    record_agent_run("<agent-name>", result, usage_by_turn)
+    record_agent_run("<agent-name>", result, usage_by_turn, issue_number)
     return result
 ```
 

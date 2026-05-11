@@ -1,3 +1,7 @@
+# Finding validator — validates agent YAML findings against the JSON schema in
+# agents/schemas/finding-schema.json before the Orchestrator routes them downstream.
+# A finding that fails validation is rejected at the boundary; it never reaches the
+# Recommendation Agent.
 from __future__ import annotations
 import json
 import re

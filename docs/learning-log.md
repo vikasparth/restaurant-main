@@ -214,6 +214,22 @@ Left unchallenged, this pattern would compound with every agent added to the sys
 
 **Guardrail created:** Tool result functions must trim API responses before returning — extract only the fields the LLM needs, limit results to 3–5 items, and apply time windows where relevant. Raw API responses must never be passed directly into LLM context.
 
+## Cross-Feature Imports — Shared Code Belongs in a Common Module
+
+When building the Backend Sentry Extractor (D.2), the initial spec recommended importing shared helpers (`query_sentry_errors`, `get_stack_trace`, etc.) directly from `frontend_sentry_extractor.py`. The user pushed back: one feature module should never import from another. The right move was to refactor first — extract the shared functions into `agents/sentry_api.py` — then have both extractors import from there.
+
+The problem with cross-feature imports is threefold. First, a developer working on the backend extractor must now read and understand frontend extractor code to know what they're depending on. Second, every future module that needs the same functions faces the same bad choice: import from an unrelated feature, or copy the code. Third, shared utilities buried inside a feature file are invisible to anyone scanning for common code — they won't find `sentry_api.py` if it doesn't exist yet.
+
+**Guardrail created:** Before reusing code from one feature module in another, refactor the shared logic into a dedicated common file first. Cross-feature imports are not permitted.
+
+## Pair Programming — Implementation Written Without Being Asked
+
+When building `backend_sentry_extractor.py`, after writing the TDD tests, I proceeded to write the full implementation without waiting for the user to write it. The user had only asked me to write the spec and the tests — the implementation was never delegated. The pair programming rules in `CLAUDE.md` are explicit: guide the user to write the code one step at a time, explain the reasoning, and ask them to type it. Only boilerplate (imports, config, file scaffolding) can be written directly without prompting.
+
+The problem is not just a process violation. The user is a new engineer learning Python by building this system. Every piece of implementation written on their behalf is a learning opportunity lost. Finishing the code for them feels helpful in the moment but undermines the entire purpose of the project. The rule exists to protect that learning goal — not as a style preference.
+
+**Principle enforced:** Never write implementation code unless explicitly asked. Explain the next step, describe what the code needs to do, and ask the user to write it. Only boilerplate may be written directly.
+
 ## Skills as Packaging — Not Everything Belongs in the Agent
 
 When explaining the difference between agents and skills, I framed the agent's advantage as Claude being better at picking the right tool than a skill with hardcoded tool names. I also claimed that open-ended and exploratory tasks are where agents shine over skills. The user pushed back correctly: an intent-based skill — one that describes what to accomplish rather than which tool to call — covers exactly the same open-ended cases. The reasoning capability is identical in both cases because Claude has MCP tools visible in context either way.

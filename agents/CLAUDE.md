@@ -4,6 +4,8 @@
 
 The agents dependency map is at **`agents/specs/DEPENDENCY_MAP.md`**. Apply the generic slice rules from the root `CLAUDE.md` using this file as the layer's map.
 
+**Every agent or extractor must have a spec in `agents/specs/` before any code is written.** The spec defines the signature, return shape, acceptance criteria, and TDD test plan. No implementation file may be created without a corresponding spec file that has been signed off. Retrospective specs are acceptable for code written before this rule was in place, but new work must always spec first.
+
 ## Agentic Observability — ALWAYS ACTIVE
 
 - **Every agent `run()` must call `record_agent_run()` before every return path** — observability is not optional and must be wired at the time the agent is built, not retrofitted later.
