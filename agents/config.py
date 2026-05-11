@@ -41,3 +41,9 @@ SENTRY_QUERY_LIMIT = int(os.getenv("SENTRY_QUERY_LIMIT", "3"))
 
 # why: app frame cap — framework/library frames are always stripped before handoff
 SENTRY_STACK_FRAME_LIMIT = int(os.getenv("SENTRY_STACK_FRAME_LIMIT", "3"))
+
+# why: shared status strings across all extractors — using constants prevents silent
+# misspellings that would pass the wrong status to the Orchestrator
+STATUS_COMPLETED = "completed"
+STATUS_NO_DATA = "no_data"
+STATUS_INJECTION_DETECTED = "injection_detected"

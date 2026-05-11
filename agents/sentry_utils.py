@@ -1,3 +1,7 @@
+# Sentry observability utilities — records agent run metrics (token usage, confidence,
+# issue correlation) as Sentry events. All agent run() functions must call
+# record_agent_run() before every return path. Not for querying Sentry data —
+# see sentry_api.py for that.
 import sentry_sdk
 
 from agents.config import AGENTS_SENTRY_DSN

@@ -1,4 +1,9 @@
+import os
+
+import requests
+
 from agents.config import (
+    SENTRY_API_BASE,
     SENTRY_QUERY_LIMIT,
     SENTRY_STACK_FRAME_LIMIT,
     SENTRY_WINDOW_LADDER,
@@ -18,8 +23,22 @@ from agents.sentry_utils import record_agent_run
 
 # why: hardcoded — this extractor owns exactly one Sentry project; the Orchestrator
 # passes guardrails (time window, limits) but cannot redirect to a different project
-_PROJECT_SLUG = "restaurant-frontend"
-_SOURCE = "sentry-frontend"
+_PROJECT_SLUG = "restaurant-backend"
+_SOURCE = "sentry-backend"
+
+
+def _get_status_code(issue_id: str) -> int:
+    token = os.environ["SENTRY_AUTH_TOKEN"]
+    # why: fetches raw event to read HTTP status tag — get_stack_trace does not
+    # return tags, so a separate call is needed without modifying the shared helper
+    url = f"{SENTRY_API_BASE}/issues/{issue_id}/events/latest/"
+    response = requests.get(url, headers={"Authorization": f"Bearer {token}"})
+    response.raise_for_status()
+    data = response.json()
+    for tag in data.get("tags", []):
+        if tag.get("key") == "status_code":
+            return int(tag["value"])
+    return 0
 
 
 def run(guardrails: dict, issue_number: str = "") -> dict:
@@ -42,11 +61,12 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
                 "source": _SOURCE,
                 "time_window": window,
             }
-            record_agent_run("frontend-sentry", result, usage_by_turn, issue_number)
+            record_agent_run("backend-sentry", result, usage_by_turn, issue_number)
             return result
 
         stack = get_stack_trace(issue["id"], max_frames)
         releases = get_affected_releases(issue["id"])
+        status_code = _get_status_code(issue["id"])
 
         result = {
             "status": STATUS_COMPLETED,
@@ -59,10 +79,12 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
             # why: only the most recent release SHA — Orchestrator passes it to
             # GitHub Extractor for regression correlation
             "releases": releases[:1],
+            "endpoint": issue["culprit"],
+            "status_code": status_code,
         }
-        record_agent_run("frontend-sentry", result, usage_by_turn, issue_number)
+        record_agent_run("backend-sentry", result, usage_by_turn, issue_number)
         return result
 
     result = {"status": STATUS_NO_DATA, "source": _SOURCE}
-    record_agent_run("frontend-sentry", result, usage_by_turn, issue_number)
+    record_agent_run("backend-sentry", result, usage_by_turn, issue_number)
     return result
