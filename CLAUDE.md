@@ -40,6 +40,31 @@ Before starting any new slice:
 
 Any decision that deviates from `docs/architecture.md` or introduces a new architectural pattern must be recorded as an ADR. See `docs/adr/README.md` for format and existing records.
 
+## Cross-Document Traceability — ALWAYS ACTIVE
+
+This project has three interlocking documents: architecture doc, execution plan, and per-task specs. The navigation primitive for a GenAI agent is **grep → offset+limit**, not hyperlinks. Section names are the stable keys that connect all three.
+
+### Rules
+
+1. **Section names are the contract.** Architecture doc section headings must not be renamed once referenced. They are the grep target for all downstream navigation.
+
+2. **Execution plan task rows must include an `Arch sections:` field** listing the exact architecture doc section name(s) that govern the task. Example:
+   ```
+   **Arch sections:** `Render Agent Query Contract`, `Render Logs Findings Schema`
+   ```
+
+3. **Spec headers must include an `Architecture doc sections:` field** listing the same section names. This tells a GenAI agent which sections to read before writing any code.
+
+4. **Navigation pattern — always use this, never read the full doc:**
+   - Grep the architecture doc for the section name → get line number
+   - Read only that section using `offset` + `limit`
+
+5. **Write-back pattern — when a new decision is made during a slice:**
+   - Grep the architecture doc for the relevant section name → get line number
+   - Read only that section
+   - Update only that section
+   - Never read or rewrite the full document
+
 ## Engineering Principles — ALWAYS ACTIVE
 
 Before designing any solution, consider:
@@ -111,6 +136,7 @@ You MUST:
 - Use meaningful, descriptive names for variables, functions, and files.
 - Avoid deeply nested code — prefer early returns and guard clauses.
 - Delete dead code; do not comment it out.
+- **Never import from one feature module into another.** If two modules need the same code, extract it into a shared common file first. Cross-feature imports create hidden dependencies, hurt discoverability, and compound as more modules are added.
 
 ### Comments
 - Comment the **WHY**, never the WHAT. Code already says what it does — a comment restating it is noise.
