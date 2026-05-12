@@ -47,3 +47,13 @@ SENTRY_STACK_FRAME_LIMIT = int(os.getenv("SENTRY_STACK_FRAME_LIMIT", "3"))
 STATUS_COMPLETED = "completed"
 STATUS_NO_DATA = "no_data"
 STATUS_INJECTION_DETECTED = "injection_detected"
+
+# why: Render API requires service ID and key from env — never hardcoded
+RENDER_API_BASE = "https://api.render.com/v1"
+RENDER_SERVICE_ID = os.getenv("RENDER_SERVICE_ID", "")
+RENDER_API_KEY = os.getenv("RENDER_API_KEY", "")
+
+# why: guardrails for Render log extraction — Orchestrator overrides these per run
+RENDER_LOG_FETCH_LIMIT = int(os.getenv("RENDER_LOG_FETCH_LIMIT", "500"))
+RENDER_MAX_DISTINCT_ERRORS = int(os.getenv("RENDER_MAX_DISTINCT_ERRORS", "10"))
+RENDER_LOG_MAX_MSG_LEN = int(os.getenv("RENDER_LOG_MAX_MSG_LEN", "300"))
