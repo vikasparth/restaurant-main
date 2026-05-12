@@ -14,6 +14,7 @@
 | [Principles](#principles) | Core design rules all agents follow |
 | [Agent Catalog](#agent-catalog) | Frontend Sentry, Backend Sentry, Render Logs, GitHub, Codebase, Recommendation, Orchestrator |
 | [Sentry Agent Query Contract](#sentry-agent-query-contract) | Investigation flow, minimum data fields, time window escalation, exit conditions, guardrails |
+| [Render Agent Query Contract](#render-agent-query-contract) | API endpoint, log filtering, deduplication, guardrails, return shape |
 | [Agent Runtime](#agent-runtime) | Packaging decision, directory structure, tool definitions, entry points, model selection |
 | [Finding Schema](#finding-schema) | Common YAML envelope, required fields, agent-specific findings schemas (Sentry + Render), schema file location, versioning |
 | [Monitoring Workflows](#monitoring-workflows) | Pipeline overview, de-duplication rule, handoff contract |
@@ -284,6 +285,95 @@ Guardrails are set by the Orchestrator before invoking each Sentry agent. The ag
 
 ---
 
+## Render Agent Query Contract
+
+Applies to the Render Logs Extractor (`agents/render_logs_extractor.py`). These rules govern which API endpoint is called, how log lines are filtered and deduplicated, when the agent stops, and what shape of data it returns.
+
+### API Endpoint
+
+**Render REST API — retrieve service log lines:**
+
+```
+GET https://api.render.com/v1/services/{serviceId}/logs
+```
+
+| Parameter | Source | Notes |
+|---|---|---|
+| `serviceId` | `RENDER_SERVICE_ID` env var | The backend service ID from Render dashboard → Settings |
+| `Authorization` | `Bearer {RENDER_API_KEY}` header | API key from Render dashboard → Account → API Keys |
+| `startTime` | Derived from guardrail `time_window` | ISO 8601 UTC, e.g. `2026-05-11T09:00:00Z` |
+| `endTime` | `now()` at invocation time | ISO 8601 UTC |
+| `limit` | `RENDER_LOG_FETCH_LIMIT` (default: 500) | Max lines per request. Render's maximum per request is 500. |
+
+The endpoint returns a JSON object with a `logs` array. Each item contains `timestamp` (ISO 8601), `message` (string), and `type` (`deploy` or `app`). Only `app` type lines are processed — `deploy` lines are dropped.
+
+Config keys: `RENDER_API_KEY`, `RENDER_SERVICE_ID`, `RENDER_LOG_FETCH_LIMIT`.
+
+### Log Filtering and Deduplication
+
+The extractor applies the following pipeline in Python before returning anything to the Orchestrator:
+
+1. **Drop `deploy` log lines** — only `app` lines contain runtime errors.
+2. **Parse each line as JSON if possible.** Render's structured logging emits JSON messages. Promote known fields to top-level keys: `event`, `status`, `duration_ms`, `path`, `request_id`.
+3. **Filter by level** — keep `error` and `warn` only. Drop `info` and `debug`. Level is detected from a `level` field if present; otherwise inferred from message content (`ERROR`, `WARN`, `WARNING` keywords, HTTP 5xx status codes).
+4. **Injection check** — if any log message matches the injection pattern (e.g. "ignore previous instructions"), set `injection_flag: true` and return immediately. Never pass injected content to the Orchestrator.
+5. **PII check** — if any log message matches email or phone patterns, set `pii_flag: true`. Strip the matching field before returning.
+6. **Deduplicate by message text** — group identical messages, count occurrences. Truncate any plain-text message exceeding 300 characters and set `truncated: true` on that entry.
+7. **Cap at `RENDER_MAX_DISTINCT_ERRORS`** (default: `10`) — if more than 10 distinct error types exist, keep the 10 with the highest occurrence count.
+
+### What the Render Logs Extractor Returns
+
+Zero Claude API calls. Returns a Python dict of structured findings only.
+
+```python
+{
+    "status": "completed",          # or "no_data" / "injection_detected"
+    "source": "render-api",
+    "log_window": {
+        "from": "2026-05-11T09:00:00Z",
+        "to":   "2026-05-11T10:00:00Z"
+    },
+    "error_count": 47,              # total occurrences across all distinct errors
+    "errors": [
+        {
+            "level":       "error",
+            "count":       40,
+            "event":       "cold_start",
+            "path":        "/api/reservations",
+            "status":      503,
+            "duration_ms": 8420,
+            "message":     "Service starting",
+            "first_at":    "2026-05-11T09:14:22Z",
+            "last_at":     "2026-05-11T09:58:00Z",
+            "request_id":  "abc123",
+            "truncated":   False
+        }
+    ],
+    "injection_flag": False,
+    "pii_flag": False
+}
+```
+
+### Exit Conditions
+
+| Status | Trigger |
+|---|---|
+| `completed` | At least one error/warn log line found and returned |
+| `no_data` | Zero error/warn lines in the requested time window |
+| `injection_detected` | Injection pattern matched in any log line — stop immediately |
+
+### Guardrails Summary
+
+Guardrails are set by the Orchestrator. The extractor never widens its own window or fetches more than the guardrails allow.
+
+| Guardrail | Config key | Default |
+|---|---|---|
+| Log fetch limit per request | `RENDER_LOG_FETCH_LIMIT` | `500` |
+| Max distinct errors returned | `RENDER_MAX_DISTINCT_ERRORS` | `10` |
+| Message truncation threshold | `RENDER_LOG_MAX_MSG_LEN` | `300` chars |
+
+---
+
 ## Agent Runtime
 
 **Decision:** Agents are implemented as a Python package (`agents/`) using the Anthropic SDK with tool use. This is not Claude Code sub-agents — each agent is a focused, stateless agentic loop that runs as a Python script invoked from GitHub Actions or the `/troubleshoot` skill.
@@ -509,6 +599,8 @@ Fields dropped: breadcrumbs, request headers, environment variables, user object
 
 ```python
 {
+  "status": "completed",           # or "no_data" / "injection_detected"
+  "source": "render-api",
   "log_window": {"from": "2026-05-04T09:00:00Z", "to": "2026-05-04T10:00:00Z"},
   "error_count": 47,
   "errors": [
@@ -536,7 +628,9 @@ Fields dropped: breadcrumbs, request headers, environment variables, user object
       "last_at": "2026-05-04T09:57:00Z",
       "request_id": "xyz789"
     }
-  ]
+  ],
+  "injection_flag": False,
+  "pii_flag": False
 }
 ```
 

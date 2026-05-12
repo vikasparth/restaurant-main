@@ -9,20 +9,32 @@
 
 ## Current Focus
 
-**Next: D.3 — Render Logs Extractor.**
+**Next: D.4 — GitHub Extractor.**
 
-D.2 fully complete (2026-05-11):
+D.3 complete (2026-05-11):
+- `agents/specs/d3_render_logs_extractor.md` — spec written and signed off
+- `agents/patterns.py` — new shared module; `_INJECTION_RE`, `_EMAIL_RE`, `_PHONE_RE` moved from `sentry_api.py` (single home for all regex patterns)
+- `agents/sentry_api.py` — updated to import from `patterns.py`
+- `agents/render_logs_extractor.py` — implemented; filtering pipeline: drop deploy lines, injection check, level filter, deduplication, cap at `RENDER_MAX_DISTINCT_ERRORS`
+- `agents/tests/test_render_logs_extractor.py` — 6 TDD tests green
+- `agents/specs/DEPENDENCY_MAP.md` — `patterns.py` patterns added to shared utilities
+- `agent-architecture.md` — `Render Logs Findings Schema` return shape reconciled with `Render Agent Query Contract`
+- 25/25 agent tests green
+
+A.6 complete (2026-05-11):
+- `agents/config.py` — `RENDER_API_BASE`, `RENDER_SERVICE_ID`, `RENDER_API_KEY`, `RENDER_LOG_FETCH_LIMIT`, `RENDER_MAX_DISTINCT_ERRORS`, `RENDER_LOG_MAX_MSG_LEN` constants added
+- `agent-architecture.md` — `Render Agent Query Contract` section added: endpoint, filtering pipeline, deduplication, guardrails, return shape
+
+D.2 complete (2026-05-11):
 - `agents/specs/d1_frontend_sentry_extractor.md` — retrospective spec written
 - `agents/specs/d2_backend_sentry_extractor.md` — spec written and signed off
 - `agents/sentry_api.py` — new shared module; 6 helpers extracted from D.1 (no cross-feature imports)
 - `agents/backend_sentry_extractor.py` — implemented; `_get_status_code` adds `endpoint` + `status_code` fields
 - `agents/tests/test_backend_sentry_extractor.py` — 5 TDD tests green
-- `agents/config.py` — `STATUS_COMPLETED`, `STATUS_NO_DATA`, `STATUS_INJECTION_DETECTED` constants added; no more hardcoded status strings in extractors
+- `agents/config.py` — `STATUS_COMPLETED`, `STATUS_NO_DATA`, `STATUS_INJECTION_DETECTED` constants added
 - `agents/sentry_api.py`, `agents/sentry_utils.py`, `agents/validator.py` — module-level purpose comments added
 - `agents/CLAUDE.md` — spec-first rule added; cross-feature import guardrail in root `CLAUDE.md`
 - 15/15 agent tests green
-
-Next: D.3 spec → sign-off → TDD → implement `agents/render_logs_extractor.py`.
 
 ---
 
@@ -59,7 +71,11 @@ The Orchestrator is responsible for the combined payload size. Each extractor al
 
 ---
 
-**Next: D.2 — Backend Sentry Extractor**
+**Next: D.4 — GitHub Extractor**
+
+Next: D.4 spec → sign-off → TDD → implement `agents/github_extractor.py`.
+**Arch sections for D.4:** `Agent Catalog`, `Principles`, `Finding Schema`
+**Note:** GitHub Agent Query Contract section does not exist yet — must be written in the architecture doc before the D.4 spec is finalised (same pattern as A.6 for Render).
 
 `agents/backend_sentry_extractor.py` — pure Python extractor targeting `restaurant-backend` Sentry project. Same `run(guardrails: dict) -> dict` signature and escalating window ladder as D.1. Returns same fields as D.1 plus `endpoint` and `http_status`. Validate against Scenario 1 (reservation failures) and Scenario 3 (allergens).
 
@@ -97,6 +113,10 @@ def run(guardrails: dict) -> dict:
 
 **Next: D.3 Render Logs Extractor.**
 
+### A.6 — Render Logs Access ✅ (2026-05-11)
+- `agents/config.py` — Render API constants added: `RENDER_API_BASE`, `RENDER_SERVICE_ID`, `RENDER_API_KEY`, `RENDER_LOG_FETCH_LIMIT`, `RENDER_MAX_DISTINCT_ERRORS`, `RENDER_LOG_MAX_MSG_LEN`
+- `agent-architecture.md` — `Render Agent Query Contract` section added covering: API endpoint + params, log filtering pipeline, deduplication rules, injection/PII guards, return shape, exit conditions, guardrails table
+
 ### D.2 — Backend Sentry Extractor ✅ (2026-05-11)
 - `agents/specs/d1_frontend_sentry_extractor.md` — retrospective spec written for D.1
 - `agents/specs/d2_backend_sentry_extractor.md` — spec written; shared helpers moved to `sentry_api.py` (no cross-feature imports)
@@ -105,7 +125,7 @@ def run(guardrails: dict) -> dict:
 - `agents/tests/test_backend_sentry_extractor.py` — 5 TDD tests; 15/15 total green
 - `agents/config.py` — `STATUS_COMPLETED`, `STATUS_NO_DATA`, `STATUS_INJECTION_DETECTED` constants; hardcoded status strings removed from both extractors
 - `agents/CLAUDE.md` — spec-first rule enforced for all new agents/extractors
-- Root `CLAUDE.md` — cross-feature import guardrail added under Coding Best Practices
+- Root `CLAUDE.md` — cross-feature import guardrail added; cross-document traceability rules added; `design-plan` skill created
 - `docs/learning-log.md` — two new entries: cross-feature imports, pair programming violation
 
 ### DT-13 steps 13–14 ✅ (2026-05-09)
@@ -292,7 +312,7 @@ Files created:
 | A.3 | Frontend Sentry + Gateway Sentry | Wire React frontend and GraphQL gateway to their own Sentry projects; all three layers (backend, frontend, gateway) must be on separate projects with release tagging so agents can query each independently | ✅ Done — **(1)** `SENTRY_DSN`, `VITE_SENTRY_DSN`, `GATEWAY_SENTRY_DSN` added to `.env.example`; **(2)** `release: import.meta.env.VITE_SENTRY_RELEASE` added to `main.tsx`; **(3)** `VITE_SENTRY_RELEASE=$VERCEL_GIT_COMMIT_SHA` set in Vercel for frontend; **(4)** gateway updated to read `GATEWAY_SENTRY_DSN` and `GATEWAY_SENTRY_RELEASE` in both `index.ts` and `api/graphql.ts`; **(5)** `GATEWAY_SENTRY_DSN` and `GATEWAY_SENTRY_RELEASE=$VERCEL_GIT_COMMIT_SHA` set in Vercel for gateway; new `restaurant-gateway` Sentry project created. **Next remaining step:** trigger a test error in each layer post-D.1 to confirm errors link to release SHA in Sentry |
 | A.4 | Test scenarios file | Write `docs/agent-test-scenarios.md` — 5 real bugs introduced one at a time to production; each scenario defines trigger, expected agent routing, expected findings per agent, expected recommendation | ✅ Done — all 5 scenarios written (reservation validation spike, Render cold start, missing allergens, seed data price error, schema drift); file is the acceptance criteria for all Phase D agents |
 | A.5 | Runbook coverage | Create `docs/runbooks/troubleshooting.md` — cover all 5 test scenarios with named pattern, investigation steps, and expected findings | ✅ Done — all 5 patterns written (reservation-validation-spike, render-cold-start-503, missing-field-frontend-query, seed-data-price-error, graphql-schema-resolver-drift); no expected findings section (belongs in test scenarios, not runbook) |
-| A.6 | Render logs access | Confirm Render API key is available as env variable; document which log endpoints the Render Logs Agent will call | ⏳ Pending |
+| A.6 | Render logs access | Confirm Render API key is available as env variable; document which log endpoints the Render Logs Agent will call | ✅ Done — `RENDER_API_KEY` and `RENDER_SERVICE_ID` confirmed in `agents/.env.example`; `RENDER_LOG_FETCH_LIMIT`, `RENDER_MAX_DISTINCT_ERRORS`, `RENDER_LOG_MAX_MSG_LEN` added to `agents/config.py`; **Arch sections:** `Render Agent Query Contract` in `agent-architecture.md` — documents endpoint, filtering pipeline, deduplication, guardrails, and return shape |
 | A.7 | Sequence diagram | Add sequence diagram to agent architecture doc showing agent transitive dependencies and Sentry release → error correlation flow | ✅ Done — release ID end-to-end flow diagram and both orchestration flow diagrams added to `agent-architecture.md` under Monitoring Workflows and Orchestration Flow sections |
 
 ---
@@ -332,7 +352,7 @@ Files created:
 |---|---|---|---|
 | D.1 | Frontend Sentry Extractor | `agents/frontend_sentry_extractor.py` — pure Python escalating window loop; `run(guardrails: dict) -> dict`; `query_sentry_errors`, `get_stack_trace`, `get_affected_releases` (frontend project only); zero Claude API calls; injection + PII detection; 4 tests green | ✅ Done (DT-15 refactor complete 2026-05-05) |
 | D.2 | Backend Sentry Extractor | `agents/backend_sentry_extractor.py` — pure Python extractor; zero Claude API calls; `run(guardrails: dict) -> dict`; escalating window ladder; same fields as D.1 plus `endpoint` and `http_status`; validate against Scenario 1 (reservation failures) and Scenario 3 (allergens) | ⏳ Pending |
-| D.3 | Render Logs Extractor | `agents/render_logs_extractor.py` — pure Python extractor; zero Claude API calls; fetches Render log lines, filters to error/warn, deduplicates by message, caps at 10 distinct errors; `run(guardrails: dict) -> dict`; validate against Scenario 2 (cold start) | ⏳ Pending |
+| D.3 | Render Logs Extractor | `agents/render_logs_extractor.py` — pure Python extractor; zero Claude API calls; fetches Render log lines, filters to error/warn, deduplicates by message, caps at 10 distinct errors; `run(guardrails: dict) -> dict`; validate against Scenario 2 (cold start) | ✅ Done |
 | D.4 | GitHub Extractor | `agents/github_extractor.py` — pure Python extractor; zero Claude API calls; fetches commits and PR metadata for a given release SHA; `run(guardrails: dict) -> dict`; validate against Scenario 3 (allergens issue) and Scenario 4 (wrong total) | ⏳ Pending |
 | D.5 | Codebase Agent | `agents/codebase_agent.py` — Claude-assisted navigator; read-only filesystem access scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`; zero GitHub access; uses Claude to navigate multi-hop code traces (crash line → symbol → source → root cause location); returns structured findings ~50 tokens — crash location, root cause file/line, missing field, fix type, runbook match; never passes raw code snippets to Recommendation Agent; `run(guardrails: dict) -> dict`; validate against all 5 scenarios | ⏳ Pending |
 | D.6 | Recommendation Agent | `agents/recommendation_agent.py` — cross-source synthesiser + PR author; receives combined structured payload from Orchestrator (Sentry + Render + GitHub + Codebase structured findings); Claude call produces `interpretation` (root cause, affected layer, regression flag, confidence, recommended fix) and opens a **draft PR** with the proposed fix; returns interpretation + draft PR link to Orchestrator; GitHub write access for draft PRs only — no codebase read access; validate against all 5 scenarios | ⏳ Pending |
