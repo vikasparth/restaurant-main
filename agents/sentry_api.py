@@ -3,20 +3,13 @@
 # injection guards, issue selection). Import from here; never define these in an
 # extractor file or you create a cross-feature dependency.
 import os
-import re
 import requests
 
 from agents.config import SENTRY_API_BASE
+from agents.patterns import _INJECTION_RE, _EMAIL_RE, _PHONE_RE
 
 # why: fatal=0 so sorted() puts it first; missing levels default to lowest priority
 _LEVEL_PRIORITY = {"fatal": 0, "error": 1, "warning": 2, "info": 3}
-
-_INJECTION_RE = re.compile(
-    r"ignore (previous|all) instructions|system:|you are now|forget your instructions",
-    re.IGNORECASE,
-)
-_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
-_PHONE_RE = re.compile(r"\b(\+\d{1,3}[\s-])?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b")
 
 
 def query_sentry_errors(project_slug: str, window: str, limit: int) -> list[dict]:
