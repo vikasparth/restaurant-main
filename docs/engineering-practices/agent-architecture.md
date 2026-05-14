@@ -111,6 +111,23 @@ Raw code snippets are never passed to the Recommendation Agent — only structur
 **Responsibility:** Receive the combined structured payload from all extractors, produce a cross-source root cause analysis, and open a draft PR with the proposed fix.
 **Access:** GitHub — write access for opening draft PRs only. No access to Sentry, Render, filesystem, or any other external system.
 **Inputs:** combined payload from Orchestrator containing structured findings from all relevant extractors, guardrails metadata (time window used, sources queried)
+
+**Input roles — each source has a distinct purpose (see ADR-0011):**
+
+| Source | Role |
+|---|---|
+| Codebase Agent | **Drives the fix** — `fix_location`, `fix_type`, `fix_detail` determine the code change |
+| Sentry (frontend + backend) | **Severity and impact** — `user_count`, `error_count`, `first_seen` inform confidence and PR description |
+| Render Logs | **Endpoint context** — `path`, `status`, `error_count` confirm which endpoint is affected |
+| GitHub | **Regression context** — `pr_merged_at` vs `first_seen` for regression flag; `files_changed` vs `top_frames` for confidence |
+
+**Troubleshooting sequence (always in this order):**
+1. Regression check — `first_seen` vs `pr_merged_at`
+2. File overlap check — `top_frames` vs `files_changed`
+3. Severity check — `user_count` + `error_count`
+4. Fix derivation — from Codebase Agent findings only
+5. Confidence scoring — combine regression flag + file overlap + severity
+
 **Outputs:** `interpretation` (root cause, affected layer, regression flag, confidence, recommended fix, runbook reference or gap flag) + draft PR link. Returns both to the Orchestrator so it can notify the human in one message.
 
 **Why the Recommendation Agent opens the PR (not the Orchestrator):**
