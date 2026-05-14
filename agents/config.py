@@ -47,6 +47,15 @@ SENTRY_STACK_FRAME_LIMIT = int(os.getenv("SENTRY_STACK_FRAME_LIMIT", "3"))
 STATUS_COMPLETED = "completed"
 STATUS_NO_DATA = "no_data"
 STATUS_INJECTION_DETECTED = "injection_detected"
+STATUS_INVALID_INPUT = "invalid_input"
+STATUS_UNAUTHENTICATED = "unauthenticated"
+STATUS_UNAUTHORIZED = "unauthorized"
+STATUS_NOT_FOUND = "not_found"
+STATUS_RATE_LIMITED = "rate_limited"
+STATUS_SERVER_ERROR = "server_error"
+STATUS_TIMEOUT = "timeout"
+STATUS_NETWORK_ERROR = "network_error"
+STATUS_SCHEMA_ERROR = "schema_error"
 
 # why: Render API requires service ID and key from env — never hardcoded
 RENDER_API_BASE = "https://api.render.com/v1"
