@@ -24,7 +24,7 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
 
 | Key | Type | Source | Notes |
 |---|---|---|---|
-| `max_commits` | `int` | Orchestrator | Overrides `GITHUB_MAX_COMMITS`; defaults to config value if absent |
+| `max_commits` | `int` | Orchestrator | Overrides `GITHUB_MAX_COMMITS`; defaults to config value if absent. Must be ≤ 100 — GitHub's `per_page` platform cap; values above 100 silently return 100, masking the true limit, so `_validate_guardrails` rejects them as `invalid_input` |
 | `max_files_per_commit` | `int` | Orchestrator | Overrides `GITHUB_MAX_FILES_PER_COMMIT`; caps the `changed_files` list per commit |
 | `release_sha` | `str \| None` | Orchestrator | Sentry release SHA; if provided, walk commits backwards from this SHA (not HEAD) — these are the commits that went into the failing release |
 
@@ -77,6 +77,7 @@ Error statuses (`unauthenticated`, `unauthorized`, `rate_limited`, `server_error
 7. Commit message trimmed to first line, capped at `GITHUB_MSG_MAX_LEN` chars.
 8. Each commit detail call (`GET /repos/{repo}/commits/{sha}`) fetches changed files — keep only `filename`.
 9. Guardrail validation runs before any HTTP call — invalid input must never reach the GitHub API.
+10. Reject `max_commits > 100` in `_validate_guardrails` — GitHub silently caps `per_page` at 100, so values above it would return fewer commits than requested with no error, making the cap invisible.
 
 ---
 
@@ -101,7 +102,7 @@ Error statuses (`unauthenticated`, `unauthorized`, `rate_limited`, `server_error
 | `completed` | At least one commit found in the window | Pass to Recommendation Agent |
 | `no_data` | Zero commits after filtering | Skip GitHub findings in payload |
 | `injection_detected` | Injection pattern matched in any commit message | Flag on GitHub Issue; stop processing |
-| `invalid_input` | Guardrails dict has wrong types or malformed values (e.g. `max_commits="three"`, `release_sha="not-a-sha!!"`, negative int) | Log misconfiguration; skip GitHub findings |
+| `invalid_input` | Guardrails dict has wrong types or malformed values (e.g. `max_commits="three"`, `max_commits=150`, `release_sha="not-a-sha!!"`, negative int) | Log misconfiguration; skip GitHub findings |
 | `unauthenticated` | `GITHUB_TOKEN` is empty, or API returns 401 | Alert owner — token missing or expired |
 | `unauthorized` | API returns 403 | Alert owner — token lacks required scope (`Contents: Read`) |
 | `not_found` | API returns 404 | Alert owner — `GITHUB_REPO` is wrong or `release_sha` does not exist |
@@ -166,6 +167,7 @@ File: `agents/tests/test_github_extractor.py`
 | 19 | `test_negative_max_files_returns_invalid_input` | `guardrails={"max_files_per_commit": -1}` → `status="invalid_input"`, no HTTP call made |
 | 20 | `test_missing_response_fields_returns_schema_error` | API returns commit objects missing `author.login` → `status="schema_error"` |
 | 21 | `test_record_agent_run_called_on_every_return` | Mock `record_agent_run` — assert called for both `completed` and `no_data` paths |
+| 22 | `test_max_commits_above_platform_limit_returns_invalid_input` | `guardrails={"max_commits": 101}` → `status="invalid_input"`, no HTTP call made |
 
 All HTTP calls mocked with `unittest.mock.patch`. No real GitHub API calls in tests.
 
@@ -184,7 +186,7 @@ All HTTP calls mocked with `unittest.mock.patch`. No real GitHub API calls in te
 
 ## Acceptance Criteria
 
-- [ ] All 21 tests green
+- [ ] All 22 tests green
 - [ ] Full test suite green (no regressions — currently 54 tests)
 - [ ] No real GitHub API calls in tests (all mocked)
 - [ ] `record_agent_run` called on every return path

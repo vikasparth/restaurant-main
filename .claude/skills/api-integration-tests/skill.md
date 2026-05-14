@@ -23,7 +23,7 @@ State these back to the user in a short summary before proceeding. If any are un
 
 ## Step 2 — Generate the Test Plan
 
-Produce a test plan table covering **all eight categories** below. Every category is mandatory — do not skip one because it seems unlikely. Generate specific test names and descriptions, not generic placeholders.
+Produce a test plan table covering **all categories** below. Categories 1–8 are mandatory for every API integration. Category 9 (Pagination) is mandatory when the API returns paginated responses — skip it only if the API never paginates. Generate specific test names and descriptions, not generic placeholders.
 
 ### Category 1 — Happy Path
 - Successful response with data → expected `status`, correct field values, correct counts
@@ -66,6 +66,23 @@ Timeout and network error must be **separate statuses** — timeout implies the 
 - Response field has wrong type (e.g. array expected, null returned) → `schema_error`
 - Schema validation must run **after** a successful HTTP response, before any field access
 
+### Category 9 — Pagination *(include when the API returns paginated responses)*
+
+**Correctness:**
+- Single page — all results fit in one request → no extra page fetched, all items returned
+- Multi-page — results span multiple pages → all pages fetched and combined correctly
+- Partial last page — final page has fewer items than `per_page` → items are not dropped
+
+**Cap / boundary:**
+- `max_items` exactly equals total results → stops cleanly, no extra page fetched
+- `max_items` reached before all pages are exhausted → stops at cap, does not over-fetch
+- Platform `per_page` limit exceeded (e.g. GitHub caps `per_page` at 100) → if single-page design, `max_items > platform_limit` must return `invalid_input` with no HTTP call; if multi-page design, assert correct number of page requests are made
+
+**Fault tolerance:**
+- Error on page 1 → existing Category 7 tests cover this
+- Error on a subsequent page (page 1 succeeds, page N fails) → document the contract: does the extractor return partial results or a failure status? Test whichever the spec mandates
+- Infinite loop guard → if the implementation follows `next` links, assert the loop is bounded by `max_items` and terminates even if the API keeps returning a `next` link
+
 ---
 
 ## Step 3 — Present the Full Test Table
@@ -86,7 +103,7 @@ Rules for test names:
 
 After presenting the table, explicitly ask:
 
-> "Are there any API-specific failure modes for **[API name]** not covered above? For example: pagination errors, partial responses, async job timeouts, webhook failures, or API version mismatches."
+> "Are there any API-specific failure modes for **[API name]** not covered above? For example: partial responses, async job timeouts, webhook delivery failures, or API version mismatches."
 
 Wait for the user's answer before marking the plan complete.
 
@@ -109,6 +126,6 @@ Do **not** write any test code or implementation code — this skill produces th
 
 - It does not write test code
 - It does not write implementation code
-- It does not make assumptions about which failures "probably won't happen" — all 8 categories are always required
+- It does not make assumptions about which failures "probably won't happen" — categories 1–8 are always required; Category 9 is required when the API paginates
 - It does not collapse Authentication and Authorization into one test or one status
 - It does not collapse Timeout and NetworkError into one test or one status
