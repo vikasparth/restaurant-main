@@ -181,6 +181,7 @@ Do not just describe what a step does — explain the reasoning a new engineer w
 - Never commit `.env` files, secrets, or API keys.
 - Keep commits small and focused on one concern.
 - **Never use `git add -A` or `git add .`** — always stage files explicitly by name.
-- **If a commit touches more than 3–4 files, stop and split it.** Each commit should be reviewable in under 2 minutes. A new feature touching schema + resolver + types + test is fine; docs + unrelated hooks + config in one shot is not.
+- **One PR = one objective.** The PR title must be writable in one sentence with no "and" — if it cannot, the PR contains more than one concern and must be split.
+- **Under 200 lines of code changed per PR** — defect detection drops sharply above this threshold (SmartBear/Cisco research). File count is not a limit — a schema migration touching schema + model + migration + test is one atomic unit and must not be split. When a PR contains tightly-coupled multi-file changes, the description must explicitly state why the files cannot be separated.
 - Use conventional commit prefixes: `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`.
 - Technology-specific pre-commit checklists are in `src/CLAUDE.md` (frontend) and `backend/CLAUDE.md` (backend).

@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-11**
+**Last updated: 2026-05-13**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -10,6 +10,13 @@
 ## Current Focus
 
 **Next: D.4 — GitHub Extractor.**
+
+Pre-work complete for D.4 (2026-05-13):
+- `docs/adr/0011-recommendation-agent-input-contract.md` — ADR written; Codebase Agent findings drive the fix, other extractors enrich context (regression flag, severity, endpoint)
+- `agent-architecture.md` — `Recommendation Agent` section updated with input roles table and troubleshooting sequence (regression check → file overlap → severity → fix derivation → confidence scoring)
+- `CLAUDE.md` — PR size guardrail updated: one objective + under 200 lines; file count limit removed in favour of atomic-unit exception
+- `docs/learning-log.md` — lesson logged on small focused PRs
+- **Still to do before D.4 code:** GitHub Agent Query Contract section in architecture doc + GitHub config constants in `agents/config.py`
 
 D.3 complete (2026-05-11):
 - `agents/specs/d3_render_logs_extractor.md` — spec written and signed off
