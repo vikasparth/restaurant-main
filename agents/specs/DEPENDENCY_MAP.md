@@ -22,6 +22,9 @@ For each new agent or tooling task, check which signatures already exist and reu
 | Function | Signature | File | Used by |
 |---|---|---|---|
 | `record_agent_run` | `record_agent_run(agent_name: str, result: dict, usage_by_turn: list[dict], issue_number: str = "") -> None` | `agents/sentry_utils.py` | All agents — call before every `return` in `run()` |
+| `_INJECTION_RE` | `re.compile(...)` | `agents/patterns.py` | All extractors — use for injection detection; never redefine locally |
+| `_EMAIL_RE` | `re.compile(...)` | `agents/patterns.py` | All extractors — use for PII email detection |
+| `_PHONE_RE` | `re.compile(...)` | `agents/patterns.py` | All extractors — use for PII phone detection |
 | `confidence_to_numeric` | `confidence_to_numeric(confidence: str) -> int` | `agents/sentry_utils.py` | Any agent that produces a confidence field; high→3, medium→2, low→1, unknown→0 |
 | `build_system_prompt` | `build_system_prompt(text: str) -> list[dict]` | `agents/prompt_utils.py` | All Claude-calling agents (D.5, D.6, E) — wraps system prompt with `cache_control: ephemeral` |
 | `validate_finding` | `validate_finding(yaml_str: str) -> dict` | `agents/validator.py` | Orchestrator — validates finding YAML against `agents/schemas/finding-schema.json` before routing |
