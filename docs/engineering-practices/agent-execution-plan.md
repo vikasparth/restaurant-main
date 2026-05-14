@@ -9,14 +9,23 @@
 
 ## Current Focus
 
-**Next: D.4 — GitHub Extractor.**
+**Next: D.4 — GitHub Extractor — TDD + implementation.**
 
-Pre-work complete for D.4 (2026-05-13):
-- `docs/adr/0011-recommendation-agent-input-contract.md` — ADR written; Codebase Agent findings drive the fix, other extractors enrich context (regression flag, severity, endpoint)
-- `agent-architecture.md` — `Recommendation Agent` section updated with input roles table and troubleshooting sequence (regression check → file overlap → severity → fix derivation → confidence scoring)
-- `CLAUDE.md` — PR size guardrail updated: one objective + under 200 lines; file count limit removed in favour of atomic-unit exception
-- `docs/learning-log.md` — lesson logged on small focused PRs
-- **Still to do before D.4 code:** GitHub Agent Query Contract section in architecture doc + GitHub config constants in `agents/config.py`
+Spec signed off. Pre-work complete. Branch `feat/d4-github-extractor` open (PR pending merge).
+
+D.4 pre-work complete (2026-05-13):
+- `docs/adr/0011-recommendation-agent-input-contract.md` — ADR written
+- `agent-architecture.md` — `GitHub Agent Query Contract` section added (API endpoints, filtering pipeline, exit conditions, guardrails); `GitHub Findings Schema` added under Agent-Specific Findings Schemas; walk anchor corrected: `?sha={release_sha}` walks backwards into the failing release, not forwards
+- `agents/config.py` — 6 GitHub constants: `GITHUB_API_BASE`, `GITHUB_REPO`, `GITHUB_TOKEN`, `GITHUB_BRANCH`, `GITHUB_MAX_COMMITS`, `GITHUB_MSG_MAX_LEN`, `GITHUB_MAX_FILES_PER_COMMIT`; 9 new shared status constants: `STATUS_INVALID_INPUT`, `STATUS_UNAUTHENTICATED`, `STATUS_UNAUTHORIZED`, `STATUS_NOT_FOUND`, `STATUS_RATE_LIMITED`, `STATUS_SERVER_ERROR`, `STATUS_TIMEOUT`, `STATUS_NETWORK_ERROR`, `STATUS_SCHEMA_ERROR`
+- `agents/specs/d4_github_extractor.md` — spec written and signed off; 21 TDD tests across 8 categories (happy path, input validation, auth, authz, not found, rate limiting, server/network failures, schema validation)
+
+Frontend Sentry extractor coverage backfill complete (2026-05-13):
+- `/api-integration-tests` skill created — 8-category test plan generator for any HTTP API integration; lives at `.claude/skills/api-integration-tests/skill.md`
+- `agents/sentry_api.py` — `_validate_sentry_guardrails()` added (shared by all Sentry extractors); guards wrong types, negatives, bool-as-int
+- `agents/frontend_sentry_extractor.py` — guardrail validation, schema check on `id` field, exception handling for KeyError/HTTPError/Timeout/ConnectionError all returning distinct statuses
+- `agents/tests/test_frontend_sentry_extractor.py` — grew from 4 to 19 tests
+- `agents/tests/test_sentry_api.py` — new file, 19 tests covering HTTP boundary layer
+- 54/54 agent tests green
 
 D.3 complete (2026-05-11):
 - `agents/specs/d3_render_logs_extractor.md` — spec written and signed off
