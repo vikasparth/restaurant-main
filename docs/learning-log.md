@@ -230,6 +230,14 @@ The problem is not just a process violation. The user is a new engineer learning
 
 **Principle enforced:** Never write implementation code unless explicitly asked. Explain the next step, describe what the code needs to do, and ask the user to write it. Only boilerplate may be written directly.
 
+## Small, Focused Pull Requests — One Objective, Under 200 Lines, No Artificial File Splits
+
+During a session on agentic workflow design, the conversation surfaced a principle that applies equally to human developers and GenAI agents: pull requests should do exactly one thing. When a PR mixes features, refactors, config changes, and fixes into a single commit, it becomes difficult to review safely — bugs slip through because reviewers cannot hold the full context of unrelated changes simultaneously. For a GenAI agent troubleshooting a production regression, the cost is compounded: the agent must parse through all changed files to determine which change caused the issue, wasting tokens on irrelevant diffs and increasing the chance of a wrong root cause conclusion.
+
+The guardrail has two parts. First, a hard line limit: under 200 lines of code changed per PR — this aligns with empirical research (SmartBear/Cisco, LinearB, Graphite) showing defect detection drops sharply above 400 lines and review engagement peaks below 200. Second, a single-objective test: the PR title must be writable in one sentence with no "and" — if it cannot, the PR contains more than one concern. File count is intentionally excluded as a metric — a schema migration touching schema, model, migration file, and tests is four files but one atomic unit and must not be split. When a PR contains tightly-coupled multi-file changes, the description must explicitly state why the files cannot be separated.
+
+**Guardrail created:** One PR = one objective (single-sentence title, no "and") + under 200 lines changed — file count is not a limit; tightly-coupled atomic changes are valid but must be called out in the PR description.
+
 ## Skills as Packaging — Not Everything Belongs in the Agent
 
 When explaining the difference between agents and skills, I framed the agent's advantage as Claude being better at picking the right tool than a skill with hardcoded tool names. I also claimed that open-ended and exploratory tasks are where agents shine over skills. The user pushed back correctly: an intent-based skill — one that describes what to accomplish rather than which tool to call — covers exactly the same open-ended cases. The reasoning capability is identical in both cases because Claude has MCP tools visible in context either way.
