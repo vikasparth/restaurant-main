@@ -94,6 +94,15 @@ def _pick_issue(issues: list[dict]) -> dict:
     return max(same_level, key=lambda i: i.get("last_seen", ""))
 
 
+def _validate_sentry_guardrails(guardrails: dict) -> str | None:
+    # why: bool is a subclass of int in Python — must exclude it explicitly
+    for key in ("max_issues", "max_frames"):
+        val = guardrails.get(key)
+        if val is not None and (isinstance(val, bool) or not isinstance(val, int) or val <= 0):
+            return f"{key} must be a positive integer"
+    return None
+
+
 def _looks_like_injection(issue: dict) -> bool:
     text = f"{issue.get('title', '')} {issue.get('culprit', '')}"
     return bool(_INJECTION_RE.search(text))
