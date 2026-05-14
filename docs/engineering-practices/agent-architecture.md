@@ -15,6 +15,7 @@
 | [Agent Catalog](#agent-catalog) | Frontend Sentry, Backend Sentry, Render Logs, GitHub, Codebase, Recommendation, Orchestrator |
 | [Sentry Agent Query Contract](#sentry-agent-query-contract) | Investigation flow, minimum data fields, time window escalation, exit conditions, guardrails |
 | [Render Agent Query Contract](#render-agent-query-contract) | API endpoint, log filtering, deduplication, guardrails, return shape |
+| [GitHub Agent Query Contract](#github-agent-query-contract) | API endpoints, commit filtering, PII trimming, guardrails, return shape |
 | [Agent Runtime](#agent-runtime) | Packaging decision, directory structure, tool definitions, entry points, model selection |
 | [Finding Schema](#finding-schema) | Common YAML envelope, required fields, agent-specific findings schemas (Sentry + Render), schema file location, versioning |
 | [Monitoring Workflows](#monitoring-workflows) | Pipeline overview, de-duplication rule, handoff contract |
@@ -391,6 +392,107 @@ Guardrails are set by the Orchestrator. The extractor never widens its own windo
 
 ---
 
+## GitHub Agent Query Contract
+
+Applies to the GitHub Extractor (`agents/github_extractor.py`). These rules govern which API endpoints are called, how commit data is filtered and trimmed, when the agent stops, and what shape of data it returns.
+
+### API Endpoints
+
+**1. Fetch commit list — GitHub REST API:**
+
+```
+GET https://api.github.com/repos/{GITHUB_REPO}/commits
+```
+
+| Parameter | Source | Notes |
+|---|---|---|
+| `GITHUB_REPO` | `GITHUB_REPO` env var | Format: `{owner}/{repo}`, e.g. `vikasparth/restaurant-main-project` |
+| `Authorization` | `Bearer {GITHUB_TOKEN}` header | Fine-grained PAT with `Contents: Read` and `Metadata: Read` scopes — minimum required |
+| `sha` | `GITHUB_BRANCH` config key (default: `"main"`) | Branch to walk |
+| `per_page` | `GITHUB_MAX_COMMITS` (default: `20`) | Hard cap — never fetch more than this |
+
+If `release_sha` is present in the Orchestrator guardrails, the extractor sets `sha={release_sha}` in the query instead of `sha=GITHUB_BRANCH`. The GitHub API walks backwards from the given SHA, so this returns the commits that went **into** the error-triggering release — not commits made after it.
+
+Config keys: `GITHUB_API_BASE`, `GITHUB_REPO`, `GITHUB_TOKEN`, `GITHUB_BRANCH`, `GITHUB_MAX_COMMITS`.
+
+**2. Fetch changed files per commit — GitHub REST API:**
+
+```
+GET https://api.github.com/repos/{GITHUB_REPO}/commits/{sha}
+```
+
+Called for each commit in the filtered list. The response includes a `files` array. Only the `filename` field is kept — `additions`, `deletions`, `patch`, and `blob_url` are dropped immediately at the boundary.
+
+### Filtering and Trimming Pipeline
+
+The extractor applies the following steps in Python before returning anything to the Orchestrator:
+
+1. **Choose the walk anchor** — if `release_sha` is in guardrails, use it as the `sha` parameter; otherwise use `GITHUB_BRANCH` (HEAD). The GitHub API walks backwards from the anchor, so passing the release SHA returns the commits that went into that release, not commits made after it.
+2. **Fetch commit list** — `GET /repos/{repo}/commits?sha={anchor}&per_page={GITHUB_MAX_COMMITS}`. Returns commits walking backwards from the anchor.
+3. **Injection check** — check each commit message against the injection pattern (`patterns._INJECTION_RE`). If any match, set `injection_flag: true` and return immediately.
+4. **PII check** — GitHub commit author objects include an email field. Drop it unconditionally — keep only the author `login` (GitHub username). Set `pii_flag: true` if the commit message itself contains an email or phone pattern (`patterns._EMAIL_RE`, `patterns._PHONE_RE`).
+5. **Trim commit message** — keep the first line only, capped at `GITHUB_MSG_MAX_LEN` characters. Multi-line bodies are dropped.
+6. **Fetch changed files** — for each commit, call the per-commit endpoint and keep only the `filename` field from each file entry.
+
+### What the GitHub Extractor Returns
+
+Zero Claude API calls. Returns a Python dict of structured findings only.
+
+```python
+{
+    "status": "completed",       # or "no_data" / "injection_detected"
+    "source": "github",
+    "commit_window": {
+        "branch": "main",
+        "from_sha": "a3f9c12",  # oldest commit returned (release SHA anchor when provided)
+        "to_sha":   "cfe6747"   # newest commit (HEAD at time of fetch)
+    },
+    "commit_count": 2,
+    "commits": [
+        {
+            "sha": "cfe6747",
+            "message": "fix: remove allergens from useMenu GraphQL query",
+            "author": "vikasparth",
+            "committed_at": "2026-05-04T08:45:00Z",
+            "changed_files": [
+                "src/hooks/useMenu.ts",
+                "src/features/menu/types.ts"
+            ]
+        },
+        {
+            "sha": "a3f9c12",
+            "message": "feat: GraphQL gateway menu migration",
+            "author": "vikasparth",
+            "committed_at": "2026-05-04T07:30:00Z",
+            "changed_files": [
+                "graphql-gateway/src/resolvers/menu.ts"
+            ]
+        }
+    ],
+    "injection_flag": False,
+    "pii_flag": False
+}
+```
+
+### Exit Conditions
+
+| Status | Trigger |
+|---|---|
+| `completed` | At least one commit found in the filtered window |
+| `no_data` | Zero commits found after filtering (branch is empty or all commits pre-date the release SHA) |
+| `injection_detected` | Injection pattern matched in any commit message — return immediately, do not process further |
+
+### Guardrails Summary
+
+Guardrails are set by the Orchestrator. The extractor never fetches more than the guardrails allow.
+
+| Guardrail | Config key | Default |
+|---|---|---|
+| Max commits fetched | `GITHUB_MAX_COMMITS` | `20` |
+| Commit message max length | `GITHUB_MSG_MAX_LEN` | `100` chars |
+
+---
+
 ## Agent Runtime
 
 **Decision:** Agents are implemented as a Python package (`agents/`) using the Anthropic SDK with tool use. This is not Claude Code sub-agents — each agent is a focused, stateless agentic loop that runs as a Python script invoked from GitHub Actions or the `/troubleshoot` skill.
@@ -654,6 +756,59 @@ Fields dropped: breadcrumbs, request headers, environment variables, user object
 **Estimated token cost:** ~63 tokens per distinct error. At cap of 10 errors: ~692 tokens total (including header fields). Full extractor run target: under 1,200 tokens in the combined payload.
 
 **No interpretation here.** The Render Logs extractor returns the structured dict above and stops. Interpretation (root cause, affected layer, confidence, regression flag) is produced exclusively by the Recommendation Agent after receiving the full combined payload from the Orchestrator.
+
+---
+
+#### GitHub Findings Schema
+
+**What Python extracts from the GitHub API (structured dict returned by the extractor — no interpretation):**
+
+1. Fetch up to `GITHUB_MAX_COMMITS` commits walking backwards from the Sentry release SHA (or HEAD if none provided) — these are the commits that went into the failing release
+2. For each commit: keep SHA (7 chars), first-line message (≤ 100 chars), author login, committed_at timestamp
+3. For each commit: fetch changed file paths — keep `filename` only, drop patch diffs and line counts
+4. Drop author email unconditionally — keep only GitHub username (login)
+
+**Example — structured dict returned by the extractor:**
+
+```python
+{
+    "status": "completed",       # or "no_data" / "injection_detected"
+    "source": "github",
+    "commit_window": {
+        "branch": "main",
+        "from_sha": "a3f9c12",
+        "to_sha":   "cfe6747"
+    },
+    "commit_count": 2,
+    "commits": [
+        {
+            "sha": "cfe6747",
+            "message": "fix: remove allergens from useMenu GraphQL query",
+            "author": "vikasparth",
+            "committed_at": "2026-05-04T08:45:00Z",
+            "changed_files": [
+                "src/hooks/useMenu.ts",
+                "src/features/menu/types.ts"
+            ]
+        },
+        {
+            "sha": "a3f9c12",
+            "message": "feat: GraphQL gateway menu migration",
+            "author": "vikasparth",
+            "committed_at": "2026-05-04T07:30:00Z",
+            "changed_files": [
+                "graphql-gateway/src/resolvers/menu.ts"
+            ]
+        }
+    ],
+    "injection_flag": False,
+    "pii_flag": False
+}
+```
+
+**Estimated token cost:** ~35 tokens per commit (SHA + message + author + date + 2-3 files). At cap of 20 commits: ~700 tokens. Full extractor run target: under 300 tokens in the combined payload (typical investigations involve 1–5 commits since the release SHA).
+
+**No interpretation here.** The GitHub extractor returns the structured dict above and stops. Interpretation (root cause, regression flag, affected layer) is produced exclusively by the Recommendation Agent after receiving the full combined payload from the Orchestrator.
 
 ---
 
