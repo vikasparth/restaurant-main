@@ -57,3 +57,13 @@ RENDER_API_KEY = os.getenv("RENDER_API_KEY", "")
 RENDER_LOG_FETCH_LIMIT = int(os.getenv("RENDER_LOG_FETCH_LIMIT", "500"))
 RENDER_MAX_DISTINCT_ERRORS = int(os.getenv("RENDER_MAX_DISTINCT_ERRORS", "10"))
 RENDER_LOG_MAX_MSG_LEN = int(os.getenv("RENDER_LOG_MAX_MSG_LEN", "300"))
+
+# why: GitHub API requires repo slug and token from env — never hardcoded
+GITHUB_API_BASE = "https://api.github.com"
+GITHUB_REPO = os.getenv("GITHUB_REPO", "")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
+
+# why: guardrails for GitHub commit extraction — Orchestrator overrides per run
+GITHUB_MAX_COMMITS = int(os.getenv("GITHUB_MAX_COMMITS", "20"))
+GITHUB_MSG_MAX_LEN = int(os.getenv("GITHUB_MSG_MAX_LEN", "100"))
