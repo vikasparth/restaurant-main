@@ -67,3 +67,5 @@ GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
 # why: guardrails for GitHub commit extraction — Orchestrator overrides per run
 GITHUB_MAX_COMMITS = int(os.getenv("GITHUB_MAX_COMMITS", "20"))
 GITHUB_MSG_MAX_LEN = int(os.getenv("GITHUB_MSG_MAX_LEN", "100"))
+# why: a single large commit could change hundreds of files — cap keeps token budget predictable
+GITHUB_MAX_FILES_PER_COMMIT = int(os.getenv("GITHUB_MAX_FILES_PER_COMMIT", "20"))

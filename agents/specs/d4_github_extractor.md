@@ -25,6 +25,7 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
 | Key | Type | Source | Notes |
 |---|---|---|---|
 | `max_commits` | `int` | Orchestrator | Overrides `GITHUB_MAX_COMMITS`; defaults to config value if absent |
+| `max_files_per_commit` | `int` | Orchestrator | Overrides `GITHUB_MAX_FILES_PER_COMMIT`; caps the `changed_files` list per commit |
 | `release_sha` | `str \| None` | Orchestrator | Sentry release SHA; if provided, walk commits backwards from this SHA (not HEAD) — these are the commits that went into the failing release |
 
 ---
@@ -79,7 +80,7 @@ Matches the `GitHub Findings Schema` section in `agent-architecture.md`.
 3. **Injection check** — for each commit message, test against `_INJECTION_RE`. On match → `injection_flag=True`, return immediately.
 4. **PII check** — for each commit message, test against `_EMAIL_RE` and `_PHONE_RE`. On match → `pii_flag=True` (do not return early — strip the match and continue). Author email is always dropped unconditionally regardless of this flag.
 5. **Trim message** — keep first line only, capped at `GITHUB_MSG_MAX_LEN` chars.
-6. **Fetch changed files** — for each commit, call `GET /repos/{repo}/commits/{sha}` and extract `files[*].filename`.
+6. **Fetch changed files** — for each commit, call `GET /repos/{repo}/commits/{sha}` and extract `files[*].filename`. Cap the list at `max_files_per_commit` — a large refactor commit must not blow the token budget.
 
 ---
 
@@ -117,7 +118,9 @@ File: `agents/tests/test_github_extractor.py`
 | 4 | `test_author_email_is_stripped` | Raw GitHub response includes author email → returned dict has no email field anywhere |
 | 5 | `test_release_sha_used_as_walk_anchor` | `release_sha` provided → fetch called with `sha=release_sha`, not `sha=GITHUB_BRANCH` |
 | 6 | `test_message_trimmed_to_first_line_and_capped` | Multi-line commit message → only first line returned, capped at `GITHUB_MSG_MAX_LEN` |
-| 7 | `test_record_agent_run_called_on_every_return` | Mock `record_agent_run` — assert it is called for both completed and no_data paths |
+| 7 | `test_max_commits_guardrail_is_respected` | Pass `guardrails={"max_commits": 3}` with API returning 10 commits → fetch called with `per_page=3`, `commit_count=3` |
+| 8 | `test_max_files_per_commit_guardrail_is_respected` | Commit detail returns 50 changed files; `GITHUB_MAX_FILES_PER_COMMIT=5` → `changed_files` list has exactly 5 entries |
+| 9 | `test_record_agent_run_called_on_every_return` | Mock `record_agent_run` — assert it is called for both completed and no_data paths |
 
 All HTTP calls mocked with `unittest.mock.patch`. No real GitHub API calls in tests.
 
@@ -136,7 +139,7 @@ All HTTP calls mocked with `unittest.mock.patch`. No real GitHub API calls in te
 
 ## Acceptance Criteria
 
-- [ ] All 7 tests green
+- [ ] All 9 tests green
 - [ ] Full test suite green (no regressions — currently 25 tests)
 - [ ] No real GitHub API calls in tests (all mocked)
 - [ ] `record_agent_run` called on every return path
