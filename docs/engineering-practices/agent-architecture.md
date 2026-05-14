@@ -432,7 +432,7 @@ The extractor applies the following steps in Python before returning anything to
 3. **Injection check** — check each commit message against the injection pattern (`patterns._INJECTION_RE`). If any match, set `injection_flag: true` and return immediately.
 4. **PII check** — GitHub commit author objects include an email field. Drop it unconditionally — keep only the author `login` (GitHub username). Set `pii_flag: true` if the commit message itself contains an email or phone pattern (`patterns._EMAIL_RE`, `patterns._PHONE_RE`).
 5. **Trim commit message** — keep the first line only, capped at `GITHUB_MSG_MAX_LEN` characters. Multi-line bodies are dropped.
-6. **Fetch changed files** — for each commit, call the per-commit endpoint and keep only the `filename` field from each file entry.
+6. **Fetch changed files** — for each commit, call the per-commit endpoint and keep only the `filename` field from each file entry. Cap at `GITHUB_MAX_FILES_PER_COMMIT` — a large refactor commit must not blow the token budget.
 
 ### What the GitHub Extractor Returns
 
@@ -490,6 +490,7 @@ Guardrails are set by the Orchestrator. The extractor never fetches more than th
 |---|---|---|
 | Max commits fetched | `GITHUB_MAX_COMMITS` | `20` |
 | Commit message max length | `GITHUB_MSG_MAX_LEN` | `100` chars |
+| Max changed files per commit | `GITHUB_MAX_FILES_PER_COMMIT` | `20` |
 
 ---
 
