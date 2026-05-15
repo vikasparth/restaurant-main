@@ -16,6 +16,7 @@
 | [Sentry Agent Query Contract](#sentry-agent-query-contract) | Investigation flow, minimum data fields, time window escalation, exit conditions, guardrails |
 | [Render Agent Query Contract](#render-agent-query-contract) | API endpoint, log filtering, deduplication, guardrails, return shape |
 | [GitHub Agent Query Contract](#github-agent-query-contract) | API endpoints, commit filtering, PII trimming, guardrails, return shape |
+| [Codebase Agent Query Contract](#codebase-agent-query-contract) | Filesystem tools, navigation loop, scope enforcement, guardrails, return shape |
 | [Agent Runtime](#agent-runtime) | Packaging decision, directory structure, tool definitions, entry points, model selection |
 | [Finding Schema](#finding-schema) | Common YAML envelope, required fields, agent-specific findings schemas (Sentry + Render), schema file location, versioning |
 | [Monitoring Workflows](#monitoring-workflows) | Pipeline overview, de-duplication rule, handoff contract |
@@ -494,6 +495,109 @@ Guardrails are set by the Orchestrator. The extractor never fetches more than th
 
 ---
 
+## Codebase Agent Query Contract
+
+Applies to the Codebase Agent (`agents/codebase_agent.py`). Unlike the pure Python extractors, this agent uses the Anthropic SDK — Claude drives filesystem navigation iteratively until the root cause location is found.
+
+### Where This Agent Runs
+
+The Codebase Agent is the only agent that reads the local filesystem. This means it **must run on a GitHub Actions runner where the repository has been checked out** — it cannot run on Render or any other server that does not have the codebase on disk.
+
+When a GitHub Actions workflow triggers:
+1. The runner spins up a temporary VM
+2. `actions/checkout` downloads the repository onto that VM's local storage
+3. The Codebase Agent runs as a Python script on that VM
+4. `_read_file("src/hooks/useMenu.ts")` resolves relative to the repository root — those files are physically present because of the checkout step
+
+All other extractors (Sentry, Render Logs, GitHub) make outbound HTTP API calls and can run anywhere with network access. The Codebase Agent is the exception — its "API" is the local filesystem, so the runner environment is its only valid host.
+
+**The only secret the Codebase Agent requires is `ANTHROPIC_API_KEY`** — it reads files from disk and calls Claude. No Sentry token, no GitHub token, no Render token.
+
+### Tools Registered
+
+Two filesystem tools are exposed to Claude. Both are read-only and path-scoped.
+
+| Tool | Signature | Purpose |
+|---|---|---|
+| `read_file` | `read_file(path: str) -> str` | Read a single file within the allowed scope |
+| `list_directory` | `list_directory(path: str) -> list[str]` | List filenames in a directory within the allowed scope |
+
+**Allowed filesystem scope:** `src/`, `graphql-gateway/`, `backend/`, `docs/`. Any path outside these directories is rejected by the tool with an error string — Claude cannot read `.env`, `agents/`, or any other directory.
+
+### Inputs (from Orchestrator)
+
+| Field | Type | Source | Notes |
+|---|---|---|---|
+| `crash_location` | `str` | Sentry extractor findings | File + line where the error occurred, e.g. `src/components/MenuItemCard.tsx:42` |
+| `changed_files` | `list[str]` | GitHub extractor findings | Files changed in the release that triggered the error |
+| `max_files_to_read` | `int` | Orchestrator guardrail | Cap on total files Claude may read in one run |
+
+### Navigation Loop
+
+Claude navigates the codebase iteratively in a bounded loop (max turns: `CODEBASE_MAX_TURNS`, default `8`):
+
+1. **Start at crash location** — read the file at `crash_location`; identify the symbol, field, or call that caused the crash
+2. **Follow the import/call chain** — read the source of that symbol (e.g. a custom hook, a GraphQL query, a service function)
+3. **Cross-check changed files** — if a changed file from the GitHub findings overlaps with what Claude is reading, flag it as likely root cause
+4. **Stop when root cause is clear** — Claude calls no more tools once it has enough to fill the return shape
+
+**Turn budget exhausted:** if root cause is not found within `CODEBASE_MAX_TURNS`, return `status: partial` with whatever was found — never raise or return `None`.
+
+### Filtering Rules
+
+- **Raw code is never returned.** Claude extracts only: file path, line number, symbol/field name, fix type. No code snippets, no interpretation narrative.
+- **Injection guard:** if file content matches `_INJECTION_RE` from `agents/patterns.py`, return `injection_detected` immediately.
+- **Scope enforcement:** `read_file` and `list_directory` reject any path outside the allowed directories — enforced in the tool function, not in the prompt.
+
+### Return Shape
+
+```python
+{
+    "status": "completed",         # or "partial" / "injection_detected" / "no_data"
+    "source": "codebase",
+    "crash_location":  "src/components/MenuItemCard.tsx:42",
+    "root_cause_file": "src/hooks/useMenuItems.ts:23",
+    "missing_field":   "price",
+    "fix_location":    "graphql/menu.graphql — MenuItem type",
+    "fix_type":        "add_field",                    # see Fix Types below
+    "fix_detail":      "Add price: Float! to MenuItem type and populate in useMenuItems hook",
+    "runbook_match":   "missing-field-frontend-query", # or null if no match
+    "injection_flag":  False,
+    "pii_flag":        False,
+}
+```
+
+**Fix Types:**
+
+| Value | Meaning |
+|---|---|
+| `add_field` | A field is missing from a type, query, or schema |
+| `remove_field` | A field was removed but is still referenced |
+| `wrong_value` | A field exists but has an incorrect value or type |
+| `missing_import` | A symbol is used but not imported |
+| `logic_error` | Incorrect conditional, null check, or computation |
+| `config_error` | A config value is missing or misconfigured |
+
+### Exit Conditions
+
+| Status | Trigger |
+|---|---|
+| `completed` | Root cause located within turn budget; all required fields populated |
+| `partial` | Turn budget (`CODEBASE_MAX_TURNS`) exhausted before root cause found; return whatever fields are populated |
+| `no_data` | `crash_location` not found in the filesystem scope; cannot start navigation |
+| `injection_detected` | Injection pattern matched in file content — return immediately |
+
+### Guardrails Summary
+
+| Guardrail | Config key | Default |
+|---|---|---|
+| Max Claude turns | `CODEBASE_MAX_TURNS` | `8` |
+| Max tokens per turn | `CODEBASE_MAX_TOKENS` | `1024` |
+| Max files readable | `max_files_to_read` (Orchestrator guardrail) | — |
+| Filesystem scope | Hardcoded in tool functions | `src/`, `graphql-gateway/`, `backend/`, `docs/` |
+
+---
+
 ## Agent Runtime
 
 **Decision:** Agents are implemented as a Python package (`agents/`) using the Anthropic SDK with tool use. This is not Claude Code sub-agents — each agent is a focused, stateless agentic loop that runs as a Python script invoked from GitHub Actions or the `/troubleshoot` skill.
@@ -810,6 +914,30 @@ Fields dropped: breadcrumbs, request headers, environment variables, user object
 **Estimated token cost:** ~35 tokens per commit (SHA + message + author + date + 2-3 files). At cap of 20 commits: ~700 tokens. Full extractor run target: under 300 tokens in the combined payload (typical investigations involve 1–5 commits since the release SHA).
 
 **No interpretation here.** The GitHub extractor returns the structured dict above and stops. Interpretation (root cause, regression flag, affected layer) is produced exclusively by the Recommendation Agent after receiving the full combined payload from the Orchestrator.
+
+---
+
+#### Codebase Agent Findings Schema
+
+**What Claude extracts from filesystem navigation (structured dict — no raw code, no narrative):**
+
+```python
+{
+    "status": "completed",         # or "partial" / "injection_detected" / "no_data"
+    "source": "codebase",
+    "crash_location":  "src/components/MenuItemCard.tsx:42",
+    "root_cause_file": "src/hooks/useMenuItems.ts:23",
+    "missing_field":   "price",                        # null if not a missing-field error
+    "fix_location":    "graphql/menu.graphql — MenuItem type",
+    "fix_type":        "add_field",
+    "fix_detail":      "Add price: Float! to MenuItem type and populate in useMenuItems hook",
+    "runbook_match":   "missing-field-frontend-query", # null if no match
+    "injection_flag":  False,
+    "pii_flag":        False,
+}
+```
+
+**Estimated token cost:** ~50 tokens. Raw code snippets are never included — only file paths, line numbers, field names, and fix type strings.
 
 ---
 
