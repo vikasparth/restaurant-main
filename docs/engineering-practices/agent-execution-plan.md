@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-15**
+**Last updated: 2026-05-15 (session 2)**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,12 +9,22 @@
 
 ## Current Focus
 
-**Next: D.5 — Codebase Extractor**
+**Next: D.5 — Codebase Agent — TDD tests (30 tests, all red), then implementation**
+
+D.5 spec complete (2026-05-15):
+- `agents/specs/d5_codebase_agent.md` — spec signed off; 30 TDD tests defined across 8 categories
+- `docs/engineering-practices/agent-architecture.md` — `Codebase Agent Query Contract` section added; `endpoint` input added (Render logs fallback when backend Sentry not yet instrumented — task 3.14 pending); `Where This Agent Runs` section added (GitHub Actions runner, checkout required)
+- `agents/config.py` — needs `STATUS_PARTIAL = "partial"` added before TDD phase
+- Key design decisions: `return_findings` tool captures Claude's answer (no free-text parsing); `crash_location` + `endpoint` dual navigation start; Anthropic SDK error codes fully mapped (400→invalid_input, 401→unauthenticated, 403→unauthorized, 404→invalid_input, 409→server_error, 422→invalid_input, 429→rate_limited, 5xx→server_error)
+
+Skills updated (2026-05-15):
+- `api-integration-tests` skill — Category 7b added: Anthropic SDK error codes + exception hierarchy pattern
+- `spec` agents profile — `test_skills` condition updated: trigger on any outbound HTTP call regardless of SDK/library used
 
 D.4 complete (2026-05-15):
 - `agents/github_extractor.py` ✅ — all 4 helpers + `run()` implemented
 - All 22 D.4 tests green; full suite 76/76 passing (no regressions)
-- `agents/specs/DEPENDENCY_MAP.md` — needs update with `github_extractor` signatures (do before D.5)
+- `agents/specs/DEPENDENCY_MAP.md` — updated with `github_extractor` signatures ✅
 
 D.4 implementation notes:
 - `_validate_guardrails()` — type checks, bool guard, max_commits ≤ 100 (GitHub platform cap), SHA format via `_VALID_SHA_RE`
