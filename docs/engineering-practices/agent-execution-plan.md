@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-14**
+**Last updated: 2026-05-15**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,11 +9,19 @@
 
 ## Current Focus
 
-**Next: D.4 — GitHub Extractor — implementation. Branch `feat/d4-github-extractor-impl` open.**
+**Next: D.5 — Codebase Extractor**
 
-All 22 TDD tests written and red (committed). Ready to implement `agents/github_extractor.py`.
-Start with `_validate_guardrails`, then `_fetch_commits`, `_fetch_changed_files`, `_trim_commit`, then wire `run()`.
-Current test suite: 54 passing (existing) + 22 failing (D.4) = 76 total.
+D.4 complete (2026-05-15):
+- `agents/github_extractor.py` ✅ — all 4 helpers + `run()` implemented
+- All 22 D.4 tests green; full suite 76/76 passing (no regressions)
+- `agents/specs/DEPENDENCY_MAP.md` — needs update with `github_extractor` signatures (do before D.5)
+
+D.4 implementation notes:
+- `_validate_guardrails()` — type checks, bool guard, max_commits ≤ 100 (GitHub platform cap), SHA format via `_VALID_SHA_RE`
+- `_fetch_commits()` — GET commits list, Bearer auth header, `raise_for_status()` bubbles errors to `run()`
+- `_fetch_changed_files()` — GET per-commit detail, filenames only, cap applied both inside helper and in `run()` (mock-safe)
+- `_trim_commit()` — injection early-return, PII flag accumulation, first-line + length cap, email never read
+- `run()` — guardrail validation → token check → anchor (release_sha or HEAD) → try/except fetch → schema validation → commit loop → result dict
 
 D.4 spec finalised (2026-05-14):
 - `agents/specs/d4_github_extractor.md` — spec signed off (PR #95/#96 merged); filtering pipeline updated: guardrail validation + token check run as steps 1–2 before any HTTP call; error return shape added `{"status": "<status>", "source": "github"}`; test 22 added (`test_max_commits_above_platform_limit_returns_invalid_input`) — GitHub caps `per_page` at 100, values above silently return 100 so guardrail rejects them as `invalid_input`; total 22 TDD tests
