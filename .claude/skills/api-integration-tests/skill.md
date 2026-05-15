@@ -61,6 +61,33 @@ Authentication and Authorization must be **separate statuses** so the caller can
 
 Timeout and network error must be **separate statuses** — timeout implies the server is up but overloaded; network error implies it is unreachable.
 
+### Category 7b — Additional 4xx Client Errors *(Anthropic SDK agents only)*
+
+When the agent calls the **Anthropic Claude API** via SDK, the standard HTTP error categories above apply but the SDK raises typed exceptions rather than raw HTTP responses. Map these in addition to 401/403/429/5xx:
+
+| Status | SDK Exception | Recommended mapping | Reason |
+|---|---|---|---|
+| 400 | `anthropic.BadRequestError` | `invalid_input` | Our request was malformed — bad tool definition, invalid model parameter, or payload shape error |
+| 404 | `anthropic.NotFoundError` | `invalid_input` | Model name in config doesn't exist — treat as a configuration error, not a transient failure |
+| 409 | `anthropic.ConflictError` | `server_error` | Transient — retry at next scheduled run |
+| 422 | `anthropic.UnprocessableEntityError` | `invalid_input` | Anthropic rejected our payload as semantically invalid — indicates a bug in our tool definitions |
+
+**Exception hierarchy note:** All Anthropic HTTP errors inherit from `anthropic.APIStatusError`. Catch specific subclasses before the base class to avoid masking distinct failure modes. `anthropic.APIConnectionError` and `anthropic.APITimeoutError` are separate from `APIStatusError` — they do not have HTTP status codes.
+
+```python
+# right — specific exceptions caught before the base
+except anthropic.AuthenticationError:
+    ...
+except anthropic.RateLimitError:
+    ...
+except anthropic.APIStatusError:   # catches remaining 4xx/5xx not handled above
+    ...
+except anthropic.APITimeoutError:
+    ...
+except anthropic.APIConnectionError:
+    ...
+```
+
 ### Category 8 — Response Schema Validation
 - Response is missing an expected field (e.g. `author.login`, `data.items`) → `schema_error`
 - Response field has wrong type (e.g. array expected, null returned) → `schema_error`

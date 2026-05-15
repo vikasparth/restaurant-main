@@ -65,9 +65,12 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
 
 | Key | Type | Source | Notes |
 |---|---|---|---|
-| `crash_location` | `str` | Sentry extractor findings | File + line where error occurred, e.g. `src/components/MenuItemCard.tsx:42` |
+| `crash_location` | `str \| None` | Sentry extractor findings | File + line where error occurred, e.g. `src/components/MenuItemCard.tsx:42`. `None` for backend errors until task 3.14 (backend Sentry SDK) is complete |
+| `endpoint` | `str \| None` | Render logs findings | Backend route that failed, e.g. `/api/menu`. Fallback navigation start when `crash_location` is `None` |
 | `changed_files` | `list[str]` | GitHub extractor findings | Files changed in the release that triggered the error |
 | `max_files_to_read` | `int` | Orchestrator guardrail | Hard cap on total files Claude may read in one run |
+
+**Navigation start priority:** `crash_location` first (precise file + line); `endpoint` fallback when `crash_location` is `None`. Both `None` → return `no_data`.
 
 ---
 
@@ -128,8 +131,8 @@ Error statuses return a minimal dict:
 
 ## Filtering Pipeline
 
-1. **Validate guardrails** — `crash_location` must be a non-empty string; `max_files_to_read` must be a positive int. Return `invalid_input` immediately on failure — no Claude call made.
-2. **Validate crash_location is in scope** — path must start with one of the allowed prefixes (`src/`, `graphql-gateway/`, `backend/`, `docs/`). Return `no_data` if outside scope.
+1. **Validate guardrails** — `max_files_to_read` must be a positive int; at least one of `crash_location` or `endpoint` must be a non-empty string. Return `invalid_input` immediately on failure — no Claude call made.
+2. **Determine navigation start** — if `crash_location` is provided and in scope, use it. If `crash_location` is `None` or empty, fall back to `endpoint`. If both are absent, return `no_data`. Validate any provided `crash_location` starts with an allowed prefix (`src/`, `graphql-gateway/`, `backend/`, `docs/`).
 3. **Build system prompt** — wrap with `build_system_prompt()` for prompt caching. System prompt instructs Claude: navigate read-only, call `return_findings` when done, never return raw code.
 4. **Build initial user message** — pass `crash_location`, `changed_files`, and `max_files_to_read` as structured input.
 5. **Agentic loop** — each turn: call `client.messages.create()`, append usage to `usage_by_turn`. On `stop_reason == "tool_use"`: dispatch to `_process_tool_call()`. On `stop_reason == "end_turn"` or `return_findings` tool called: exit loop.
@@ -154,7 +157,7 @@ Error statuses return a minimal dict:
 
 ```python
 def _validate_guardrails(guardrails: dict) -> str | None:
-    # returns error string if crash_location missing/empty or max_files_to_read is not a positive int; None if valid
+    # returns error string if both crash_location and endpoint are absent/empty, or max_files_to_read is not a positive int; None if valid
 
 def _is_path_allowed(path: str) -> bool:
     # returns True if path starts with src/, graphql-gateway/, backend/, or docs/
@@ -179,21 +182,38 @@ def _process_tool_call(tool_name: str, tool_input: dict, files_read: list[str], 
 
 File: `agents/tests/test_codebase_agent.py`
 
-| # | Test name | What it verifies |
-|---|---|---|
-| 1 | `test_returns_completed_when_claude_calls_return_findings` | Claude calls `return_findings` tool → `status="completed"`, `source="codebase"`, all findings fields present |
-| 2 | `test_returns_partial_when_turn_budget_exhausted` | Mock SDK returns `tool_use` for all turns without calling `return_findings` → `status="partial"` |
-| 3 | `test_returns_no_data_when_crash_location_out_of_scope` | `crash_location="etc/passwd"` → `status="no_data"`, no Claude call made |
-| 4 | `test_returns_invalid_input_when_crash_location_missing` | `guardrails={}` → `status="invalid_input"`, no Claude call made |
-| 5 | `test_returns_invalid_input_when_max_files_not_int` | `guardrails={"crash_location": "src/x.ts:1", "max_files_to_read": "ten"}` → `status="invalid_input"` |
-| 6 | `test_injection_in_file_content_returns_injection_detected` | `_read_file` returns injection pattern → `status="injection_detected"`, `injection_flag=True` |
-| 7 | `test_read_file_blocked_outside_scope` | `_read_file("agents/config.py")` → returns error string, file not read |
-| 8 | `test_list_directory_blocked_outside_scope` | `_list_directory(".env")` → returns error string |
-| 9 | `test_max_files_cap_enforced` | Mock reads 3 files; `max_files_to_read=2` → third `read_file` call returns cap error string |
-| 10 | `test_usage_by_turn_accumulated` | Mock two SDK turns → `record_agent_run` called with `usage_by_turn` list of length 2 |
-| 11 | `test_record_agent_run_called_on_every_return` | Mock `record_agent_run` — assert called for `completed`, `partial`, `invalid_input`, `no_data` paths |
-| 12 | `test_build_system_prompt_used` | Assert `build_system_prompt` called — confirms caching wrapper is applied |
-| 13 | `test_changed_files_included_in_initial_message` | Assert `changed_files` from guardrails appears in the first user message content |
+| # | Test name | Category | What it verifies |
+|---|---|---|---|
+| 1 | `test_returns_completed_when_claude_calls_return_findings` | Happy path | Claude calls `return_findings` → `status="completed"`, `source="codebase"`, all findings fields present |
+| 2 | `test_returns_no_data_when_both_locations_absent` | Happy path | Both `crash_location` and `endpoint` absent → `status="no_data"`, no Claude call |
+| 3 | `test_returns_partial_when_turn_budget_exhausted` | Happy path | SDK returns `tool_use` for all `CODEBASE_MAX_TURNS` turns without `return_findings` → `status="partial"` |
+| 4 | `test_endpoint_fallback_used_when_crash_location_none` | Happy path | `crash_location=None`, `endpoint="/api/menu"` → Claude call made, `endpoint` passed as navigation start |
+| 5 | `test_returns_invalid_input_when_both_locations_missing` | Input validation | `guardrails={}` → `status="invalid_input"`, no Claude call |
+| 6 | `test_returns_invalid_input_when_max_files_not_int` | Input validation | `max_files_to_read="ten"` → `status="invalid_input"`, no Claude call |
+| 7 | `test_returns_invalid_input_when_max_files_negative` | Input validation | `max_files_to_read=-1` → `status="invalid_input"`, no Claude call |
+| 8 | `test_returns_no_data_when_crash_location_out_of_scope` | Input validation | `crash_location="etc/passwd"` → `status="no_data"`, no Claude call |
+| 9 | `test_missing_api_key_returns_unauthenticated` | Authentication | `ANTHROPIC_API_KEY=""` → `status="unauthenticated"`, no SDK call made |
+| 10 | `test_anthropic_401_returns_unauthenticated` | Authentication | SDK raises `anthropic.AuthenticationError` → `status="unauthenticated"` |
+| 11 | `test_anthropic_400_returns_invalid_input` | Authentication | SDK raises `anthropic.BadRequestError` → `status="invalid_input"` (malformed tool definition or payload) |
+| 12 | `test_anthropic_422_returns_invalid_input` | Authentication | SDK raises `anthropic.UnprocessableEntityError` → `status="invalid_input"` (payload rejected as semantically invalid) |
+| 13 | `test_anthropic_403_returns_unauthorized` | Authorization | SDK raises `anthropic.PermissionDeniedError` → `status="unauthorized"` |
+| 14 | `test_anthropic_404_returns_invalid_input` | Resource not found | SDK raises `anthropic.NotFoundError` → `status="invalid_input"` (model name in config doesn't exist) |
+| 15 | `test_anthropic_429_returns_rate_limited` | Rate limiting | SDK raises `anthropic.RateLimitError` → `status="rate_limited"`, no retry inside agent |
+| 16 | `test_anthropic_5xx_returns_server_error` | Server failures | SDK raises `anthropic.InternalServerError` → `status="server_error"` |
+| 17 | `test_anthropic_409_returns_server_error` | Server failures | SDK raises `anthropic.ConflictError` → `status="server_error"` (treat as transient) |
+| 18 | `test_anthropic_timeout_returns_timeout` | Network failures | SDK raises `anthropic.APITimeoutError` → `status="timeout"` |
+| 19 | `test_anthropic_connection_error_returns_network_error` | Network failures | SDK raises `anthropic.APIConnectionError` → `status="network_error"` |
+| 20 | `test_missing_stop_reason_returns_schema_error` | Schema validation | SDK response missing `stop_reason` → `status="schema_error"` |
+| 21 | `test_missing_usage_returns_schema_error` | Schema validation | SDK response missing `usage` field → `status="schema_error"` |
+| 22 | `test_injection_in_file_content_returns_injection_detected` | Filesystem | `_read_file` content matches `_INJECTION_RE` → `status="injection_detected"`, `injection_flag=True` |
+| 23 | `test_read_file_blocked_outside_scope` | Filesystem | `_read_file("agents/config.py")` → returns error string, no file opened |
+| 24 | `test_list_directory_blocked_outside_scope` | Filesystem | `_list_directory(".env")` → returns error string |
+| 25 | `test_file_not_found_returns_error_string_to_claude` | Filesystem | `_read_file` on non-existent path → error string returned to Claude, loop continues |
+| 26 | `test_max_files_cap_enforced` | Filesystem | `max_files_to_read=2`, Claude requests 3 reads → third call returns cap error string |
+| 27 | `test_usage_by_turn_accumulated` | Observability | Two SDK turns → `record_agent_run` called with `usage_by_turn` of length 2 |
+| 28 | `test_record_agent_run_called_on_every_return` | Observability | `record_agent_run` called for `completed`, `partial`, `invalid_input`, `no_data`, `unauthenticated` paths |
+| 29 | `test_build_system_prompt_used` | Observability | `build_system_prompt` called — confirms caching wrapper always applied |
+| 30 | `test_changed_files_included_in_initial_message` | Observability | `changed_files` from guardrails appears in first user message content |
 
 All Claude SDK calls mocked with `unittest.mock.patch`. No real Anthropic API calls in tests.
 
@@ -212,7 +232,7 @@ All Claude SDK calls mocked with `unittest.mock.patch`. No real Anthropic API ca
 
 ## Acceptance Criteria
 
-- [ ] All 13 tests green
+- [ ] All 30 tests green
 - [ ] Full test suite green (no regressions — currently 76 tests)
 - [ ] No real Anthropic API calls in tests (all mocked)
 - [ ] `record_agent_run` called on every return path

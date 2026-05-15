@@ -11,7 +11,7 @@ Content for each section is derived from reading the architecture doc — not fr
 ```
 dependency_map:  agents/specs/DEPENDENCY_MAP.md
 spec_output_dir: agents/specs/
-test_skills:     ask — only include api-integration-tests if the slice calls an external HTTP API
+test_skills:     ask — include api-integration-tests if the slice makes outbound HTTP calls to any external system, whether via raw requests, an SDK wrapper, or a third-party client library; the transport mechanism does not matter, only whether an external network boundary is crossed
 ```
 
 ---

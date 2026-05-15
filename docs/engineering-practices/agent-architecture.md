@@ -528,15 +528,18 @@ Two filesystem tools are exposed to Claude. Both are read-only and path-scoped.
 
 | Field | Type | Source | Notes |
 |---|---|---|---|
-| `crash_location` | `str` | Sentry extractor findings | File + line where the error occurred, e.g. `src/components/MenuItemCard.tsx:42` |
+| `crash_location` | `str \| None` | Sentry extractor findings | File + line where the error occurred, e.g. `src/components/MenuItemCard.tsx:42`. `None` when backend Sentry is not yet instrumented (task 3.14 pending) |
+| `endpoint` | `str \| None` | Render logs findings | Backend route that failed, e.g. `/api/menu`. Used as navigation start when `crash_location` is unavailable — Orchestrator passes this for backend errors before 3.14 is complete |
 | `changed_files` | `list[str]` | GitHub extractor findings | Files changed in the release that triggered the error |
 | `max_files_to_read` | `int` | Orchestrator guardrail | Cap on total files Claude may read in one run |
+
+**Navigation start priority:** `crash_location` (precise file + line) is always preferred. `endpoint` is the fallback when `crash_location` is `None` — the agent uses it to locate the matching backend router file. Once task 3.14 (backend Sentry SDK) is complete, `crash_location` will be available for all layers and `endpoint` becomes a secondary hint only.
 
 ### Navigation Loop
 
 Claude navigates the codebase iteratively in a bounded loop (max turns: `CODEBASE_MAX_TURNS`, default `8`):
 
-1. **Start at crash location** — read the file at `crash_location`; identify the symbol, field, or call that caused the crash
+1. **Start at crash location** — if `crash_location` is provided, read that file and identify the symbol, field, or call that caused the crash. If `crash_location` is `None`, use `endpoint` to locate the matching backend router file and start there.
 2. **Follow the import/call chain** — read the source of that symbol (e.g. a custom hook, a GraphQL query, a service function)
 3. **Cross-check changed files** — if a changed file from the GitHub findings overlaps with what Claude is reading, flag it as likely root cause
 4. **Stop when root cause is clear** — Claude calls no more tools once it has enough to fill the return shape
