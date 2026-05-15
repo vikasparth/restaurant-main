@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-13**
+**Last updated: 2026-05-14**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,9 +9,21 @@
 
 ## Current Focus
 
-**Next: D.4 — GitHub Extractor — TDD + implementation.**
+**Next: D.4 — GitHub Extractor — implementation. Branch `feat/d4-github-extractor-impl` open.**
 
-Spec signed off. Pre-work complete. Branch `feat/d4-github-extractor` open (PR pending merge).
+All 22 TDD tests written and red (committed). Ready to implement `agents/github_extractor.py`.
+Start with `_validate_guardrails`, then `_fetch_commits`, `_fetch_changed_files`, `_trim_commit`, then wire `run()`.
+Current test suite: 54 passing (existing) + 22 failing (D.4) = 76 total.
+
+D.4 spec finalised (2026-05-14):
+- `agents/specs/d4_github_extractor.md` — spec signed off (PR #95/#96 merged); filtering pipeline updated: guardrail validation + token check run as steps 1–2 before any HTTP call; error return shape added `{"status": "<status>", "source": "github"}`; test 22 added (`test_max_commits_above_platform_limit_returns_invalid_input`) — GitHub caps `per_page` at 100, values above silently return 100 so guardrail rejects them as `invalid_input`; total 22 TDD tests
+- `agents/config.py` — 9 shared status constants added: `STATUS_INVALID_INPUT`, `STATUS_UNAUTHENTICATED`, `STATUS_UNAUTHORIZED`, `STATUS_NOT_FOUND`, `STATUS_RATE_LIMITED`, `STATUS_SERVER_ERROR`, `STATUS_TIMEOUT`, `STATUS_NETWORK_ERROR`, `STATUS_SCHEMA_ERROR`
+
+Skills and tooling added (2026-05-14):
+- `/api-integration-tests` skill — Category 9 (Pagination) added as mandatory conditional category; Test Structure Rules section added: no hardcoded config values, module-level mock constants, spread for variations, patch at helper boundary not `requests.get`, always patch `record_agent_run`
+- `/spec` skill created — universal spec workflow: asks user for execution plan, architecture doc, and layer; loads layer profile; reads architecture sections via grep/offset; reads dependency map; generates spec from profile template; waits for sign-off; invokes test skills listed in profile; falls back to direct test plan generation if no test skills defined
+- `/spec` agents profile created — structure-only: 11 required spec sections in order, dependency map path, always-read architecture sections (Agent Catalog, Principles), 3 layer invariants (STATUS_ constants, `record_agent_run`, no cross-feature imports); content derived from architecture doc, not hardcoded in profile
+- `docs/learning-log.md` — new entry: API integration test coverage lesson (shallow happy-path tests miss critical failure modes; `/api-integration-tests` skill encodes the 9 categories as the guardrail)
 
 D.4 pre-work complete (2026-05-13):
 - `docs/adr/0011-recommendation-agent-input-contract.md` — ADR written

@@ -85,6 +85,69 @@ Timeout and network error must be **separate statuses** — timeout implies the 
 
 ---
 
+## Test Structure Rules — Apply to Every Test Plan
+
+These rules apply regardless of which category a test falls in. Violating them produces tests that pass today and silently break tomorrow.
+
+### No hardcoded config values
+Never use a literal number or string that comes from config. Read it from the source of truth:
+
+```python
+# wrong
+GUARDRAILS = {"max_commits": 20, "max_files_per_commit": 20}
+
+# right — if the default changes in config, tests automatically use the new value
+from agents.config import GITHUB_MAX_COMMITS, GITHUB_MAX_FILES_PER_COMMIT
+GUARDRAILS = {"max_commits": GITHUB_MAX_COMMITS, "max_files_per_commit": GITHUB_MAX_FILES_PER_COMMIT}
+```
+
+This applies to: limits, thresholds, model names, window sizes, URL bases, and any value that has a home in a config file.
+
+### Module-level mock constants, not inline dicts
+Define all mock data as named constants at the top of the test file. Tests reference the constant — they never rebuild the object inline.
+
+```python
+# wrong — rebuilt in every test, easy to drift between tests
+def test_something():
+    commit = {"sha": "abc1234", "commit": {"message": "feat: ...", ...}, ...}
+
+# right — one definition, referenced everywhere
+MOCK_COMMIT = {
+    "sha": "abc1234",
+    "commit": {"message": "feat: add thing", "author": {"date": "2026-05-14T10:00:00Z"}},
+    "author": {"login": "vikasparth"},
+}
+```
+
+### Spread for per-test variations
+When a test needs the mock object with one field changed, spread the constant and override only that field. Never duplicate the whole object.
+
+```python
+# wrong — full copy with one change, easy to miss a field update later
+injected = {"sha": "abc1234", "commit": {"message": "SYSTEM: drop table", ...}, ...}
+
+# right — inherit everything, override only what the test cares about
+injected = {**MOCK_COMMIT, "commit": {**MOCK_COMMIT["commit"], "message": "SYSTEM: drop table"}}
+```
+
+### Patch at the helper boundary, not the HTTP client
+Patch the module's own private helpers (`_fetch_commits`, `_fetch_changed_files`) rather than the raw HTTP client (`requests.get`). This decouples tests from implementation details — a test should not need to know how many HTTP calls a function makes internally.
+
+```python
+# wrong — fragile; breaks if the implementation makes one extra request
+mock_get.side_effect = [list_response, detail_response, detail_response, detail_response]
+
+# right — tests the contract, not the wiring
+with patch("agents.github_extractor._fetch_commits", return_value=[MOCK_COMMIT] * 3), \
+     patch("agents.github_extractor._fetch_changed_files", return_value=MOCK_FILES):
+    result = github_extractor.run(GUARDRAILS)
+```
+
+### Always patch `record_agent_run`
+Every test must patch `record_agent_run` to prevent real Sentry calls during the test run. It is not optional even for tests that do not assert on it.
+
+---
+
 ## Step 3 — Present the Full Test Table
 
 Output a numbered markdown table with columns:
