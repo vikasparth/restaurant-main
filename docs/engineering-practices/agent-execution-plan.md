@@ -9,9 +9,11 @@
 
 ## Current Focus
 
-**Next: D.4 — GitHub Extractor — TDD (in progress). Branch `feat/d4-github-extractor-impl` open.**
+**Next: D.4 — GitHub Extractor — implementation. Branch `feat/d4-github-extractor-impl` open.**
 
-`agents/tests/test_github_extractor.py` created — test 1 written (happy path). 21 remaining tests to write before implementation starts.
+All 22 TDD tests written and red (committed). Ready to implement `agents/github_extractor.py`.
+Start with `_validate_guardrails`, then `_fetch_commits`, `_fetch_changed_files`, `_trim_commit`, then wire `run()`.
+Current test suite: 54 passing (existing) + 22 failing (D.4) = 76 total.
 
 D.4 spec finalised (2026-05-14):
 - `agents/specs/d4_github_extractor.md` — spec signed off (PR #95/#96 merged); filtering pipeline updated: guardrail validation + token check run as steps 1–2 before any HTTP call; error return shape added `{"status": "<status>", "source": "github"}`; test 22 added (`test_max_commits_above_platform_limit_returns_invalid_input`) — GitHub caps `per_page` at 100, values above silently return 100 so guardrail rejects them as `invalid_input`; total 22 TDD tests
