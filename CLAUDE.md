@@ -142,6 +142,7 @@ You MUST:
 - Comment the **WHY**, never the WHAT. Code already says what it does — a comment restating it is noise.
 - Add a comment only when a competent engineer reading cold would be confused or make a wrong assumption without it: a non-obvious value, a hidden constraint, a subtle invariant, or a workaround that looks like it could be simplified but can't.
 - Format: short inline comment on the relevant line — `# reason why, not what`.
+- **In pair programming sessions** — add a WHY comment to any non-obvious code snippet shared in chat. Keep it to one line, minimum words. If the code speaks for itself, no comment needed.
 
 #### Config and Infrastructure Files — ALWAYS COMMENT
 **GitHub Actions workflows, Docker files, CI configs, and any infrastructure-as-code MUST include WHY comments.** These files are especially opaque to new engineers — the intent behind each decision is rarely obvious from the syntax alone.
@@ -181,7 +182,6 @@ Do not just describe what a step does — explain the reasoning a new engineer w
 - Never commit `.env` files, secrets, or API keys.
 - Keep commits small and focused on one concern.
 - **Never use `git add -A` or `git add .`** — always stage files explicitly by name.
-- **One PR = one objective.** The PR title must be writable in one sentence with no "and" — if it cannot, the PR contains more than one concern and must be split.
-- **Under 200 lines of code changed per PR** — defect detection drops sharply above this threshold (SmartBear/Cisco research). File count is not a limit — a schema migration touching schema + model + migration + test is one atomic unit and must not be split. When a PR contains tightly-coupled multi-file changes, the description must explicitly state why the files cannot be separated.
+- **If a commit touches more than 3–4 files, stop and split it.** Each commit should be reviewable in under 2 minutes. A new feature touching schema + resolver + types + test is fine; docs + unrelated hooks + config in one shot is not.
 - Use conventional commit prefixes: `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`.
 - Technology-specific pre-commit checklists are in `src/CLAUDE.md` (frontend) and `backend/CLAUDE.md` (backend).

@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-15 (session 3)**
+**Last updated: 2026-05-16 (session 5)**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,10 +9,26 @@
 
 ## Current Focus
 
-**Next: D.5 — Codebase Agent — implementation (pair programming, line by line)**
+**Next: D.ST.5 — Codebase Agent live smoke test (real Sentry error + real Anthropic call)**
+**Then: D.6 — Recommendation Agent**
+
+Session 5 complete (2026-05-16):
+- `agents/codebase_agent.py` — implemented via pair programming; 30/30 tests green; 106/106 full suite passing (no regressions)
+- `agents/specs/DEPENDENCY_MAP.md` — Codebase Agent section added with all 7 function signatures ✅
+- `agents/tests/test_codebase_agent.py` — test helper `_anthropic_status_error` fixed (mock headers); `test_read_file_blocked_outside_scope` updated to unpack tuple return
+- `CLAUDE.md` — Comments section updated: pair programming sessions should add WHY comments to non-obvious snippets, minimum words
+- `docs/engineering-practices/agent-architecture.md` — Test Strategy section added (4 phases: unit → agent stub → integration touch points → E2E); test data preparation documented per phase; index updated
+- `docs/engineering-practices/agent-execution-plan.md` — Phase D.ST stub test tasks added (D.ST.1–D.ST.6); Phase EV integration touch point tasks added (EV.1–EV.6); D.ST.5 detailed steps written; current focus updated
+
+Key implementation decisions made in session 5:
+- `_read_file` returns `tuple[str, bool]` — injection flag as typed boolean, not string keyword matching (user caught this flaw)
+- `_SYSTEM_PROMPT` as module-level constant — not inline in `run()`, not in `config.py` (user caught this)
+- `response.stop_reason` and `response.usage` validated before use — schema_error on None (caught by tests)
+- `anthropic.NotFoundError` (404) mapped to `invalid_input`, not `server_error` — caught by missing specific handler
+- `usage_by_turn` keys must be `input_tokens`/`output_tokens` not `input`/`output` — caught by test
 
 D.5 TDD complete (2026-05-15):
-- `agents/tests/test_codebase_agent.py` — 30 tests written, all red (codebase_agent.py does not exist yet)
+- `agents/tests/test_codebase_agent.py` — 30 tests written, all red (codebase_agent.py did not exist yet)
 - `agents/config.py` — `STATUS_PARTIAL = "partial"` added ✅; `CODEBASE_MAX_FILE_CHARS = 10000` added ✅
 - Tests cover: happy path (4), input validation (4), authentication (4), authorization (1), not found (1), rate limiting (1), server failures (2), network (2), schema validation (2), filesystem (5), observability (4)
 
@@ -396,7 +412,8 @@ Files created:
 
 ## Phase D — Individual Agents
 
-> Build and validate each agent in isolation against its relevant test scenarios. No orchestrator yet — each agent is called directly in tests.
+> Build and validate each agent in isolation. Every agent slice has two steps: (1) implement + unit tests green; (2) Phase 2 stub test — real API call, manual, human decision.
+> **Test strategy reference:** `docs/engineering-practices/agent-architecture.md` — Test Strategy section.
 
 | # | Task | Description | Status |
 |---|---|---|---|
@@ -404,8 +421,65 @@ Files created:
 | D.2 | Backend Sentry Extractor | `agents/backend_sentry_extractor.py` — pure Python extractor; zero Claude API calls; `run(guardrails: dict) -> dict`; escalating window ladder; same fields as D.1 plus `endpoint` and `http_status`; validate against Scenario 1 (reservation failures) and Scenario 3 (allergens) | ⏳ Pending |
 | D.3 | Render Logs Extractor | `agents/render_logs_extractor.py` — pure Python extractor; zero Claude API calls; fetches Render log lines, filters to error/warn, deduplicates by message, caps at 10 distinct errors; `run(guardrails: dict) -> dict`; validate against Scenario 2 (cold start) | ✅ Done |
 | D.4 | GitHub Extractor | `agents/github_extractor.py` — pure Python extractor; zero Claude API calls; fetches commits and PR metadata for a given release SHA; `run(guardrails: dict) -> dict`; validate against Scenario 3 (allergens issue) and Scenario 4 (wrong total) | ⏳ Pending |
-| D.5 | Codebase Agent | `agents/codebase_agent.py` — Claude-assisted navigator; read-only filesystem access scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`; zero GitHub access; uses Claude to navigate multi-hop code traces (crash line → symbol → source → root cause location); returns structured findings ~50 tokens — crash location, root cause file/line, missing field, fix type, runbook match; never passes raw code snippets to Recommendation Agent; `run(guardrails: dict) -> dict`; validate against all 5 scenarios | ⏳ Pending |
-| D.6 | Recommendation Agent | `agents/recommendation_agent.py` — cross-source synthesiser + PR author; receives combined structured payload from Orchestrator (Sentry + Render + GitHub + Codebase structured findings); Claude call produces `interpretation` (root cause, affected layer, regression flag, confidence, recommended fix) and opens a **draft PR** with the proposed fix; returns interpretation + draft PR link to Orchestrator; GitHub write access for draft PRs only — no codebase read access; validate against all 5 scenarios | ⏳ Pending |
+| D.5 | Codebase Agent | `agents/codebase_agent.py` — Claude-assisted navigator; read-only filesystem access scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`; zero GitHub access; uses Claude to navigate multi-hop code traces (crash line → symbol → source → root cause location); returns structured findings ~50 tokens — crash location, root cause file/line, missing field, fix type, runbook match; never passes raw code snippets to Recommendation Agent; `run(guardrails: dict) -> dict` | ✅ Done |
+| D.6 | Recommendation Agent | `agents/recommendation_agent.py` — cross-source synthesiser + PR author; receives combined structured payload from Orchestrator (Sentry + Render + GitHub + Codebase structured findings); Claude call produces `interpretation` (root cause, affected layer, regression flag, confidence, recommended fix) and opens a **draft PR** with the proposed fix; returns interpretation + draft PR link to Orchestrator; GitHub write access for draft PRs only — no codebase read access | ⏳ Pending |
+
+### Phase 2 — Agent Stub Tests (Manual, run after each agent above is implemented)
+
+> Real API calls. Human decision — costs money for Claude-calling agents. Run once per agent after unit tests are green. See Test Strategy in architecture doc for test data preparation steps per agent.
+
+| # | Task | Real calls | Test data needed | Status |
+|---|---|---|---|---|
+| D.ST.1 | Frontend Sentry stub test | Real Sentry API | At least one unresolved frontend error in Sentry (introduce Scenario 3 allergens bug) | ⏳ Pending |
+| D.ST.2 | Backend Sentry stub test | Real Sentry API | At least one unresolved backend error in Sentry (introduce Scenario 1 reservation bug) | ⏳ Pending |
+| D.ST.3 | Render Logs stub test | Real Render API | Any backend 500 or cold start 503 in Render logs | ⏳ Pending |
+| D.ST.4 | GitHub Extractor stub test | Real GitHub API | Any recent commit on `main`; use HEAD as `release_sha` | ⏳ Pending |
+| D.ST.5 | Codebase Agent live smoke test | Real Anthropic SDK | See steps below — introduces a known bug, captures Sentry crash_location, runs agent, verifies recommendation | ⏳ **Next** |
+| D.ST.6 | Recommendation Agent stub test | Real Anthropic SDK | Hand-assembled findings dict from D.ST.1–D.ST.5 real outputs | ⏳ Pending |
+
+### D.ST.5 — Detailed Steps (Codebase Agent Live Smoke Test)
+
+**Bug to introduce:** Remove `allergens` from the GraphQL query in `src/hooks/useMenu.ts`.
+This is Scenario 3 — safest choice, frontend-only change, no database or backend touched, easy to revert.
+The existing Sentry exercise (task 3.16.15) already used this bug, so the pattern is known.
+
+**Step 1 — Introduce the bug**
+- In `src/hooks/useMenu.ts`, remove `allergens` from the GraphQL query fields
+- Deploy to Vercel (or run the frontend locally against the deployed backend)
+- Trigger a page load that calls the menu query
+
+**Step 2 — Confirm Sentry captured the error**
+- Open the Sentry frontend project
+- Find the new error — it will reference `useMenu.ts` or the component consuming the hook
+- Note the exact `crash_location`: file path + line number (e.g. `src/hooks/useMenu.ts:42`)
+- Note the Sentry issue ID
+
+**Step 3 — Run the Codebase Agent**
+```python
+# run from repo root — real Anthropic SDK call, costs tokens
+import agents.codebase_agent as agent
+
+guardrails = {
+    "crash_location": "src/hooks/useMenu.ts:42",  # replace with real line from Sentry
+    "changed_files": ["src/hooks/useMenu.ts"],
+    "max_files_to_read": 8,
+}
+result = agent.run(guardrails, issue_number="smoke-test-1")
+print(result)
+```
+
+**Step 4 — Verify the result**
+- `result["status"]` == `"completed"`
+- `result["root_cause_file"]` points to the correct file (useMenu.ts or the GraphQL query file)
+- `result["fix_type"]` == `"remove_field"` or `"add_field"` (field was removed from query)
+- `result["fix_detail"]` describes adding `allergens` back
+- `usage_by_turn` logged to Sentry — check token count is under 5k total
+
+**Step 5 — Revert the bug**
+- Add `allergens` back to the GraphQL query in `src/hooks/useMenu.ts`
+- Deploy or restart — confirm no Sentry errors
+
+**Pass criteria:** `status: completed`, `root_cause_file` correct, `fix_detail` actionable, token usage reasonable. D.6 does not start until this passes.
 
 ---
 
@@ -421,6 +495,29 @@ Files created:
 | E.4 | GitHub write authorization | Recommendation Agent always has `open_draft_pr` in its tool list — no `/approve` gate before PR creation (draft PRs cannot be merged without human action on GitHub). Orchestrator always has `post_github_comment` and `send_email`. No agent ever has `merge_pr` — merging happens through the normal GitHub UI by a human. Compliance flag (`pii_flag: true` in any finding) adds a compliance notice to the GitHub Issue and PR description — human must acknowledge before merging | ⏳ Pending |
 | E.5 | Confidence-gated notifications | Orchestrator reads `confidence` from Recommendation Agent finding; high → post GitHub comment + send Resend email; medium → post GitHub comment only; low → post GitHub comment only with "investigation inconclusive" framing | ⏳ Pending |
 | E.6 | Timeout and escalation | Orchestrator checks for human response after 24 hours on high-confidence findings → send reminder email; after 48 hours → add `escalation-needed` label; never act autonomously on timeout — only re-notify | ⏳ Pending |
+
+---
+
+## Phase EV — Integration Touch Points (Manual, after Phase E)
+
+> Test only the direct connections between the Orchestrator and each agent it calls. Agents that do not call each other are not cross-tested. Real API calls — human decision.
+> **Test data:** Use Scenario 3 (missing allergens) as the baseline — no database change required, safest to introduce and revert.
+
+| # | Task | Connection tested | What to verify | Status |
+|---|---|---|---|---|
+| EV.1 | Orchestrator → Frontend Sentry | Guardrails shape + status routing | Orchestrator passes correctly shaped guardrails; agent returns `completed`; Orchestrator parses status without error | ⏳ Pending |
+| EV.2 | Orchestrator → Backend Sentry | Guardrails shape + status routing | Same as EV.1 for backend project slug | ⏳ Pending |
+| EV.3 | Orchestrator → Render Logs | Guardrails shape + status routing | Same as EV.1 for Render API | ⏳ Pending |
+| EV.4 | Orchestrator → GitHub Extractor | Guardrails shape + status routing | Orchestrator passes `release_sha` correctly; agent returns `completed` with commits list | ⏳ Pending |
+| EV.5 | Orchestrator → Codebase Agent | Guardrails assembled from prior findings | Orchestrator correctly maps `crash_location` from Sentry finding into Codebase guardrails; agent returns `completed` | ⏳ Pending |
+| EV.6 | Orchestrator → Recommendation Agent | Combined findings payload | Orchestrator correctly assembles all agent findings into one payload; Recommendation Agent returns `completed` with interpretation | ⏳ Pending |
+
+**Test data preparation before running EV.1–EV.6:**
+1. Introduce the Scenario 3 allergens bug (`docs/agent-test-scenarios.md`) and deploy
+2. Confirm Sentry frontend project shows at least one error for the allergens issue
+3. Note the Sentry issue ID
+4. Confirm GitHub `main` has at least one recent commit
+5. Create a GitHub issue on the repo with the Orchestrator trigger format
 
 ---
 

@@ -115,7 +115,7 @@
 | Task | Detail | Status |
 |---|---|---|
 | Phase A — Prerequisites | A.1 ✅ A.2 ✅ A.3 ✅ A.4 ✅ A.5 ✅ — A.6 (Render API access) ⏳ A.7 ✅ | 🔄 In Progress |
-| Phase D — Individual Agents | D.1 Frontend Sentry ✅ — D.2 Backend Sentry ⏳ D.3 Render Logs ⏳ D.4 GitHub ⏳ D.5 Codebase ⏳ D.6 Recommendation ⏳ | 🔄 In Progress |
+| Phase D — Individual Agents | D.1 Frontend Sentry ✅ D.2 Backend Sentry ✅ D.3 Render Logs ✅ D.4 GitHub ✅ D.5 Codebase ✅ — D.6 Recommendation ⏳ | 🔄 In Progress |
 | Phase C — Orchestration Layer | Orchestrator, `/troubleshoot` skill, `sentry-monitor-frontend.yml`, `sentry-monitor-backend.yml`, GitHub write authorization | ⏳ Pending |
 | Phase D — Validation | End-to-end validation against all 5 test scenarios + false positive check | ⏳ Pending |
 
