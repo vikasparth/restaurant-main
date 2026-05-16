@@ -26,6 +26,7 @@ AGENT_MAX_TOKENS_PER_TURN = int(os.getenv("AGENT_MAX_TOKENS_PER_TURN", "1024"))
 
 CODEBASE_MAX_TURNS = int(os.getenv("CODEBASE_MAX_TURNS", "8"))
 CODEBASE_MAX_TOKENS = int(os.getenv("CODEBASE_MAX_TOKENS", str(AGENT_MAX_TOKENS_PER_TURN)))
+CODEBASE_MAX_FILE_CHARS = int(os.getenv("CODEBASE_MAX_FILE_CHARS", "10000"))  # ~2.5k tokens; guards against large files inflating context
 
 RECOMMENDATION_MAX_TURNS = int(os.getenv("RECOMMENDATION_MAX_TURNS", "1"))
 RECOMMENDATION_MAX_TOKENS = int(os.getenv("RECOMMENDATION_MAX_TOKENS", str(AGENT_MAX_TOKENS_PER_TURN)))
@@ -56,6 +57,7 @@ STATUS_SERVER_ERROR = "server_error"
 STATUS_TIMEOUT = "timeout"
 STATUS_NETWORK_ERROR = "network_error"
 STATUS_SCHEMA_ERROR = "schema_error"
+STATUS_PARTIAL = "partial"  # why: codebase agent turn budget exhausted before return_findings called
 
 # why: Render API requires service ID and key from env — never hardcoded
 RENDER_API_BASE = "https://api.render.com/v1"
