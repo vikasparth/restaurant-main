@@ -115,7 +115,7 @@ Error statuses return a minimal dict:
 
 ## Implementation Rules
 
-1. Import `CODEBASE_MODEL`, `CODEBASE_MAX_TURNS`, `CODEBASE_MAX_TOKENS` from `agents/config.py` — never hardcode.
+1. Import `CODEBASE_MODEL`, `CODEBASE_MAX_TURNS`, `CODEBASE_MAX_TOKENS`, `CODEBASE_MAX_FILE_CHARS` from `agents/config.py` — never hardcode.
 2. Import `STATUS_COMPLETED`, `STATUS_NO_DATA`, `STATUS_INJECTION_DETECTED`, `STATUS_INVALID_INPUT`, `STATUS_PARTIAL` from `agents/config.py`. Add `STATUS_PARTIAL = "partial"` to `config.py` — it does not exist yet.
 3. Import `_INJECTION_RE` from `agents/patterns.py` — used in `_read_file` to guard file content before returning it to Claude.
 4. Import `record_agent_run` from `agents/sentry_utils.py` — call before every `return` in `run()`.
@@ -163,7 +163,7 @@ def _is_path_allowed(path: str) -> bool:
     # returns True if path starts with src/, graphql-gateway/, backend/, or docs/
 
 def _read_file(path: str) -> str:
-    # scope check via _is_path_allowed; injection check via _INJECTION_RE; returns file content or error string
+    # scope check via _is_path_allowed; injection check via _INJECTION_RE; content capped at CODEBASE_MAX_FILE_CHARS before returning to Claude
 
 def _list_directory(path: str) -> list[str]:
     # scope check via _is_path_allowed; returns sorted filenames or error string

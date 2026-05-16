@@ -597,6 +597,7 @@ Claude navigates the codebase iteratively in a bounded loop (max turns: `CODEBAS
 | Max Claude turns | `CODEBASE_MAX_TURNS` | `8` |
 | Max tokens per turn | `CODEBASE_MAX_TOKENS` | `1024` |
 | Max files readable | `max_files_to_read` (Orchestrator guardrail) | — |
+| Max chars per file read | `CODEBASE_MAX_FILE_CHARS` | `10000` (~2.5k tokens; prevents large files inflating context) |
 | Filesystem scope | Hardcoded in tool functions | `src/`, `graphql-gateway/`, `backend/`, `docs/` |
 
 ---
