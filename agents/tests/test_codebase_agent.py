@@ -56,6 +56,7 @@ def _anthropic_status_error(exc_class, status_code):
     """Construct an Anthropic APIStatusError subclass with a mock httpx.Response."""
     mock_response = MagicMock(spec=httpx.Response)
     mock_response.status_code = status_code
+    mock_response.headers = {}  # SDK accesses headers.get("request-id") on construction
     return exc_class("test error", response=mock_response, body=None)
 
 
@@ -383,7 +384,7 @@ def test_injection_in_file_content_returns_injection_detected():
 def test_read_file_blocked_outside_scope():
     # agents/config.py is outside the allowed src/, graphql-gateway/, backend/, docs/ prefixes
     with patch("builtins.open") as mock_open_func:
-        result = codebase_agent._read_file("agents/config.py")
+        result, injection = codebase_agent._read_file("agents/config.py")  # returns tuple[str, bool]
 
     assert isinstance(result, str)
     assert "not allowed" in result.lower() or "scope" in result.lower() or "error" in result.lower()

@@ -100,6 +100,26 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
 
 ---
 
+## Codebase Agent (`agents/codebase_agent.py`)
+
+| Function | Signature | Notes |
+|---|---|---|
+| `run` | `run(guardrails: dict, issue_number: str = "") -> dict` | Entry point — makes real Anthropic SDK calls; accumulates `usage_by_turn` across turns |
+| `_validate_guardrails` | `_validate_guardrails(guardrails: dict) -> str \| None` | Checks `max_files_to_read` is a positive int (not bool); returns error string or `None` |
+| `_is_path_allowed` | `_is_path_allowed(path: str) -> bool` | Returns `True` if path starts with `src/`, `graphql-gateway/`, `backend/`, or `docs/` |
+| `_read_file` | `_read_file(path: str) -> tuple[str, bool]` | Scope check → read (capped at `CODEBASE_MAX_FILE_CHARS`) → injection check; returns `(content, injection_flag)` |
+| `_list_directory` | `_list_directory(path: str) -> list[str] \| str` | Scope check → `os.listdir`; returns sorted filenames or error string |
+| `_build_tool_definitions` | `_build_tool_definitions() -> list[dict]` | Anthropic tool schemas for `read_file`, `list_directory`, `return_findings` |
+| `_process_tool_call` | `_process_tool_call(tool_name: str, tool_input: dict, files_read: list[str], max_files: int) -> tuple[str, bool]` | Dispatches Claude tool calls; enforces `max_files` cap; returns `(result_string, injection_detected)` |
+
+**Guardrails consumed:** `crash_location` (str | None), `endpoint` (str | None), `changed_files` (list[str]), `max_files_to_read` (int)
+
+**Navigation priority:** `crash_location` first (Sentry file + line); `endpoint` fallback (Render route, used until task 3.14 wires backend Sentry)
+
+**Return shape:** `status`, `source="codebase"`, `crash_location`, `root_cause_file`, `missing_field`, `fix_location`, `fix_type`, `fix_detail`, `runbook_match`, `injection_flag`, `pii_flag`
+
+---
+
 ## Config Constants (always import from `agents/config.py` — never hardcode)
 
 | Constant | Type | Default | Purpose |

@@ -32,6 +32,7 @@
 | [Cost Reference](#cost-reference) | Per-agent, per-investigation, and monthly token cost estimates |
 | [Alternative Architecture — Why It Was Discarded](#alternative-architecture--why-it-was-discarded) | Original per-agent Claude call design, the four problems found, and the token savings from switching |
 | [Test Scenarios](#test-scenarios) | Reference to validation scenarios |
+| [Test Strategy](#test-strategy) | Four-phase test approach: unit → agent stub → integration touch points → E2E |
 | [Appendix — Design Decisions](#appendix--design-decisions) | Architecture decisions made during design — do not read unless explicitly directed |
 
 ---
@@ -1522,6 +1523,119 @@ The token saving is real but secondary. The primary benefit is that the Recommen
 ## Test Scenarios
 
 Agent behaviour is validated against five documented scenarios in `docs/agent-test-scenarios.md`. Each scenario defines the trigger, the expected agent routing, the expected findings per agent, and the expected recommendation. A new agent implementation is not considered complete until it passes all five scenarios.
+
+---
+
+## Test Strategy
+
+Testing this pipeline has three distinct phases. Each phase builds on the previous one and has its own test data requirements.
+
+**Anthropic SDK calls are never automated.** Any test that makes a real Claude API call costs money and must be a deliberate human decision. Unit tests use mocks. Only Phase 2 and Phase 3 make real SDK calls, and only when explicitly triggered by the developer.
+
+---
+
+### Phase 1 — Unit Tests (Automated, No Real API Calls)
+
+**What is tested:** Every agent and helper function in isolation. External HTTP calls (Sentry, GitHub, Render, Anthropic) are mocked. Tests assert return shapes, status codes, error handling, and guardrail logic.
+
+**When it runs:** On every commit via CI. Zero cost.
+
+**Coverage target:** All status paths per agent — happy path, invalid input, auth failure, rate limit, server error, network error, schema error, injection detected.
+
+**Test data:** Mock constants defined at the top of each test file. No external data required. See `agents/tests/` for all existing test files.
+
+**Pass criteria:** All pytest tests green. No regressions in the full suite.
+
+---
+
+### Phase 2 — Agent Stub Tests (Manual, Real Anthropic Calls Only Where Agent Uses Claude)
+
+**What is tested:** Each agent individually, with controlled stub inputs, making real external API calls where the agent uses them. For Claude-calling agents (Codebase, Recommendation, Orchestrator), real Anthropic SDK calls are made — cost is incurred and this is a deliberate human decision.
+
+**When it runs:** Manually, by the developer, after each agent slice is implemented and unit tests are green.
+
+**Agent-by-agent breakdown:**
+
+| Agent | Real calls made | Stub inputs needed |
+|---|---|---|
+| Frontend Sentry Extractor | Real Sentry API | `max_issues`, `max_frames` guardrails |
+| Backend Sentry Extractor | Real Sentry API | `max_issues`, `max_frames` guardrails |
+| Render Logs Extractor | Real Render API | `max_errors` guardrail |
+| GitHub Extractor | Real GitHub API | `max_commits`, `release_sha` guardrails |
+| Codebase Agent | Real Anthropic SDK | `crash_location`, `changed_files`, `max_files_to_read` from a known real issue |
+| Recommendation Agent | Real Anthropic SDK | Combined findings dict assembled by hand from prior agent outputs |
+
+**Test data preparation per agent:**
+
+- **Sentry extractors** — at least one unresolved error must exist in the Sentry project. Introduce a bug from `docs/agent-test-scenarios.md` Scenario 3 (missing allergens — safest, no database change needed) and confirm Sentry captures it before running the extractor.
+- **Render Logs** — deploy a version that produces a known log error. Scenario 2 (cold start 503) or any backend 500 will work.
+- **GitHub Extractor** — any recent commit with changed files works. Use the current `main` branch HEAD as `release_sha`.
+- **Codebase Agent** — use a real `crash_location` from a Sentry issue captured in the Sentry extractor stub run above. Confirm the file path exists in the local checkout before running.
+- **Recommendation Agent** — assemble a findings dict by hand using real output from prior agent stub runs. This confirms the Recommendation Agent can synthesise real agent output before the Orchestrator is built.
+
+**Pass criteria:** Agent returns `status: completed`, findings dict matches expected shape from `docs/agent-test-scenarios.md`, `usage_by_turn` is populated with real token counts.
+
+---
+
+### Phase 3 — Integration Touch Points (Manual, Real API Calls)
+
+**What is tested:** The handoff contract between the Orchestrator and each agent it directly calls. Only directly connected pairs are tested — agents that do not call each other are not integration tested against each other.
+
+**Direct connections in this architecture:**
+
+```
+Orchestrator → Frontend Sentry Extractor
+Orchestrator → Backend Sentry Extractor
+Orchestrator → Render Logs Extractor
+Orchestrator → GitHub Extractor
+Orchestrator → Codebase Agent
+Orchestrator → Recommendation Agent
+```
+
+**What each integration test verifies:**
+1. Orchestrator passes correctly shaped guardrails to the agent
+2. Agent returns a findings dict the Orchestrator can parse without error
+3. Orchestrator routes correctly based on the agent's status field
+
+**When it runs:** Manually, after the Orchestrator is implemented. One integration test per connection.
+
+**Test data preparation:**
+
+Each integration test runs against a live scenario from `docs/agent-test-scenarios.md`. Scenario 3 (missing allergens, manual trigger) is the recommended starting point — it requires no backend infrastructure change and can be triggered by creating a GitHub issue manually.
+
+Steps before running:
+1. Confirm the bug for the chosen scenario is active in the deployed app
+2. Confirm the Sentry project has captured at least one error for that scenario
+3. Confirm the GitHub repo has at least one commit in the release window
+4. Note the Sentry issue ID and GitHub SHA — pass these directly to the Orchestrator as the trigger payload
+
+**Pass criteria:** Each Orchestrator → Agent handoff completes without a schema error or status mismatch. Orchestrator successfully assembles a combined findings payload.
+
+---
+
+### Phase 4 — End-to-End Tests (Manual, Full Pipeline)
+
+**What is tested:** The full pipeline from GitHub issue trigger to recommendation output, validated against all 5 scenarios in `docs/agent-test-scenarios.md`.
+
+**When it runs:** Manually, once Phase 3 integration tests are green. This is the final acceptance gate before the feature is considered production-ready.
+
+**Trigger mechanism:** Create a GitHub issue on the repo with the format defined in the Orchestrator spec. The `/troubleshoot` skill (or a direct `python agents/orchestrator.py --issue <number>` call) starts the pipeline.
+
+**Test data preparation per scenario:**
+
+| Scenario | Bug to introduce | Data to confirm before running |
+|---|---|---|
+| 1 — Reservation failures | Add `>` instead of `<` in `validate_reservation_time` — see `docs/agent-test-scenarios.md` | Backend Sentry shows 422 spike on `POST /api/reservations`; recent commit with the bug in GitHub |
+| 2 — Render cold start | Force a cold start 503 via Render service restart | Frontend Sentry shows 503 errors; Render logs show cold start lines |
+| 3 — Missing allergens | Remove `allergens` from GraphQL query in `useMenu.ts` | Frontend Sentry shows field error; file present in `src/hooks/useMenu.ts` |
+| 4 — Wrong order total | Change a price value in seed data | GitHub shows a recent commit touching seed data |
+| 5 — Schema drift | Remove a resolver field from `graphql/menu.graphql` | Frontend Sentry shows resolver mismatch error |
+
+**Pass criteria (per scenario):**
+- All required agents invoked and return `status: completed`
+- Recommendation Agent produces a finding with the correct `root_cause`, `affected_layer`, `confidence`, and `regression` values as defined in `docs/agent-test-scenarios.md`
+- No agent returns `schema_error` or `injection_detected` unexpectedly
+- GitHub Issue comment posted with correct YAML envelope
 
 ---
 
