@@ -29,6 +29,12 @@ _VALID_SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
 
 GITHUB_PLATFORM_MAX_COMMITS = 100  # GitHub silently caps per_page at 100
 
+
+def _record_and_return(status: str, usage_by_turn: list, issue_number: str, extra: dict | None = None) -> dict:
+    result = {"status": status, "source": "github", **(extra or {})}
+    record_agent_run("github_extractor", result, usage_by_turn, issue_number)
+    return result
+
 def _validate_guardrails(guardrails: dict) -> str | None:
     # returns an error message string if invalid, None if valid
     max_commits = guardrails.get("max_commits", GITHUB_MAX_COMMITS)
@@ -90,11 +96,9 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
     usage_by_turn = []  # pure Python extractor — no Claude calls, list stays empty
     error = _validate_guardrails(guardrails)
     if error:
-        record_agent_run("github_extractor", STATUS_INVALID_INPUT, [], issue_number)
-        return {"status": STATUS_INVALID_INPUT, "source": "github"}
+        return _record_and_return(STATUS_INVALID_INPUT, usage_by_turn, issue_number)
     if not GITHUB_TOKEN:
-        record_agent_run("github_extractor", STATUS_UNAUTHENTICATED, [], issue_number)
-        return {"status": STATUS_UNAUTHENTICATED, "source": "github"}
+        return _record_and_return(STATUS_UNAUTHENTICATED, usage_by_turn, issue_number)
 
     max_commits = guardrails.get("max_commits", GITHUB_MAX_COMMITS)
     max_files = guardrails.get("max_files_per_commit", GITHUB_MAX_FILES_PER_COMMIT)
@@ -103,21 +107,17 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
     try:
         raw_commits = _fetch_commits(anchor, max_commits)
     except requests.exceptions.Timeout:
-        record_agent_run("github_extractor", STATUS_TIMEOUT, [], issue_number)
-        return {"status": STATUS_TIMEOUT, "source": "github"}
+        return _record_and_return(STATUS_TIMEOUT, usage_by_turn, issue_number)
     except requests.exceptions.ConnectionError:
-        record_agent_run("github_extractor", STATUS_NETWORK_ERROR, [], issue_number)
-        return {"status": STATUS_NETWORK_ERROR, "source": "github"}
+        return _record_and_return(STATUS_NETWORK_ERROR, usage_by_turn, issue_number)
     except requests.exceptions.HTTPError as e:
         code = e.response.status_code
         # dict lookup maps HTTP status codes to our constants; unlisted codes (e.g. 500) fall back to server_error
         status = {401: STATUS_UNAUTHENTICATED, 403: STATUS_UNAUTHORIZED, 404: STATUS_NOT_FOUND, 429: STATUS_RATE_LIMITED}.get(code, STATUS_SERVER_ERROR)
-        record_agent_run("github_extractor", status, [], issue_number)
-        return {"status": status, "source": "github"}
-   
+        return _record_and_return(status, usage_by_turn, issue_number)
+
     if not raw_commits:
-        record_agent_run("github_extractor", STATUS_NO_DATA, [], issue_number)
-        return {"status": STATUS_NO_DATA, "source": "github", "commit_count": 0}
+        return _record_and_return(STATUS_NO_DATA, usage_by_turn, issue_number, {"commit_count": 0})
 
     # validate before processing — a missing field mid-loop would give a confusing KeyError
     for commit in raw_commits:
@@ -127,8 +127,7 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
             _ = commit["commit"]["author"]["date"]
             _ = commit["author"]["login"]
         except (KeyError, TypeError):
-            record_agent_run("github_extractor", STATUS_SCHEMA_ERROR, [], issue_number)
-            return {"status": STATUS_SCHEMA_ERROR, "source": "github"}
+            return _record_and_return(STATUS_SCHEMA_ERROR, usage_by_turn, issue_number)
 
     commits = []
     pii_flag = False
@@ -136,8 +135,7 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
         trimmed = _trim_commit(raw)
         # injection in any single commit poisons the whole run — stop immediately
         if trimmed.get("injection_flag"):
-            record_agent_run("github_extractor", STATUS_INJECTION_DETECTED, [], issue_number)
-            return {"status": STATUS_INJECTION_DETECTED, "source": "github", "injection_flag": True}
+            return _record_and_return(STATUS_INJECTION_DETECTED, usage_by_turn, issue_number, {"injection_flag": True})
         pii_flag = pii_flag or trimmed.pop("pii_flag", False)  # accumulate across all commits
         trimmed.pop("injection_flag", None)  # remove internal flag before adding to output
         trimmed["changed_files"] = _fetch_changed_files(trimmed["sha"], max_files)[:max_files]
@@ -156,5 +154,5 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
         "injection_flag": False,
         "pii_flag": pii_flag,
     }
-    record_agent_run("github_extractor", STATUS_COMPLETED, usage_by_turn, issue_number)
+    record_agent_run("github_extractor", result, usage_by_turn, issue_number)
     return result
