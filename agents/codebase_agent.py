@@ -124,20 +124,20 @@ def _process_tool_call(
     else:
         return "ERROR: unknown tool", False
     
+def _record_and_return(status: str, usage_by_turn: list, issue_number: str, extra: dict | None = None) -> dict:
+    result = {"status": status, "source": "codebase", **(extra or {})}
+    record_agent_run("codebase_agent", result, usage_by_turn, issue_number)
+    return result
+
+
 def run(guardrails: dict, issue_number: str = "") -> dict:
     usage_by_turn = []
     findings = {}
-    injection_flag = False
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        record_agent_run(source="codebase", status=STATUS_UNAUTHENTICATED, issue_number=issue_number, usage_by_turn=usage_by_turn)
-        return {"status": STATUS_UNAUTHENTICATED, "source": "codebase"}
+        return _record_and_return(STATUS_UNAUTHENTICATED, usage_by_turn, issue_number)
     error = _validate_guardrails(guardrails)
     if error:
-        record_agent_run(source="codebase", status=STATUS_INVALID_INPUT, issue_number=issue_number, usage_by_turn=usage_by_turn)
-        return {"status": STATUS_INVALID_INPUT, "source": "codebase"}
-    crash_location = guardrails.get("crash_location") or ""
-    endpoint = guardrails.get("endpoint") or ""
-
+        return _record_and_return(STATUS_INVALID_INPUT, usage_by_turn, issue_number)
     crash_location = guardrails.get("crash_location") or ""
     endpoint = guardrails.get("endpoint") or ""
 
@@ -147,15 +147,13 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
     if crash_location:
         # strip the :42 line number before checking the path prefix
         if not _is_path_allowed(crash_location.split(":")[0]):
-            record_agent_run(source="codebase", status=STATUS_NO_DATA, issue_number=issue_number, usage_by_turn=usage_by_turn)
-            return {"status": STATUS_NO_DATA, "source": "codebase"}
+            return _record_and_return(STATUS_NO_DATA, usage_by_turn, issue_number)
         nav_start = crash_location
     elif endpoint:
         # no scope check needed — endpoint is a URL path, not a filesystem path
         nav_start = endpoint
     else:
-        record_agent_run(source="codebase", status=STATUS_NO_DATA, issue_number=issue_number, usage_by_turn=usage_by_turn)
-        return {"status": STATUS_NO_DATA, "source": "codebase"}
+        return _record_and_return(STATUS_NO_DATA, usage_by_turn, issue_number)
 
     client = anthropic.Anthropic()
     changed_files = guardrails.get("changed_files", [])
@@ -186,65 +184,53 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
                 messages=messages,
             )
         except anthropic.AuthenticationError:
-            record_agent_run(source="codebase", status=STATUS_UNAUTHENTICATED, issue_number=issue_number, usage_by_turn=usage_by_turn)
-            return {"status": STATUS_UNAUTHENTICATED, "source": "codebase"}
+            return _record_and_return(STATUS_UNAUTHENTICATED, usage_by_turn, issue_number)
         except anthropic.PermissionDeniedError:
-            record_agent_run(source="codebase", status=STATUS_UNAUTHORIZED, issue_number=issue_number, usage_by_turn=usage_by_turn)
-            return {"status": STATUS_UNAUTHORIZED, "source": "codebase"}
+            return _record_and_return(STATUS_UNAUTHORIZED, usage_by_turn, issue_number)
         except (anthropic.BadRequestError, anthropic.UnprocessableEntityError):
-            record_agent_run(source="codebase", status=STATUS_INVALID_INPUT, issue_number=issue_number, usage_by_turn=usage_by_turn)
-            return {"status": STATUS_INVALID_INPUT, "source": "codebase"}
+            return _record_and_return(STATUS_INVALID_INPUT, usage_by_turn, issue_number)
         except anthropic.RateLimitError:
-            record_agent_run(source="codebase", status=STATUS_RATE_LIMITED, issue_number=issue_number, usage_by_turn=usage_by_turn)
-            return {"status": STATUS_RATE_LIMITED, "source": "codebase"}
+            return _record_and_return(STATUS_RATE_LIMITED, usage_by_turn, issue_number)
         except anthropic.NotFoundError:
-            record_agent_run(source="codebase", status=STATUS_INVALID_INPUT, issue_number=issue_number, usage_by_turn=usage_by_turn)
-            return {"status": STATUS_INVALID_INPUT, "source": "codebase"}
+            return _record_and_return(STATUS_INVALID_INPUT, usage_by_turn, issue_number)
         except anthropic.APIStatusError:
-            record_agent_run(source="codebase", status=STATUS_SERVER_ERROR, issue_number=issue_number, usage_by_turn=usage_by_turn)
-            return {"status": STATUS_SERVER_ERROR, "source": "codebase"}
+            return _record_and_return(STATUS_SERVER_ERROR, usage_by_turn, issue_number)
         except anthropic.APITimeoutError:
-            record_agent_run(source="codebase", status=STATUS_TIMEOUT, issue_number=issue_number, usage_by_turn=usage_by_turn)
-            return {"status": STATUS_TIMEOUT, "source": "codebase"}
+            return _record_and_return(STATUS_TIMEOUT, usage_by_turn, issue_number)
         except anthropic.APIConnectionError:
-            record_agent_run(source="codebase", status=STATUS_NETWORK_ERROR, issue_number=issue_number, usage_by_turn=usage_by_turn)
-            return {"status": STATUS_NETWORK_ERROR, "source": "codebase"}
+            return _record_and_return(STATUS_NETWORK_ERROR, usage_by_turn, issue_number)
 
         if response.stop_reason is None:
-            record_agent_run(source="codebase", status=STATUS_SCHEMA_ERROR, issue_number=issue_number, usage_by_turn=usage_by_turn)
-            return {"status": STATUS_SCHEMA_ERROR, "source": "codebase"}
+            return _record_and_return(STATUS_SCHEMA_ERROR, usage_by_turn, issue_number)
         if response.usage is None:
-            record_agent_run(source="codebase", status=STATUS_SCHEMA_ERROR, issue_number=issue_number, usage_by_turn=usage_by_turn)
-            return {"status": STATUS_SCHEMA_ERROR, "source": "codebase"}
+            return _record_and_return(STATUS_SCHEMA_ERROR, usage_by_turn, issue_number)
 
         usage_by_turn.append({"input_tokens": response.usage.input_tokens, "output_tokens": response.usage.output_tokens})
-        # find the tool_use block in Claude's response
-        tool_block = next((b for b in response.content if b.type == "tool_use"), None)
+        # Claude may call multiple tools in one turn — collect all and respond to each
+        tool_blocks = [b for b in response.content if b.type == "tool_use"]
 
-        if tool_block and tool_block.name == "return_findings":
+        return_block = next((b for b in tool_blocks if b.name == "return_findings"), None)
+        if return_block:
             # Claude finished — capture structured findings and exit loop
-            findings = {**tool_block.input, "status": STATUS_COMPLETED, "source": "codebase"}
+            findings = {**return_block.input, "status": STATUS_COMPLETED, "source": "codebase"}
             break
 
-        if tool_block:
-            result_str, detected = _process_tool_call(
-                tool_block.name, tool_block.input, files_read, max_files
-            )
-            if detected:  # file content matched injection pattern — stop immediately, don't pass to Claude
-                injection_flag = True
-                record_agent_run(source="codebase", status=STATUS_INJECTION_DETECTED, issue_number=issue_number, usage_by_turn=usage_by_turn)
-                return {"status": STATUS_INJECTION_DETECTED, "source": "codebase", "injection_flag": True}
+        if tool_blocks:
+            tool_results = []
+            for tb in tool_blocks:
+                result_str, detected = _process_tool_call(
+                    tb.name, tb.input, files_read, max_files
+                )
+                if detected:  # file content matched injection pattern — stop immediately, don't pass to Claude
+                    return _record_and_return(STATUS_INJECTION_DETECTED, usage_by_turn, issue_number, {"injection_flag": True})
+                tool_results.append({"type": "tool_result", "tool_use_id": tb.id, "content": result_str})
 
-            # append Claude's response and our tool result so the next turn has full context
+            # append Claude's response and all tool results so the next turn has full context
             messages.append({"role": "assistant", "content": response.content})
-            messages.append({
-                "role": "user",
-                "content": [{"type": "tool_result", "tool_use_id": tool_block.id, "content": result_str}],
-            })
+            messages.append({"role": "user", "content": tool_results})
     # loop exhausted without return_findings — return partial with whatever was found
     if not findings:
-        record_agent_run(source="codebase", status=STATUS_PARTIAL, issue_number=issue_number, usage_by_turn=usage_by_turn)
-        return {"status": STATUS_PARTIAL, "source": "codebase"}
+        return _record_and_return(STATUS_PARTIAL, usage_by_turn, issue_number)
 
-    record_agent_run(source="codebase", status=findings["status"], issue_number=issue_number, usage_by_turn=usage_by_turn)
+    record_agent_run("codebase_agent", findings, usage_by_turn, issue_number)
     return findings

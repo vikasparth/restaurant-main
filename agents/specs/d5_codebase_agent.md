@@ -241,3 +241,102 @@ All Claude SDK calls mocked with `unittest.mock.patch`. No real Anthropic API ca
 - [ ] Filesystem scope enforced in tool functions, not in the prompt
 - [ ] No hardcoded values — all config from `agents/config.py`
 - [ ] No cross-feature imports
+
+---
+
+## Appendix — Input Token Accumulation: Root Cause and Fix Options
+
+> Written after D.ST.5 smoke test (2026-05-16). The failed run hit **11,000 input tokens**. Read this before starting D.ST.5a.
+
+### Why tokens compound across turns
+
+The Anthropic API requires the full message history on every call. Every file Claude reads is appended as a `tool_result` and re-sent on every subsequent turn — it never leaves the context:
+
+```
+Turn 1 input:  [system] + [tools] + [user_message_0]                                          ~535 tokens
+Turn 2 input:  [system] + [tools] + [user_message_0] + [assistant_1] + [file1_content]        ~3,185 tokens
+Turn 3 input:  [system] + [tools] + [user_message_0] + [assistant_1] + [file1_content]
+                + [assistant_2] + [file2_content]                                              ~5,835 tokens
+Turn 4 input:  everything above + [assistant_3] + [file3_content]                             ~8,485 tokens
+Turn 5 input:  everything above + [assistant_4] + [file4_content]                             ~11,135 tokens
+```
+
+Each file read adds **~2,500 tokens** (`CODEBASE_MAX_FILE_CHARS = 10,000 chars ÷ 4`) to **every subsequent turn**, not just the turn it was read.
+
+### Fixed overhead per turn (always re-sent)
+
+| Component | Tokens |
+|---|---|
+| System prompt | ~35 |
+| Tool definitions (3 tools) | ~450 |
+| Initial user message | ~50 |
+| **Subtotal** | **~535 per turn** |
+
+### Why the failed D.ST.5 run was worse than a clean run
+
+The multi-tool bug (Claude returning 2 `tool_use` blocks, us processing only 1) caused extra turns before the 400 error. Each of those extra turns still appended file content to the history. By the time the 400 hit, 4–5 turns had accumulated — reaching 11k.
+
+A clean 3-turn run with `max_files_to_read: 3` should stay under 4k input tokens.
+
+---
+
+### Three architectural approaches to solve this (decide in D.ST.5a)
+
+#### Option A — Trim old tool_results after processing *(recommended — most general)*
+
+After Claude reads a file and responds, the full content is no longer needed. Replace the `tool_result` content with a stub before the next API call:
+
+```python
+# after appending assistant + tool_result, shrink the previous tool_result to near-zero tokens
+messages[-1]["content"] = [
+    {"type": "tool_result", "tool_use_id": tb.id, "content": f"[read: {path}, {len(content)} chars]"}
+]
+```
+
+**Effect:** Input tokens stay roughly constant regardless of how many files are read (~535 overhead + ~10 per processed file). Claude has already reasoned about the file — it doesn't need it re-sent.
+
+**Tradeoff:** Slightly more complex loop. Must trim before the next `client.messages.create` call, not after.
+
+---
+
+#### Option B — Line-range reads instead of whole files
+
+Instead of reading the full file, read only lines near the crash location:
+
+```python
+# crash_location = "src/features/menu/hooks/useMenu.ts:15"
+# read lines 5–30 only — roughly 500 tokens instead of 2,500
+```
+
+**Effect:** Caps each file read at ~500 tokens regardless of file size. 3 turns stays under 2k input tokens.
+
+**Tradeoff:** Claude may miss context that lives outside the line window. Requires parsing `crash_location` to extract the line number and computing the range.
+
+---
+
+#### Option C — Pre-read design (no agentic loop)
+
+Before calling Claude, read the `changed_files` ourselves. Pass the content in the initial user message. Claude reasons once and calls `return_findings` — no loop, no accumulation:
+
+```python
+# read files outside the loop
+file_contents = {path: read_file(path) for path in changed_files}
+# pass everything in one user message
+user_message = f"Crash: {crash_location}\nFiles:\n" + "\n".join(
+    f"--- {path} ---\n{content}" for path, content in file_contents.items()
+)
+# single Claude call — no loop
+```
+
+**Effect:** Total input tokens = overhead + file contents (sent once only). No compounding.
+
+**Tradeoff:** Claude can only navigate files it was given upfront. Cannot follow a symbol to a file that wasn't in `changed_files`. Works well for simple single-file bugs; fails for deep multi-hop traces.
+
+---
+
+### Recommendation for D.ST.5a
+
+1. Instrument a clean run to get exact `usage_by_turn` numbers per turn
+2. Decide between Option A (trim) and Option C (pre-read) based on the token data
+3. Option A is the better long-term design — it preserves multi-hop navigation while keeping input tokens flat
+4. Update `CODEBASE_MAX_FILE_CHARS` and the token budget target in this spec once the approach is chosen

@@ -88,6 +88,25 @@ except anthropic.APIConnectionError:
     ...
 ```
 
+### Category 7c — Agentic Loop Invariants *(Claude SDK multi-turn agents only)*
+
+When the agent runs a bounded loop calling `client.messages.create` with tool definitions, the Claude API can return **multiple `tool_use` blocks in a single response**. The agent must send a `tool_result` for **every** `tool_use` in that response — the API rejects the next call with a 400 `BadRequestError` if any `tool_use` has no matching `tool_result`.
+
+**Required test:**
+- Claude returns two `tool_use` blocks in one turn → assert the next `messages.create` call receives **two** `tool_result` entries (not one)
+
+**Root cause pattern:** using `next()` finds only the first block. The fix is to collect all blocks:
+
+```python
+# wrong — only processes first tool_use; second has no tool_result → 400 on next call
+tool_block = next((b for b in response.content if b.type == "tool_use"), None)
+
+# right — one tool_result per tool_use, sent together in one user message
+tool_blocks = [b for b in response.content if b.type == "tool_use"]
+```
+
+This is a silent failure: the code works when Claude calls one tool at a time (the common case) but fails intermittently when Claude calls two. A unit test that mocks a multi-tool response is the only reliable guard.
+
 ### Category 8 — Response Schema Validation
 - Response is missing an expected field (e.g. `author.login`, `data.items`) → `schema_error`
 - Response field has wrong type (e.g. array expected, null returned) → `schema_error`

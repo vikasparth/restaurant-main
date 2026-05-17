@@ -19,6 +19,7 @@ const MENU_QUERY = gql`
           catering_available
           catering_price_per_tray
           display_order
+          allergens
         }
       }
     }

@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-16 (session 5)**
+**Last updated: 2026-05-16 (session 6)**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,23 +9,25 @@
 
 ## Current Focus
 
-**Next: D.ST.5 — Codebase Agent live smoke test (real Sentry error + real Anthropic call)**
+**Next: D.ST.5a — Codebase Agent token budget analysis + guardrail calibration**
 **Then: D.6 — Recommendation Agent**
+**D.ST.5 — Codebase Agent live smoke test: ✅ PASSED**
 
-Session 5 complete (2026-05-16):
-- `agents/codebase_agent.py` — implemented via pair programming; 30/30 tests green; 106/106 full suite passing (no regressions)
-- `agents/specs/DEPENDENCY_MAP.md` — Codebase Agent section added with all 7 function signatures ✅
-- `agents/tests/test_codebase_agent.py` — test helper `_anthropic_status_error` fixed (mock headers); `test_read_file_blocked_outside_scope` updated to unpack tuple return
-- `CLAUDE.md` — Comments section updated: pair programming sessions should add WHY comments to non-obvious snippets, minimum words
-- `docs/engineering-practices/agent-architecture.md` — Test Strategy section added (4 phases: unit → agent stub → integration touch points → E2E); test data preparation documented per phase; index updated
-- `docs/engineering-practices/agent-execution-plan.md` — Phase D.ST stub test tasks added (D.ST.1–D.ST.6); Phase EV integration touch point tasks added (EV.1–EV.6); D.ST.5 detailed steps written; current focus updated
+Session 6 complete (2026-05-16):
+- D.ST.5 smoke test passed: `status: completed`, `root_cause_file: src/features/menu/hooks/useMenu.ts`, `missing_field: allergens`, `fix_detail` actionable; Sentry received 2 events ✅
+- `agents/codebase_agent.py` — two bugs found and fixed during smoke test:
+  1. Agentic loop only handled the first `tool_use` block per turn (`next()`) — Claude can return multiple in one turn; fix: collect all blocks, send one `tool_result` per `tool_use`
+  2. `record_agent_run` called with wrong keyword args (`source=`, `status=`) instead of `(agent_name, result_dict, usage_by_turn, issue_number)`; fix: added `_record_and_return` helper, all 17 call sites corrected
+- `agents/github_extractor.py` — same `record_agent_run` signature bug fixed (latent — only survived because `AGENTS_SENTRY_DSN` unset in tests causes early return before `.get()` access); `_record_and_return` helper added, all 10 call sites corrected
+- `agents/tests/test_codebase_agent.py` — 31st test added: `test_claude_multiple_tool_calls_in_one_turn_all_get_results`; `_sdk_response_multi` builder added
+- `.claude/skills/api-integration-tests/skill.md` — Category 7c added: agentic loop invariants (multi-tool-use pattern) for Claude SDK agents
+- `src/features/menu/hooks/useMenu.ts` — `allergens` field restored to MENU_QUERY (closes task 3.16.15)
+- Full suite: 107/107 passing ✅
 
-Key implementation decisions made in session 5:
-- `_read_file` returns `tuple[str, bool]` — injection flag as typed boolean, not string keyword matching (user caught this flaw)
-- `_SYSTEM_PROMPT` as module-level constant — not inline in `run()`, not in `config.py` (user caught this)
-- `response.stop_reason` and `response.usage` validated before use — schema_error on None (caught by tests)
-- `anthropic.NotFoundError` (404) mapped to `invalid_input`, not `server_error` — caught by missing specific handler
-- `usage_by_turn` keys must be `input_tokens`/`output_tokens` not `input`/`output` — caught by test
+Key decisions made in session 6:
+- Input tokens hit 11k on the failed smoke test run (Sonnet model + `max_files_to_read: 8` + multi-turn accumulation); clean run with `max_files_to_read: 3` stayed well under; token budget target of 5k was written for Haiku — Sonnet will naturally cost more; revisit when Orchestrator token cap is designed
+- `fix_type` returned `missing_field` (not `add_field`/`remove_field` as spec predicted) — semantically equivalent, no change needed
+- `_record_and_return` helper pattern is now the standard for all agents — DRY, avoids duplicating status string in both `record_agent_run` call and return dict
 
 D.5 TDD complete (2026-05-15):
 - `agents/tests/test_codebase_agent.py` — 30 tests written, all red (codebase_agent.py did not exist yet)
@@ -434,7 +436,10 @@ Files created:
 | D.ST.2 | Backend Sentry stub test | Real Sentry API | At least one unresolved backend error in Sentry (introduce Scenario 1 reservation bug) | ⏳ Pending |
 | D.ST.3 | Render Logs stub test | Real Render API | Any backend 500 or cold start 503 in Render logs | ⏳ Pending |
 | D.ST.4 | GitHub Extractor stub test | Real GitHub API | Any recent commit on `main`; use HEAD as `release_sha` | ⏳ Pending |
-| D.ST.5 | Codebase Agent live smoke test | Real Anthropic SDK | See steps below — introduces a known bug, captures Sentry crash_location, runs agent, verifies recommendation | ⏳ **Next** |
+| D.ST.5 | Codebase Agent live smoke test | Real Anthropic SDK | See steps below — introduces a known bug, captures Sentry crash_location, runs agent, verifies recommendation | ✅ Done |
+| D.ST.5a | Codebase Agent token budget analysis | Real Anthropic SDK | Instrument a clean run to capture `usage_by_turn` per-turn; understand exactly why the failed run hit 11k input tokens; calibrate `CODEBASE_MAX_FILE_CHARS` and guardrail defaults; update spec token budget target | ⏳ **Next** |
+
+> ⚠️ **Decision required before D.6 starts** — three architectural options for eliminating input token compounding are documented in `agents/specs/d5_codebase_agent.md` (Appendix). Vikas and Claude must read, discuss, and make a call on which approach to implement. D.6 Orchestrator token cap design depends on this decision.
 | D.ST.6 | Recommendation Agent stub test | Real Anthropic SDK | Hand-assembled findings dict from D.ST.1–D.ST.5 real outputs | ⏳ Pending |
 
 ### D.ST.5 — Detailed Steps (Codebase Agent Live Smoke Test)
@@ -462,7 +467,7 @@ import agents.codebase_agent as agent
 guardrails = {
     "crash_location": "src/hooks/useMenu.ts:42",  # replace with real line from Sentry
     "changed_files": ["src/hooks/useMenu.ts"],
-    "max_files_to_read": 8,
+    "max_files_to_read": 3,  # keep low — file contents accumulate in context each turn
 }
 result = agent.run(guardrails, issue_number="smoke-test-1")
 print(result)

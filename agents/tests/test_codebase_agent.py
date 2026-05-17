@@ -52,6 +52,31 @@ def _sdk_response(tool_name, tool_input, input_tokens=100, output_tokens=50):
     return response
 
 
+def _sdk_response_multi(tool_specs, input_tokens=100, output_tokens=50):
+    """Build a mock response with multiple tool_use blocks in one turn.
+
+    tool_specs: list of (name, input_dict, tool_id) tuples.
+    """
+    blocks = []
+    for name, input_dict, tool_id in tool_specs:
+        block = MagicMock()
+        block.type = "tool_use"
+        block.name = name
+        block.id = tool_id
+        block.input = input_dict
+        blocks.append(block)
+
+    usage = MagicMock()
+    usage.input_tokens = input_tokens
+    usage.output_tokens = output_tokens
+
+    response = MagicMock()
+    response.stop_reason = "tool_use"
+    response.content = blocks
+    response.usage = usage
+    return response
+
+
 def _anthropic_status_error(exc_class, status_code):
     """Construct an Anthropic APIStatusError subclass with a mock httpx.Response."""
     mock_response = MagicMock(spec=httpx.Response)
@@ -123,6 +148,34 @@ def test_endpoint_fallback_used_when_crash_location_none():
     user_messages = [m for m in first_call_kwargs.get("messages", []) if m.get("role") == "user"]
     assert len(user_messages) >= 1
     assert "/api/menu" in str(user_messages[0].get("content", ""))
+
+
+def test_claude_multiple_tool_calls_in_one_turn_all_get_results():
+    # Claude returns two read_file calls in one turn — agent must send two tool_results
+    # before the next API call; sending only one causes a 400 BadRequestError
+    multi_response = _sdk_response_multi([
+        ("read_file", {"path": "src/components/MenuItemCard.tsx"}, "toolu_aaa"),
+        ("read_file", {"path": "src/hooks/useMenuItems.ts"}, "toolu_bbb"),
+    ])
+    with patch("agents.codebase_agent.anthropic.Anthropic") as mock_cls, \
+         patch("builtins.open", mock_open(read_data=VALID_FILE_CONTENT)), \
+         patch("agents.codebase_agent.record_agent_run"):
+        mock_client = MagicMock()
+        mock_cls.return_value = mock_client
+        mock_client.messages.create.side_effect = [
+            multi_response,
+            _sdk_response("return_findings", MOCK_FINDINGS),
+        ]
+        result = codebase_agent.run(GUARDRAILS)
+
+    assert result["status"] == "completed"
+    # The second API call must carry two tool_result entries — one per tool_use in turn 1
+    second_call_messages = mock_client.messages.create.call_args_list[1][1]["messages"]
+    tool_result_message = second_call_messages[-1]
+    assert tool_result_message["role"] == "user"
+    assert len(tool_result_message["content"]) == 2
+    result_ids = {entry["tool_use_id"] for entry in tool_result_message["content"]}
+    assert result_ids == {"toolu_aaa", "toolu_bbb"}
 
 
 # ── Input validation ──────────────────────────────────────────────────────────
