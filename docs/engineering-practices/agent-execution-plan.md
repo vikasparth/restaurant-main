@@ -13,6 +13,10 @@
 **Then: D.6 — Recommendation Agent**
 **D.ST.5 — Codebase Agent live smoke test: ✅ PASSED**
 
+Session 7 complete (2026-05-18):
+- `agents/specs/d5_codebase_agent.md` — Appendix fully documented: root cause of 11k token spike, fixed overhead breakdown, correct stub timing (shrink AFTER API response, not after append), full turn-by-turn round-trip schema showing exact `messages` list indices + `response.content` blocks + `tool_results` built per turn, concrete token savings table (3,065 tokens at Turn 4 vs ~8,485 without stub), three architectural fix options with tradeoffs
+- Key insight: previous turn file content must stay FULL in messages until Claude responds in the NEXT turn — that response is proof Claude has processed it; only then is the shrink safe
+
 Session 6 complete (2026-05-16):
 - D.ST.5 smoke test passed: `status: completed`, `root_cause_file: src/features/menu/hooks/useMenu.ts`, `missing_field: allergens`, `fix_detail` actionable; Sentry received 2 events ✅
 - `agents/codebase_agent.py` — two bugs found and fixed during smoke test:

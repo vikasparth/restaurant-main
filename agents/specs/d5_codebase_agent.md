@@ -284,18 +284,362 @@ A clean 3-turn run with `max_files_to_read: 3` should stay under 4k input tokens
 
 #### Option A — Trim old tool_results after processing *(recommended — most general)*
 
-After Claude reads a file and responds, the full content is no longer needed. Replace the `tool_result` content with a stub before the next API call:
+**Correct timing — shrink AFTER getting Claude's response, not after appending.**
+
+Getting a response from the API proves Claude has already read and reasoned about the previous turn's file content. That is the safe moment to shrink — not before.
+
+```
+Turn N:
+  → client.messages.create() sends messages including full file content from turn N-1
+  ← Claude responds (proof it has now read turn N-1's file)
+  → shrink ALL previous tool_result contents to stubs  ← correct moment
+  → append turn N's assistant response + turn N's full new tool_result
+Turn N+1:
+  → client.messages.create() sends:
+      [system] + [tools] + [initial_msg]
+      + [assistant_N-1] + [stub: "read: file1 — N-1 chars"]   ← was 2,500 tokens, now ~10
+      + [assistant_N]   + [file_N full content]                ← Claude still needs this
+```
 
 ```python
-# after appending assistant + tool_result, shrink the previous tool_result to near-zero tokens
-messages[-1]["content"] = [
-    {"type": "tool_result", "tool_use_id": tb.id, "content": f"[read: {path}, {len(content)} chars]"}
+# correct placement — right after client.messages.create() succeeds, line ~185
+response = client.messages.create(...)
+
+# Claude just responded — it has processed all previous tool_results in this call
+# shrink them now so the next call does not re-send large file contents
+for msg in messages:
+    if msg.get("role") == "user" and isinstance(msg.get("content"), list):
+        for block in msg["content"]:
+            if isinstance(block, dict) and block.get("type") == "tool_result":
+                if len(block.get("content", "")) > 100:
+                    block["content"] = f"[read: {len(block['content'])} chars — already in Claude's context]"
+
+# now process tool calls and append new messages as normal
+```
+
+**What "already in Claude's context" means — there is no processing logic.**
+The stub is not a summary. No code processes or extracts anything from the file. The reason it is safe to discard the content is that Claude's own response (the assistant message we keep in full) already contains whatever Claude extracted from the file — the symbol it found, the line it identified, the pattern it noticed. The file content served its purpose in that turn. Future turns need Claude's analysis of it, not the raw bytes again. The stub just satisfies the API contract (every `tool_use` must have a matching `tool_result`) and signals to Claude which file was already read so it does not request it again.
+
+**Exact round-trip schema per turn — what Claude returns vs what we send back**
+
+> Files read: file1=useMenu.ts (700 chars), file2=\_\_generated\_\_/menu.ts (5,000 chars), file3=MenuItemCard.tsx (8,000 chars)
+
+Each turn has three parts: what we SEND (the messages list), what Claude RETURNS (response.content), and what we BUILD and append (tool_results). Understanding all three shows where the token cost comes from.
+
+---
+
+**TURN 1**
+
+We SEND (`messages` list, 1 entry):
+```python
+messages = [
+    {"role": "user", "content": "Navigation start: src/features/menu/hooks/useMenu.ts:15\n..."}
 ]
 ```
 
-**Effect:** Input tokens stay roughly constant regardless of how many files are read (~535 overhead + ~10 per processed file). Claude has already reasoned about the file — it doesn't need it re-sent.
+Claude RETURNS (`response.content` — a list of blocks):
+```python
+response.content = [
+    {"type": "text",     "text": "I'll read useMenu.ts to trace the crash at line 15."},
+    {"type": "tool_use", "id": "toolu_aaa", "name": "read_file",
+     "input": {"path": "src/features/menu/hooks/useMenu.ts"}}
+]
+response.stop_reason = "tool_use"
+```
 
-**Tradeoff:** Slightly more complex loop. Must trim before the next `client.messages.create` call, not after.
+We BUILD `tool_results` by calling `_process_tool_call` → reads file from disk → returns content string:
+```python
+tool_results = [
+    {"type": "tool_result", "tool_use_id": "toolu_aaa",
+     "content": "import { useQuery } from '@apollo/client/react';\nconst MENU_QUERY = gql`...700 chars...`"}
+]
+```
+
+We APPEND both to messages (messages now has 3 entries):
+```python
+messages.append({"role": "assistant", "content": response.content})   # index 1 — Claude's text + tool_use
+messages.append({"role": "user",      "content": tool_results})        # index 2 — file1 FULL content
+```
+
+Then SHRINK: nothing to shrink yet — no previous file content exists before Turn 1.
+
+---
+
+**TURN 2**
+
+We SEND (`messages` list, 3 entries — file1 is FULL so Claude can read it):
+```python
+messages = [
+    {"role": "user",      "content": "Navigation start: ..."},                           # index 0
+    {"role": "assistant", "content": [text_block, tool_use(toolu_aaa, read_file)]},      # index 1
+    {"role": "user",      "content": [tool_result(toolu_aaa, FULL file1 content)]}       # index 2 ← 175 tokens
+]
+```
+
+Claude RETURNS (`response.content`):
+```python
+response.content = [
+    {"type": "text",     "text": "useMenu.ts is missing allergens. Let me check the generated types."},
+    {"type": "tool_use", "id": "toolu_bbb", "name": "read_file",
+     "input": {"path": "src/__generated__/menu.ts"}}
+]
+```
+
+We SHRINK messages[2] — Claude just proved it read file1 by responding about it:
+```python
+# messages[2]["content"][0]["content"] was 700 chars → now 10 tokens
+messages[2]["content"][0]["content"] = "[read: 700 chars — already in Claude's context]"
+```
+
+We BUILD tool_results → reads file2 from disk:
+```python
+tool_results = [
+    {"type": "tool_result", "tool_use_id": "toolu_bbb",
+     "content": "export type MenuItem = {\n  id: string;\n  allergens: string[];\n  ...5000 chars..."}
+]
+```
+
+We APPEND (messages now has 5 entries):
+```python
+messages.append({"role": "assistant", "content": response.content})   # index 3 — Claude's text + tool_use
+messages.append({"role": "user",      "content": tool_results})        # index 4 — file2 FULL content
+```
+
+---
+
+**TURN 3**
+
+We SEND (`messages` list, 5 entries — file1=stub, file2=FULL):
+```python
+messages = [
+    {"role": "user",      "content": "Navigation start: ..."},                                   # index 0
+    {"role": "assistant", "content": [text_block, tool_use(toolu_aaa, read_file)]},              # index 1
+    {"role": "user",      "content": [tool_result(toolu_aaa, "[read: 700 chars...]")]},          # index 2 ← STUB ~10 tokens
+    {"role": "assistant", "content": [text_block, tool_use(toolu_bbb, read_file)]},              # index 3
+    {"role": "user",      "content": [tool_result(toolu_bbb, FULL file2 content)]}               # index 4 ← 1,250 tokens
+]
+```
+
+Claude RETURNS (`response.content`):
+```python
+response.content = [
+    {"type": "text",     "text": "MenuItem declares allergens as non-nullable. Let me check the component."},
+    {"type": "tool_use", "id": "toolu_ccc", "name": "read_file",
+     "input": {"path": "src/features/menu/components/MenuItemCard.tsx"}}
+]
+```
+
+We SHRINK messages[4] — Claude just proved it read file2:
+```python
+messages[4]["content"][0]["content"] = "[read: 5000 chars — already in Claude's context]"
+```
+
+We BUILD tool_results → reads file3 from disk:
+```python
+tool_results = [
+    {"type": "tool_result", "tool_use_id": "toolu_ccc",
+     "content": "import React from 'react';\nconst MenuItemCard = ({ item }) => {\n  ...8000 chars..."}
+]
+```
+
+We APPEND (messages now has 7 entries):
+```python
+messages.append({"role": "assistant", "content": response.content})   # index 5
+messages.append({"role": "user",      "content": tool_results})        # index 6 — file3 FULL content
+```
+
+---
+
+**TURN 4 (return_findings)**
+
+We SEND (`messages` list, 7 entries — file1=stub, file2=stub, file3=FULL):
+```python
+messages = [
+    {"role": "user",      "content": "Navigation start: ..."},                                   # index 0  ~50t
+    {"role": "assistant", "content": [text_block, tool_use(toolu_aaa)]},                         # index 1  ~150t
+    {"role": "user",      "content": [tool_result(toolu_aaa, "[read: 700 chars...]")]},          # index 2  ~10t  ← STUB
+    {"role": "assistant", "content": [text_block, tool_use(toolu_bbb)]},                         # index 3  ~150t
+    {"role": "user",      "content": [tool_result(toolu_bbb, "[read: 5000 chars...]")]},         # index 4  ~10t  ← STUB
+    {"role": "assistant", "content": [text_block, tool_use(toolu_ccc)]},                         # index 5  ~150t
+    {"role": "user",      "content": [tool_result(toolu_ccc, FULL file3 content)]}               # index 6  ~2,000t ← FULL
+]
+# input tokens: 535 (system+tools) + 50 + 3×150 + 2×10 + 2,000 = ~3,065 tokens
+```
+
+Claude RETURNS (`response.content`) — calls `return_findings`, no more file reads:
+```python
+response.content = [
+    {"type": "tool_use", "id": "toolu_ddd", "name": "return_findings",
+     "input": {
+         "crash_location":  "src/features/menu/hooks/useMenu.ts:10-22",
+         "root_cause_file": "src/features/menu/hooks/useMenu.ts",
+         "missing_field":   "allergens",
+         "fix_location":    "src/features/menu/hooks/useMenu.ts — inside items {} block",
+         "fix_type":        "missing_field",
+         "fix_detail":      "Add allergens to the items selection set in MENU_QUERY",
+         "injection_flag":  False,
+         "pii_flag":        False
+     }}
+]
+```
+
+We detect `return_findings` → capture findings → `break` out of loop. No more appending.
+
+---
+
+**Before Turn 1 API call — messages list has 1 entry:**
+```python
+messages = [
+    # index 0 — initial prompt, never changes
+    {
+        "role": "user",
+        "content": "Navigation start: src/features/menu/hooks/useMenu.ts:15\nChanged files: [...]\nMax files to read: 3"
+    }
+]
+# sent to API → Claude responds with tool_use(read_file, path=useMenu.ts)
+```
+
+**After Turn 1 response received:**
+- Claude has processed only messages[0] — no file content yet, nothing to shrink
+- We read file1, append assistant + tool_result with FULL content
+
+```python
+messages = [
+    # index 0 — initial (unchanged)
+    {"role": "user", "content": "Navigation start: ..."},
+
+    # index 1 — Turn 1: Claude's response (tool_use block)
+    {"role": "assistant", "content": [
+        {"type": "tool_use", "id": "toolu_aaa", "name": "read_file",
+         "input": {"path": "src/features/menu/hooks/useMenu.ts"}}
+    ]},
+
+    # index 2 — Turn 1: our tool_result with FULL file content
+    {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": "toolu_aaa",
+         "content": "import { useQuery } from '@apollo/client/react';\nconst MENU_QUERY = gql`...700 chars...`"}
+    ]}
+]
+# nothing shrunk yet — file1 must be FULL so Claude can read it in Turn 2
+```
+
+---
+
+**Turn 2 API call — sends messages[0..2], file1 is FULL (Claude reads it here):**
+```
+input tokens: 535 (system+tools) + 50 (index 0) + 150 (index 1) + 175 (index 2 full) = ~910
+```
+Claude responds with tool_use(read_file, path=\_\_generated\_\_/menu.ts)
+
+**After Turn 2 response received:**
+- Claude has now processed messages[2] (file1) — safe to shrink it
+- Shrink messages[2] content → stub
+- Read file2, append assistant + tool_result with FULL content
+
+```python
+messages = [
+    # index 0 — initial (unchanged)
+    {"role": "user", "content": "Navigation start: ..."},
+
+    # index 1 — Turn 1 assistant (unchanged — keep full, it's Claude's reasoning)
+    {"role": "assistant", "content": [
+        {"type": "tool_use", "id": "toolu_aaa", "name": "read_file",
+         "input": {"path": "src/features/menu/hooks/useMenu.ts"}}
+    ]},
+
+    # index 2 — Turn 1 tool_result: SHRUNK to stub (was 175 tokens, now ~10)
+    {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": "toolu_aaa",
+         "content": "[read: 700 chars — already in Claude's context]"}   # ← stub
+    ]},
+
+    # index 3 — Turn 2 assistant (Claude's response, kept full)
+    {"role": "assistant", "content": [
+        {"type": "tool_use", "id": "toolu_bbb", "name": "read_file",
+         "input": {"path": "src/__generated__/menu.ts"}}
+    ]},
+
+    # index 4 — Turn 2 tool_result: FULL (Claude hasn't read it yet)
+    {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": "toolu_bbb",
+         "content": "export type MenuItem = {\n  id: string;\n  allergens: string[];\n  ...5000 chars..."}
+    ]}
+]
+```
+
+---
+
+**Turn 3 API call — sends messages[0..4], file1=stub, file2=FULL (Claude reads it here):**
+```
+WITHOUT stub: 535 + 50 + 150 + 175 + 150 + 1,250 = ~2,310 tokens
+WITH stub:    535 + 50 + 150 + 10  + 150 + 1,250 = ~2,145 tokens  (minor saving — only 1 stub so far)
+```
+Claude responds with tool_use(read_file, path=MenuItemCard.tsx)
+
+**After Turn 3 response received:**
+- Shrink messages[4] → stub
+- Read file3, append assistant + tool_result FULL
+
+```python
+messages = [
+    # index 0 — initial
+    {"role": "user", "content": "Navigation start: ..."},
+
+    # index 1 — Turn 1 assistant
+    {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_aaa", ...}]},
+
+    # index 2 — Turn 1 tool_result: STUB (~10 tokens)
+    {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": "toolu_aaa",
+         "content": "[read: 700 chars — already in Claude's context]"}
+    ]},
+
+    # index 3 — Turn 2 assistant
+    {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_bbb", ...}]},
+
+    # index 4 — Turn 2 tool_result: STUB (~10 tokens)
+    {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": "toolu_bbb",
+         "content": "[read: 5000 chars — already in Claude's context]"}
+    ]},
+
+    # index 5 — Turn 3 assistant
+    {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_ccc", ...}]},
+
+    # index 6 — Turn 3 tool_result: FULL (Claude hasn't read it yet)
+    {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": "toolu_ccc",
+         "content": "import React from 'react';\nconst MenuItemCard = ({ item }) => {\n  ...8000 chars..."}
+    ]}
+]
+```
+
+---
+
+**Turn 4 API call — sends messages[0..6], file1=stub, file2=stub, file3=FULL:**
+```
+WITHOUT stub: 535 + 50 + 150 + 175 + 150 + 1,250 + 150 + 2,000 = ~4,460 tokens
+WITH stub:    535 + 50 + 150 + 10  + 150 + 10    + 150 + 2,000 = ~3,055 tokens  ✅ saving: 1,405 tokens
+```
+
+The pattern is now clear: every turn, WITHOUT stub adds another ~2,500 tokens to the total. WITH stub each previous file costs only ~10 tokens regardless of its original size.
+
+**Token savings table — 4-file, 4-turn scenario**
+
+| Turn | API call sends | Without stub | With stub | Saving |
+|---|---|---|---|---|
+| 1 | initial only | ~535 | ~535 | 0 |
+| 2 | initial + file1 FULL | ~910 | ~910 | 0 (no stub yet) |
+| 3 | initial + stub1 + file2 FULL | ~2,310 | ~2,145 | ~165 |
+| 4 | initial + stub1 + stub2 + file3 FULL | ~4,460 | ~3,055 | ~1,405 |
+| 5 (return_findings) | initial + stub1 + stub2 + stub3 + file4 FULL | ~7,710 | ~3,215 | ~4,495 |
+| **Total** | | **~15,925** | **~9,860** | **~6,065 (38%)** |
+
+In the D.ST.5 failed run (5 turns with the multi-tool bug adding extra turns and larger files) the total reached ~11,000. With the stub approach the equivalent run stays under 4,000 tokens.
+
+**Effect:** Input tokens stay roughly constant regardless of how many files are read — ~535 fixed overhead + ~10 tokens per already-processed file, instead of ~2,500 per file compounding every turn.
+
+**Tradeoff:** Slightly more complex loop. The shrink loop scans all messages on every turn — acceptable cost since the list is small (max `CODEBASE_MAX_TURNS` entries).
 
 ---
 
