@@ -443,7 +443,7 @@ Files created:
 | D.ST.5 | Codebase Agent live smoke test | Real Anthropic SDK | See steps below — introduces a known bug, captures Sentry crash_location, runs agent, verifies recommendation | ✅ Done |
 | D.ST.5a | Codebase Agent token budget analysis | Real Anthropic SDK | Instrument a clean run to capture `usage_by_turn` per-turn; understand exactly why the failed run hit 11k input tokens; calibrate `CODEBASE_MAX_FILE_CHARS` and guardrail defaults; update spec token budget target | ⏳ **Next** |
 
-> ⚠️ **Decision required before D.6 starts** — three architectural options for eliminating input token compounding are documented in `agents/specs/d5_codebase_agent.md` (Appendix). Vikas and Claude must read, discuss, and make a call on which approach to implement. D.6 Orchestrator token cap design depends on this decision.
+> **Decision made (2026-05-18):** Option A (stub trim after each Claude response) chosen for D.ST.5a. Option B (line-range reads) deferred — revisit after Option A is stabilised. Option C (pre-read / single-turn) deferred. See Appendix in `agents/specs/d5_codebase_agent.md` for full rationale.
 | D.ST.6 | Recommendation Agent stub test | Real Anthropic SDK | Hand-assembled findings dict from D.ST.1–D.ST.5 real outputs | ⏳ Pending |
 
 ### D.ST.5 — Detailed Steps (Codebase Agent Live Smoke Test)
