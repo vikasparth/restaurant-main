@@ -9,9 +9,20 @@
 
 ## Current Focus
 
-**Next: D.ST.5a — Codebase Agent token budget analysis + guardrail calibration**
-**Then: D.6 — Recommendation Agent**
+**Next: D.6 — Recommendation Agent**
+**D.ST.5a — Codebase Agent token budget analysis: ✅ DONE**
 **D.ST.5 — Codebase Agent live smoke test: ✅ PASSED**
+
+Session 8 complete (2026-05-19):
+- D.ST.5a completed: Option A (stub trim) implemented, smoke tested, and strategy refined
+- `agents/codebase_agent.py` — `_STUB` constant added, stub trim block added (commented out — blanket trim harms accuracy)
+- Key finding: Claude needs prior file content across turns to confirm findings; stubbing too aggressively after one turn caused it to miss `allergens` and return a different root cause
+- Refined guardrail: trim only fully-consumed results that won't be needed for future reasoning — not every result after one turn
+- `agents/CLAUDE.md` — Token Efficiency guardrail updated with nuanced rule
+- `agents/smoke_tests/smoke_dst5a.py` — new smoke test script for live token instrumentation
+- `agents/tests/test_codebase_agent.py` — stub trim test added then commented out (32 tests, 107 suite) pending smarter strategy
+- `docs/learning-log.md` — new entry: agentic loop processed tool results trim nuance
+- D.ST.5a ✅ Done, D.6 is next
 
 Session 7 complete (2026-05-18):
 - `agents/specs/d5_codebase_agent.md` — Appendix fully documented: root cause of 11k token spike, fixed overhead breakdown, correct stub timing (shrink AFTER API response, not after append), full turn-by-turn round-trip schema showing exact `messages` list indices + `response.content` blocks + `tool_results` built per turn, concrete token savings table (3,065 tokens at Turn 4 vs ~8,485 without stub), three architectural fix options with tradeoffs
@@ -441,7 +452,7 @@ Files created:
 | D.ST.3 | Render Logs stub test | Real Render API | Any backend 500 or cold start 503 in Render logs | ⏳ Pending |
 | D.ST.4 | GitHub Extractor stub test | Real GitHub API | Any recent commit on `main`; use HEAD as `release_sha` | ⏳ Pending |
 | D.ST.5 | Codebase Agent live smoke test | Real Anthropic SDK | See steps below — introduces a known bug, captures Sentry crash_location, runs agent, verifies recommendation | ✅ Done |
-| D.ST.5a | Codebase Agent token budget analysis | Real Anthropic SDK | Instrument a clean run to capture `usage_by_turn` per-turn; understand exactly why the failed run hit 11k input tokens; calibrate `CODEBASE_MAX_FILE_CHARS` and guardrail defaults; update spec token budget target | ⏳ **Next** |
+| D.ST.5a | Codebase Agent token budget analysis | Real Anthropic SDK | Instrument a clean run to capture `usage_by_turn` per-turn; understand exactly why the failed run hit 11k input tokens; calibrate `CODEBASE_MAX_FILE_CHARS` and guardrail defaults; update spec token budget target | ✅ Done |
 
 > **Decision made (2026-05-18):** Option A (stub trim after each Claude response) chosen for D.ST.5a. Option B (line-range reads) deferred — revisit after Option A is stabilised. Option C (pre-read / single-turn) deferred. See Appendix in `agents/specs/d5_codebase_agent.md` for full rationale.
 | D.ST.6 | Recommendation Agent stub test | Real Anthropic SDK | Hand-assembled findings dict from D.ST.1–D.ST.5 real outputs | ⏳ Pending |
