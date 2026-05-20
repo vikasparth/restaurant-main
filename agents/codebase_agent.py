@@ -24,6 +24,7 @@ from agents.sentry_utils import record_agent_run
 from agents.prompt_utils import build_system_prompt
 
 _ALLOWED_PREFIXES = ("src/", "graphql-gateway/", "backend/", "docs/")
+_STUB = "[content processed]"
 _SYSTEM_PROMPT = (
     "You are a codebase navigator. Read files to trace the root cause of a crash. "
     "Call return_findings when you have identified the root cause. Never return raw code."
@@ -182,7 +183,7 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
                 system=system_prompt,
                 tools=_build_tool_definitions(),
                 messages=messages,
-            )
+            )    
         except anthropic.AuthenticationError:
             return _record_and_return(STATUS_UNAUTHENTICATED, usage_by_turn, issue_number)
         except anthropic.PermissionDeniedError:
@@ -200,12 +201,20 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
         except anthropic.APIConnectionError:
             return _record_and_return(STATUS_NETWORK_ERROR, usage_by_turn, issue_number)
 
+        # API is stateless — full messages list resent every turn; shrink consumed tool_results to stub before next call
+        # last = messages[-1]["content"]
+        # if isinstance(last, list):
+        #     for entry in last:
+        #         if entry.get("type") == "tool_result":
+        #             entry["content"] = _STUB
+
         if response.stop_reason is None:
             return _record_and_return(STATUS_SCHEMA_ERROR, usage_by_turn, issue_number)
         if response.usage is None:
             return _record_and_return(STATUS_SCHEMA_ERROR, usage_by_turn, issue_number)
-
+     
         usage_by_turn.append({"input_tokens": response.usage.input_tokens, "output_tokens": response.usage.output_tokens})
+
         # Claude may call multiple tools in one turn — collect all and respond to each
         tool_blocks = [b for b in response.content if b.type == "tool_use"]
 

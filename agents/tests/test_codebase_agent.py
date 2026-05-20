@@ -554,6 +554,37 @@ def test_build_system_prompt_used():
     mock_build.assert_called_once()
 
 
+# DISABLED — D.ST.5a smoke test showed that blanket stub trim harms accuracy:
+# Claude correctly identified allergens as missing field when stub trim was OFF,
+# but returned a different root cause when ON — it could not refer back to file
+# content it had already read. Naive stub-everything strategy is too aggressive.
+# TODO: implement a smarter strategy — e.g. only stub files Claude has moved past
+# (confirmed by it reading a different file next), not every file after one turn.
+# Re-enable this test once the refined strategy is implemented.
+#
+# def test_tool_result_content_stubbed_before_next_turn():
+#     large_content = "x" * 5000
+#     with patch("agents.codebase_agent.anthropic.Anthropic") as mock_cls, \
+#          patch("builtins.open", mock_open(read_data=large_content)), \
+#          patch("agents.codebase_agent.record_agent_run"):
+#         mock_client = MagicMock()
+#         mock_cls.return_value = mock_client
+#         mock_client.messages.create.side_effect = [
+#             _sdk_response("read_file", {"path": "src/components/MenuItemCard.tsx"}),
+#             _sdk_response("return_findings", MOCK_FINDINGS),
+#         ]
+#         codebase_agent.run(GUARDRAILS)
+#     second_call_messages = mock_client.messages.create.call_args_list[1][1]["messages"]
+#     tool_result_messages = [
+#         m for m in second_call_messages
+#         if m["role"] == "user" and isinstance(m["content"], list)
+#     ]
+#     assert len(tool_result_messages) == 1
+#     tool_result_entry = tool_result_messages[0]["content"][0]
+#     assert tool_result_entry["content"] == codebase_agent._STUB
+#     assert large_content not in str(second_call_messages)
+
+
 def test_changed_files_included_in_initial_message():
     changed_files = ["src/components/MenuItemCard.tsx", "src/hooks/useMenuItems.ts"]
     guardrails = {**GUARDRAILS, "changed_files": changed_files}

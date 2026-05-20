@@ -678,9 +678,18 @@ user_message = f"Crash: {crash_location}\nFiles:\n" + "\n".join(
 
 ---
 
-### Recommendation for D.ST.5a
+### Decision for D.ST.5a — **Option A chosen (2026-05-18)**
 
-1. Instrument a clean run to get exact `usage_by_turn` numbers per turn
-2. Decide between Option A (trim) and Option C (pre-read) based on the token data
-3. Option A is the better long-term design — it preserves multi-hop navigation while keeping input tokens flat
-4. Update `CODEBASE_MAX_FILE_CHARS` and the token budget target in this spec once the approach is chosen
+Option A (stub trim after each Claude response) is the chosen approach. Rationale:
+
+- Simplest retrofit — no tool interface changes, no extra turns, no extra API calls
+- Preserves multi-hop navigation — Claude can still explore multiple files across turns
+- Measurable — instrument a clean run before and after to validate token reduction
+- Option B (line-range reads) deferred: only useful when crash_location includes a line number and we want precision on the first read. Can be layered in after Option A is stabilised.
+- Option C (pre-read / single-turn) deferred: loses multi-hop reasoning; viable only if accuracy proves acceptable under testing.
+
+**Implementation steps for D.ST.5a:**
+1. Instrument a clean run to get exact `usage_by_turn` numbers per turn (baseline)
+2. Implement Option A: after `client.messages.create()` returns, shrink each prior `tool_result` content in `messages` to a one-liner stub
+3. Run the same scenario again and compare per-turn token counts
+4. Update `CODEBASE_MAX_FILE_CHARS` and the token budget target in this spec once the approach is validated

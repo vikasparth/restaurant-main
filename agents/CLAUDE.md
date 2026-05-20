@@ -35,6 +35,7 @@ The agents dependency map is at **`agents/specs/DEPENDENCY_MAP.md`**. Apply the 
 - **Limit list results to 3–5 items maximum.** The agent investigates one issue at a time — the orchestrator decides which one. Fetching 25 issues to let Claude pick one is the wrong design.
 - **Trim stack traces to the essential fields only:** exception type, exception message, culprit file, and top 1–2 frames. Breadcrumbs, request headers, and framework frames must be dropped before returning.
 - **Target under 5k tokens per agent run** on Haiku. If a run exceeds this, review tool result payloads first.
+- **Trim fully-consumed tool results in agentic loops.** After each `client.messages.create()` call, shrink tool results whose content has been fully consumed and is not needed for future reasoning — e.g. a file read that Claude has already acted on. Replace with a short stub like `"[file read — content processed]"`. Do not trim results that a later turn may need to compare or reconcile. The API is stateless — every turn resends the full `messages` list, so large payloads left in place compound token usage; but trimming prematurely can break reasoning that depends on prior content.
 
 ## Observability Wiring Checklist
 
