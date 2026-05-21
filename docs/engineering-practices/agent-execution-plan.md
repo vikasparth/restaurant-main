@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-16 (session 6)**
+**Last updated: 2026-05-20 (session 9)**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -12,6 +12,17 @@
 **Next: D.6 — Coding Agent**
 **D.ST.5a — Diagnostic Agent token budget analysis: ✅ DONE**
 **D.ST.5 — Diagnostic Agent live smoke test: ✅ PASSED**
+
+Session 9 complete (2026-05-20):
+- **Agent rename:** Codebase Agent → Diagnostic Agent; Recommendation Agent → Coding Agent — reflects actual responsibilities
+- **Coding Agent redesign:** no longer a cross-source synthesiser; follows Sentry Seer's pattern — Diagnostic Agent does analysis + fix plan, Coding Agent implements it; rationale: analysis and implementation are distinct concerns with different access requirements
+- **Coding Agent new responsibility:** receives Diagnostic Agent's structured fix plan (`fix_location`, `fix_type`, `fix_detail`) + enrichment from other extractors; fetches target file via GitHub read API; makes one Claude call to generate the actual code patch; commits to a branch and opens a draft PR with a real diff (not a description-only PR)
+- **Diagnostic Agent new responsibility:** posts investigation summary to GitHub issue after completing root cause analysis (new addition to D.5 scope)
+- **Why file-fetch in Coding Agent (not Diagnostic Agent):** Claude picks the file after reasoning about the root cause — not before; Diagnostic Agent already knows `fix_location`; Coding Agent fetches that exact file and generates the patch in one call
+- **Why Coding Agent is pluggable:** standardised handoff payload (`fix_location`, `fix_type`, `fix_detail`) means the coding step can be swapped to a different model or agent without touching the analysis layer
+- All agent renames applied across docs, specs, ADRs, config constants, source strings, and Python files; 31 tests passing ✅
+- Code renamed: `codebase_agent.py` → `diagnostic_agent.py`, `test_codebase_agent.py` → `test_diagnostic_agent.py`
+- Config renamed: `CODEBASE_*` → `DIAGNOSTIC_*`, `RECOMMENDATION_*` → `CODING_*`
 
 Session 8 complete (2026-05-19):
 - D.ST.5a completed: Option A (stub trim) implemented, smoke tested, and strategy refined
@@ -439,7 +450,7 @@ Files created:
 | D.3 | Render Logs Extractor | `agents/render_logs_extractor.py` — pure Python extractor; zero Claude API calls; fetches Render log lines, filters to error/warn, deduplicates by message, caps at 10 distinct errors; `run(guardrails: dict) -> dict`; validate against Scenario 2 (cold start) | ✅ Done |
 | D.4 | GitHub Extractor | `agents/github_extractor.py` — pure Python extractor; zero Claude API calls; fetches commits and PR metadata for a given release SHA; `run(guardrails: dict) -> dict`; validate against Scenario 3 (allergens issue) and Scenario 4 (wrong total) | ⏳ Pending |
 | D.5 | Diagnostic Agent | `agents/diagnostic_agent.py` — Claude-assisted navigator; read-only filesystem access scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`; zero GitHub access; uses Claude to navigate multi-hop code traces (crash line → symbol → source → root cause location); returns structured findings ~50 tokens — crash location, root cause file/line, missing field, fix type, runbook match; never passes raw code snippets to Coding Agent; `run(guardrails: dict) -> dict` | ✅ Done |
-| D.6 | Coding Agent | `agents/coding_agent.py` — cross-source synthesiser + PR author; receives combined structured payload from Orchestrator (Sentry + Render + GitHub + Codebase structured findings); Claude call produces `interpretation` (root cause, affected layer, regression flag, confidence, recommended fix) and opens a **draft PR** with the proposed fix; returns interpretation + draft PR link to Orchestrator; GitHub write access for draft PRs only — no codebase read access | ⏳ Pending |
+| D.6 | Coding Agent | `agents/coding_agent.py` — fix implementation agent; receives Diagnostic Agent's fix plan (`fix_location`, `fix_type`, `fix_detail`) plus extractor enrichment (severity, regression flag, affected endpoint) from the combined Orchestrator payload; fetches the target file via GitHub Contents API (read); makes one Claude call to generate the actual code patch; commits patch to a new branch and opens a **draft PR with a real diff**; returns `pr_url` to Orchestrator; GitHub read + write access, no filesystem access | ⏳ Pending |
 
 ### Phase 2 — Agent Stub Tests (Manual, run after each agent above is implemented)
 
