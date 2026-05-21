@@ -9,13 +9,11 @@ load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=False)
 
 _SONNET = "claude-sonnet-4-6"
 
-# why: only two components call Claude — Recommendation Agent (cross-source synthesis)
-# and Orchestrator (routing + authorization). All extractors are pure Python.
+# why: only three components call Claude — Diagnostic Agent (code navigation),
+# Coding Agent (fix implementation), and Orchestrator (routing + authorization).
 ORCHESTRATOR_MODEL = os.getenv("ORCHESTRATOR_MODEL", _SONNET)
-RECOMMENDATION_MODEL = os.getenv("RECOMMENDATION_MODEL", _SONNET)
-# why: Codebase Extractor uses Claude for navigation (multi-hop code tracing)
-# but not interpretation — still needs a model, just a different role
-CODEBASE_MODEL = os.getenv("CODEBASE_MODEL", _SONNET)
+CODING_MODEL = os.getenv("CODING_MODEL", _SONNET)
+DIAGNOSTIC_MODEL = os.getenv("DIAGNOSTIC_MODEL", _SONNET)
 
 SENTRY_API_BASE = os.getenv("SENTRY_API_BASE", "https://sentry.io/api/0")
 AGENTS_SENTRY_DSN = os.getenv("AGENTS_SENTRY_DSN", "")
@@ -24,12 +22,12 @@ AGENTS_SENTRY_DSN = os.getenv("AGENTS_SENTRY_DSN", "")
 AGENT_MAX_TURNS = int(os.getenv("AGENT_MAX_TURNS", "5"))
 AGENT_MAX_TOKENS_PER_TURN = int(os.getenv("AGENT_MAX_TOKENS_PER_TURN", "1024"))
 
-CODEBASE_MAX_TURNS = int(os.getenv("CODEBASE_MAX_TURNS", "8"))
-CODEBASE_MAX_TOKENS = int(os.getenv("CODEBASE_MAX_TOKENS", str(AGENT_MAX_TOKENS_PER_TURN)))
-CODEBASE_MAX_FILE_CHARS = int(os.getenv("CODEBASE_MAX_FILE_CHARS", "10000"))  # ~2.5k tokens; guards against large files inflating context
+DIAGNOSTIC_MAX_TURNS = int(os.getenv("DIAGNOSTIC_MAX_TURNS", "8"))
+DIAGNOSTIC_MAX_TOKENS = int(os.getenv("DIAGNOSTIC_MAX_TOKENS", str(AGENT_MAX_TOKENS_PER_TURN)))
+DIAGNOSTIC_MAX_FILE_CHARS = int(os.getenv("DIAGNOSTIC_MAX_FILE_CHARS", "10000"))  # ~2.5k tokens; guards against large files inflating context
 
-RECOMMENDATION_MAX_TURNS = int(os.getenv("RECOMMENDATION_MAX_TURNS", "1"))
-RECOMMENDATION_MAX_TOKENS = int(os.getenv("RECOMMENDATION_MAX_TOKENS", str(AGENT_MAX_TOKENS_PER_TURN)))
+CODING_MAX_TURNS = int(os.getenv("CODING_MAX_TURNS", "1"))
+CODING_MAX_TOKENS = int(os.getenv("CODING_MAX_TOKENS", str(AGENT_MAX_TOKENS_PER_TURN)))
 
 # why: ladder starts at shortest window — extractor escalates only when zero issues found.
 # parsed as comma-separated string so it's overridable per environment without code changes
@@ -57,7 +55,7 @@ STATUS_SERVER_ERROR = "server_error"
 STATUS_TIMEOUT = "timeout"
 STATUS_NETWORK_ERROR = "network_error"
 STATUS_SCHEMA_ERROR = "schema_error"
-STATUS_PARTIAL = "partial"  # why: codebase agent turn budget exhausted before return_findings called
+STATUS_PARTIAL = "partial"  # why: diagnostic agent turn budget exhausted before return_findings called
 
 # why: Render API requires service ID and key from env — never hardcoded
 RENDER_API_BASE = "https://api.render.com/v1"
