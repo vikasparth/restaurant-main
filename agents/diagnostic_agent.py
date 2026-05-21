@@ -2,10 +2,10 @@ import os
 import anthropic
 
 from agents.config import (
-    CODEBASE_MODEL,
-    CODEBASE_MAX_TURNS,
-    CODEBASE_MAX_TOKENS,
-    CODEBASE_MAX_FILE_CHARS,
+    DIAGNOSTIC_MODEL,
+    DIAGNOSTIC_MAX_TURNS,
+    DIAGNOSTIC_MAX_TOKENS,
+    DIAGNOSTIC_MAX_FILE_CHARS,
     STATUS_COMPLETED,
     STATUS_NO_DATA,
     STATUS_INJECTION_DETECTED,
@@ -47,7 +47,7 @@ def _read_file(path: str) -> tuple[str,bool]:
         return "ERROR: path not in scope", False
     try:
         with open(path, encoding="utf-8") as f:
-            content = f.read(CODEBASE_MAX_FILE_CHARS)
+            content = f.read(DIAGNOSTIC_MAX_FILE_CHARS)
     except FileNotFoundError:
         return "ERROR: file not found", False
     if _INJECTION_RE.search(content):
@@ -126,8 +126,8 @@ def _process_tool_call(
         return "ERROR: unknown tool", False
     
 def _record_and_return(status: str, usage_by_turn: list, issue_number: str, extra: dict | None = None) -> dict:
-    result = {"status": status, "source": "codebase", **(extra or {})}
-    record_agent_run("codebase_agent", result, usage_by_turn, issue_number)
+    result = {"status": status, "source": "diagnostic", **(extra or {})}
+    record_agent_run("diagnostic_agent", result, usage_by_turn, issue_number)
     return result
 
 
@@ -174,12 +174,12 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
         }
     ]
     files_read: list[str] = []  # tracks paths read; enforces max_files cap in _process_tool_call
-    # bounded loop — CODEBASE_MAX_TURNS prevents runaway API spend
-    for _ in range(CODEBASE_MAX_TURNS):
+    # bounded loop — DIAGNOSTIC_MAX_TURNS prevents runaway API spend
+    for _ in range(DIAGNOSTIC_MAX_TURNS):
         try:
             response = client.messages.create(
-                model=CODEBASE_MODEL,
-                max_tokens=CODEBASE_MAX_TOKENS,
+                model=DIAGNOSTIC_MODEL,
+                max_tokens=DIAGNOSTIC_MAX_TOKENS,
                 system=system_prompt,
                 tools=_build_tool_definitions(),
                 messages=messages,
@@ -221,7 +221,7 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
         return_block = next((b for b in tool_blocks if b.name == "return_findings"), None)
         if return_block:
             # Claude finished — capture structured findings and exit loop
-            findings = {**return_block.input, "status": STATUS_COMPLETED, "source": "codebase"}
+            findings = {**return_block.input, "status": STATUS_COMPLETED, "source": "diagnostic"}
             break
 
         if tool_blocks:
@@ -241,5 +241,5 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
     if not findings:
         return _record_and_return(STATUS_PARTIAL, usage_by_turn, issue_number)
 
-    record_agent_run("codebase_agent", findings, usage_by_turn, issue_number)
+    record_agent_run("diagnostic_agent", findings, usage_by_turn, issue_number)
     return findings
