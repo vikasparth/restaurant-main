@@ -174,10 +174,10 @@ flowchart TD
         ORCH --> A2["Backend Sentry Agent\nPython exceptions · FastAPI errors\nBackend Sentry project only"]
         ORCH --> A3["Render Logs Agent\nRuntime and startup logs\nRender API only"]
         ORCH --> A4["GitHub Agent\nIssues · commits · PRs\nGitHub read-only"]
-        ORCH --> A5["Codebase Agent\nSource files · runbook · schemas\nFilesystem read-only — scoped paths"]
+        ORCH --> A5["Diagnostic Agent\nSource files · runbook · schemas\nFilesystem read-only — scoped paths"]
     end
 
-    A1 & A2 & A3 & A4 & A5 --> REC["Recommendation Agent\nSynthesizes structured findings\nNo external access"]
+    A1 & A2 & A3 & A4 & A5 --> REC["Coding Agent\nSynthesizes structured findings\nNo external access"]
 
     REC --> CONF{Confidence level}
 
@@ -254,12 +254,12 @@ Sentry Agent: load only the error summary for the relevant time window
   → if stack trace points to a file, load only that file's relevant section
   → return structured findings to the orchestrator — stop there
 
-Codebase Agent: load only the file or symbol named by the orchestrator
+Diagnostic Agent: load only the file or symbol named by the orchestrator
   → trace one level at a time — component → hook → query → resolver
   → return the trace — stop there
 ```
 
-Specialization enforces least privilege by design — a Sentry Agent cannot read source files, a Codebase Agent cannot read Sentry. This is a security and reliability property, not just a performance one. The orchestrator synthesizes findings across agents; no single agent needs the full picture.
+Specialization enforces least privilege by design — a Sentry Agent cannot read source files, a Diagnostic Agent cannot read Sentry. This is a security and reliability property, not just a performance one. The orchestrator synthesizes findings across agents; no single agent needs the full picture.
 
 See [`docs/phase2/agentic-workflows.md`](../phase2/agentic-workflows.md) for agent guardrails (security, blast radius, cost caps) and the operational incident loop design.
 

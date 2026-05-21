@@ -9,32 +9,32 @@
 
 ## Current Focus
 
-**Next: D.6 — Recommendation Agent**
-**D.ST.5a — Codebase Agent token budget analysis: ✅ DONE**
-**D.ST.5 — Codebase Agent live smoke test: ✅ PASSED**
+**Next: D.6 — Coding Agent**
+**D.ST.5a — Diagnostic Agent token budget analysis: ✅ DONE**
+**D.ST.5 — Diagnostic Agent live smoke test: ✅ PASSED**
 
 Session 8 complete (2026-05-19):
 - D.ST.5a completed: Option A (stub trim) implemented, smoke tested, and strategy refined
-- `agents/codebase_agent.py` — `_STUB` constant added, stub trim block added (commented out — blanket trim harms accuracy)
+- `agents/diagnostic_agent.py` — `_STUB` constant added, stub trim block added (commented out — blanket trim harms accuracy)
 - Key finding: Claude needs prior file content across turns to confirm findings; stubbing too aggressively after one turn caused it to miss `allergens` and return a different root cause
 - Refined guardrail: trim only fully-consumed results that won't be needed for future reasoning — not every result after one turn
 - `agents/CLAUDE.md` — Token Efficiency guardrail updated with nuanced rule
 - `agents/smoke_tests/smoke_dst5a.py` — new smoke test script for live token instrumentation
-- `agents/tests/test_codebase_agent.py` — stub trim test added then commented out (32 tests, 107 suite) pending smarter strategy
+- `agents/tests/test_diagnostic_agent.py` — stub trim test added then commented out (32 tests, 107 suite) pending smarter strategy
 - `docs/learning-log.md` — new entry: agentic loop processed tool results trim nuance
 - D.ST.5a ✅ Done, D.6 is next
 
 Session 7 complete (2026-05-18):
-- `agents/specs/d5_codebase_agent.md` — Appendix fully documented: root cause of 11k token spike, fixed overhead breakdown, correct stub timing (shrink AFTER API response, not after append), full turn-by-turn round-trip schema showing exact `messages` list indices + `response.content` blocks + `tool_results` built per turn, concrete token savings table (3,065 tokens at Turn 4 vs ~8,485 without stub), three architectural fix options with tradeoffs
+- `agents/specs/d5_diagnostic_agent.md` — Appendix fully documented: root cause of 11k token spike, fixed overhead breakdown, correct stub timing (shrink AFTER API response, not after append), full turn-by-turn round-trip schema showing exact `messages` list indices + `response.content` blocks + `tool_results` built per turn, concrete token savings table (3,065 tokens at Turn 4 vs ~8,485 without stub), three architectural fix options with tradeoffs
 - Key insight: previous turn file content must stay FULL in messages until Claude responds in the NEXT turn — that response is proof Claude has processed it; only then is the shrink safe
 
 Session 6 complete (2026-05-16):
 - D.ST.5 smoke test passed: `status: completed`, `root_cause_file: src/features/menu/hooks/useMenu.ts`, `missing_field: allergens`, `fix_detail` actionable; Sentry received 2 events ✅
-- `agents/codebase_agent.py` — two bugs found and fixed during smoke test:
+- `agents/diagnostic_agent.py` — two bugs found and fixed during smoke test:
   1. Agentic loop only handled the first `tool_use` block per turn (`next()`) — Claude can return multiple in one turn; fix: collect all blocks, send one `tool_result` per `tool_use`
   2. `record_agent_run` called with wrong keyword args (`source=`, `status=`) instead of `(agent_name, result_dict, usage_by_turn, issue_number)`; fix: added `_record_and_return` helper, all 17 call sites corrected
 - `agents/github_extractor.py` — same `record_agent_run` signature bug fixed (latent — only survived because `AGENTS_SENTRY_DSN` unset in tests causes early return before `.get()` access); `_record_and_return` helper added, all 10 call sites corrected
-- `agents/tests/test_codebase_agent.py` — 31st test added: `test_claude_multiple_tool_calls_in_one_turn_all_get_results`; `_sdk_response_multi` builder added
+- `agents/tests/test_diagnostic_agent.py` — 31st test added: `test_claude_multiple_tool_calls_in_one_turn_all_get_results`; `_sdk_response_multi` builder added
 - `.claude/skills/api-integration-tests/skill.md` — Category 7c added: agentic loop invariants (multi-tool-use pattern) for Claude SDK agents
 - `src/features/menu/hooks/useMenu.ts` — `allergens` field restored to MENU_QUERY (closes task 3.16.15)
 - Full suite: 107/107 passing ✅
@@ -45,13 +45,13 @@ Key decisions made in session 6:
 - `_record_and_return` helper pattern is now the standard for all agents — DRY, avoids duplicating status string in both `record_agent_run` call and return dict
 
 D.5 TDD complete (2026-05-15):
-- `agents/tests/test_codebase_agent.py` — 30 tests written, all red (codebase_agent.py did not exist yet)
-- `agents/config.py` — `STATUS_PARTIAL = "partial"` added ✅; `CODEBASE_MAX_FILE_CHARS = 10000` added ✅
+- `agents/tests/test_diagnostic_agent.py` — 30 tests written, all red (diagnostic_agent.py did not exist yet)
+- `agents/config.py` — `STATUS_PARTIAL = "partial"` added ✅; `DIAGNOSTIC_MAX_FILE_CHARS = 10000` added ✅
 - Tests cover: happy path (4), input validation (4), authentication (4), authorization (1), not found (1), rate limiting (1), server failures (2), network (2), schema validation (2), filesystem (5), observability (4)
 
 D.5 spec complete (2026-05-15):
-- `agents/specs/d5_codebase_agent.md` — spec signed off; 30 TDD tests defined across 8 categories
-- `docs/engineering-practices/agent-architecture.md` — `Codebase Agent Query Contract` section added; `endpoint` input added (Render logs fallback when backend Sentry not yet instrumented — task 3.14 pending); `Where This Agent Runs` section added (GitHub Actions runner, checkout required); `CODEBASE_MAX_FILE_CHARS` guardrail row added (10000 chars ~2.5k tokens)
+- `agents/specs/d5_diagnostic_agent.md` — spec signed off; 30 TDD tests defined across 8 categories
+- `docs/engineering-practices/agent-architecture.md` — `Diagnostic Agent Query Contract` section added; `endpoint` input added (Render logs fallback when backend Sentry not yet instrumented — task 3.14 pending); `Where This Agent Runs` section added (GitHub Actions runner, checkout required); `DIAGNOSTIC_MAX_FILE_CHARS` guardrail row added (10000 chars ~2.5k tokens)
 - Key design decisions: `return_findings` tool captures Claude's answer (no free-text parsing); `crash_location` + `endpoint` dual navigation start; Anthropic SDK error codes fully mapped (400→invalid_input, 401→unauthenticated, 403→unauthorized, 404→invalid_input, 409→server_error, 422→invalid_input, 429→rate_limited, 5xx→server_error)
 
 Skills updated (2026-05-15):
@@ -130,7 +130,7 @@ All open architecture questions from the previous session are now resolved. The 
 **Q1 — What does the Orchestrator pass to each extractor?** ✅ resolved
 Guardrails only: `time_window`, `max_issues`, `max_frames`, `max_log_errors`, `max_commits`. Extractors receive no free-form instructions — they are bounded by the guardrail values and their own hardcoded project scope.
 
-**Q2 — What does the Recommendation Agent receive?** ✅ resolved
+**Q2 — What does the Coding Agent receive?** ✅ resolved
 The full combined structured payload from all extractors — not just interpretation summaries. The Orchestrator clubs all extractor dicts into one payload and passes it in a single call. Claude sees everything at once, enabling true cross-source correlation. Per-source limits (token budget targets) keep the combined payload under 3,000 input tokens.
 
 **Q3 — Schema validation failure behaviour** ✅ resolved
@@ -144,13 +144,13 @@ Yes — Sentry query contract is documented in the architecture doc. Render Logs
 ### Group 3 — Token Efficiency Rules ✅
 
 **Q5 — Trim-at-boundary as a universal principle** ✅ resolved
-Elevated to Principle 9 in architecture doc. Applies to all extractors — raw API responses never reach the Orchestrator or Recommendation Agent.
+Elevated to Principle 9 in architecture doc. Applies to all extractors — raw API responses never reach the Orchestrator or Coding Agent.
 
 **Q6 — Prompt caching strategy** ✅ resolved
-Three components call the Anthropic SDK — Orchestrator, Codebase Agent, and Recommendation Agent. All three must use `build_system_prompt()` to wrap their system prompt with `cache_control`. System prompts do not change between runs so every subsequent call should hit the cache (~90% cheaper on input tokens). Pure Python extractors make zero Claude API calls so caching is not applicable to them.
+Three components call the Anthropic SDK — Orchestrator, Diagnostic Agent, and Coding Agent. All three must use `build_system_prompt()` to wrap their system prompt with `cache_control`. System prompts do not change between runs so every subsequent call should hit the cache (~90% cheaper on input tokens). Pure Python extractors make zero Claude API calls so caching is not applicable to them.
 
-**Q7 — Recommendation Agent payload — who strips?** ✅ resolved
-The Orchestrator is responsible for the combined payload size. Each extractor already trims to minimum fields at its own boundary. The Orchestrator enforces the final combined token cap before passing to the Recommendation Agent — no further stripping inside Claude's context.
+**Q7 — Coding Agent payload — who strips?** ✅ resolved
+The Orchestrator is responsible for the combined payload size. Each extractor already trims to minimum fields at its own boundary. The Orchestrator enforces the final combined token cap before passing to the Coding Agent — no further stripping inside Claude's context.
 
 ---
 
@@ -326,7 +326,7 @@ Real Sentry finding returned: `EADDRINUSE :::4000` in `graphql-gateway/index.ts`
 ### `agents/config.py` extended
 - `SENTRY_API_BASE` — env var with default `https://sentry.io/api/0`; extracted from agent code per "config over hardcoding" rule
 - `AGENT_MAX_TURNS` / `AGENT_MAX_TOKENS_PER_TURN` — global defaults (5 turns, 1024 tokens)
-- Per-agent overrides for all 6 agents; all fall back to global defaults except: `CODEBASE_MAX_TURNS` defaults to `8` (deeper tracing), `RECOMMENDATION_MAX_TURNS` defaults to `1` (no tools, one turn only)
+- Per-agent overrides for all 6 agents; all fall back to global defaults except: `DIAGNOSTIC_MAX_TURNS` defaults to `8` (deeper tracing), `CODING_MAX_TURNS` defaults to `1` (no tools, one turn only)
 
 ### `agents/requirements.txt` updated
 Added `pytest==9.0.3` and its 5 transitive dependencies (colorama, iniconfig, packaging, pluggy, pygments) — all pinned.
@@ -365,7 +365,7 @@ Files created:
 - `agents/schemas/__init__.py` — makes `schemas/` a Python package
 - `agents/schemas/finding-schema.json` — auto-generated from models via `FrontendSentryFinding.model_json_schema()`; regenerate with `python -c "import json; from schemas.models import FrontendSentryFinding; open('schemas/finding-schema.json','w').write(json.dumps(FrontendSentryFinding.model_json_schema(), indent=2))"`
 - `agents/validator.py` — single function `validate_finding(yaml_str: str) -> dict`; extracts YAML block from agent comment, parses with `yaml.safe_load`, validates against `finding-schema.json` using `jsonschema`
-- `agents/config.py` — 7 model constants (`ORCHESTRATOR_MODEL`, `RECOMMENDATION_MODEL`, `CODEBASE_MODEL`, `FRONTEND_SENTRY_MODEL`, `BACKEND_SENTRY_MODEL`, `RENDER_LOGS_MODEL`, `GITHUB_MODEL`) read from env vars; defaults: Sonnet 4.6 for Orchestrator/Recommendation/Codebase, Haiku 4.5 for Sentry/Render/GitHub
+- `agents/config.py` — 7 model constants (`ORCHESTRATOR_MODEL`, `CODING_MODEL`, `DIAGNOSTIC_MODEL`, `FRONTEND_SENTRY_MODEL`, `BACKEND_SENTRY_MODEL`, `RENDER_LOGS_MODEL`, `GITHUB_MODEL`) read from env vars; defaults: Sonnet 4.6 for Orchestrator/Recommendation/Codebase, Haiku 4.5 for Sentry/Render/GitHub
 - `agents/prompt_utils.py` — single function `build_system_prompt(text: str) -> list[dict]`; wraps system prompt text in Anthropic SDK cache_control block; all agents must use this when building their system prompt
 
 `agents/requirements.txt` updated with: `pydantic==2.13.3`, `pyyaml==6.0.3` (jsonschema was already present from B.1).
@@ -380,7 +380,7 @@ Files created:
 - Test scenarios (`docs/agent-test-scenarios.md`) are the acceptance criteria — an agent is not done until it passes its relevant scenarios.
 - Runbook must be updated before each agent is built — agents read the runbook, not the other way around.
 - No agent writes to external systems until the orchestration layer is complete and authorization logic is in place.
-- D.1–D.4 extractors (Sentry, Render, GitHub) are pure Python — zero Claude API calls. D.5 (Codebase Agent) uses Claude for navigation only — read-only filesystem, no write access anywhere. D.6 (Recommendation Agent) uses Claude for cross-source synthesis and opens draft PRs — GitHub write access, no codebase read access. No Claude Code sub-agents anywhere.
+- D.1–D.4 extractors (Sentry, Render, GitHub) are pure Python — zero Claude API calls. D.5 (Diagnostic Agent) uses Claude for navigation only — read-only filesystem, no write access anywhere. D.6 (Coding Agent) uses Claude for cross-source synthesis and opens draft PRs — GitHub write access, no codebase read access. No Claude Code sub-agents anywhere.
 
 ---
 
@@ -407,7 +407,7 @@ Files created:
 | # | Task | Description | Status |
 |---|---|---|---|
 | B.1 | `agents/` package setup | Create `agents/` directory at repo root; add `requirements.txt` with `anthropic`, `jsonschema`, `PyGithub`, `requests` pinned to exact versions; `.venv` added to `.gitignore` | ✅ Done — `agents/__init__.py`, `agents/requirements.txt` (pinned versions), `agents/.venv` gitignored; merged via PR #52 `feat/agents-package` |
-| B.2 | Finding schema — Pydantic models | Create `agents/schemas/models.py` — `BaseFinding` Pydantic model defines three sections: `metadata` (common envelope), `findings` (agent-observed data), `interpretation` (agent conclusion for Recommendation Agent). Agent-specific subclasses (e.g. `FrontendSentryFinding`) extend `BaseFinding` with their own `findings` fields. Generate `agents/schemas/finding-schema.json` from models via `pydantic.model_json_schema()` — never hand-edit the JSON file. **Pydantic is the single source of truth; JSON Schema file is auto-generated.** See architecture doc Finding Schema section for field definitions and rationale. Sentry agent subclasses must declare one of three release ID states in metadata: `release_id: "sha"` (present), `release_id: null` (fallback to timestamp, Recommendation Agent downgrades confidence to medium), `release_id_unresolvable: true` (SHA in Sentry but not in git history) | ✅ Done — `agents/schemas/models.py` with `BaseFinding`, `FrontendSentryFinding`; `agents/schemas/finding-schema.json` auto-generated; `pydantic==2.13.3` added to `requirements.txt`; merged via `feat/finding-schema-models` |
+| B.2 | Finding schema — Pydantic models | Create `agents/schemas/models.py` — `BaseFinding` Pydantic model defines three sections: `metadata` (common envelope), `findings` (agent-observed data), `interpretation` (agent conclusion for Coding Agent). Agent-specific subclasses (e.g. `FrontendSentryFinding`) extend `BaseFinding` with their own `findings` fields. Generate `agents/schemas/finding-schema.json` from models via `pydantic.model_json_schema()` — never hand-edit the JSON file. **Pydantic is the single source of truth; JSON Schema file is auto-generated.** See architecture doc Finding Schema section for field definitions and rationale. Sentry agent subclasses must declare one of three release ID states in metadata: `release_id: "sha"` (present), `release_id: null` (fallback to timestamp, Coding Agent downgrades confidence to medium), `release_id_unresolvable: true` (SHA in Sentry but not in git history) | ✅ Done — `agents/schemas/models.py` with `BaseFinding`, `FrontendSentryFinding`; `agents/schemas/finding-schema.json` auto-generated; `pydantic==2.13.3` added to `requirements.txt`; merged via `feat/finding-schema-models` |
 | B.3 | Schema validator utility | Write `agents/validator.py` — single function `validate_finding(yaml_str)` that parses the YAML block from an agent comment and validates it against `agents/schemas/finding-schema.json` using `jsonschema`; raise a descriptive error on failure. The JSON Schema file must be regenerated from `models.py` before running the validator if models changed | ✅ Done — `agents/validator.py` with `validate_finding(yaml_str)`; `pyyaml==6.0.3` added to `requirements.txt`; merged via `feat/finding-schema-validator` |
 | B.4 | Model config | Add `agents/config.py` — reads per-agent model names from environment variables with defaults (Sonnet 4.6 for Orchestrator, Recommendation, Codebase; Haiku 4.5 for Sentry, Render, GitHub agents); never hardcode model IDs | ✅ Done — `agents/config.py` with 7 model constants read from env vars; merged via `feat/agent-model-config` |
 | B.5 | Prompt caching | Add `cache_control: {"type": "ephemeral"}` to the last static block of every agent's system prompt so the Anthropic SDK caches it across runs; verify cache hits appear in `usage.cache_read_input_tokens` in the response; required for all agents — system prompts do not change between investigations so every run should hit the cache | ✅ Done — `agents/prompt_utils.py` with `build_system_prompt(text)`; merged via `feat/prompt-caching-utility` |
@@ -438,8 +438,8 @@ Files created:
 | D.2 | Backend Sentry Extractor | `agents/backend_sentry_extractor.py` — pure Python extractor; zero Claude API calls; `run(guardrails: dict) -> dict`; escalating window ladder; same fields as D.1 plus `endpoint` and `http_status`; validate against Scenario 1 (reservation failures) and Scenario 3 (allergens) | ⏳ Pending |
 | D.3 | Render Logs Extractor | `agents/render_logs_extractor.py` — pure Python extractor; zero Claude API calls; fetches Render log lines, filters to error/warn, deduplicates by message, caps at 10 distinct errors; `run(guardrails: dict) -> dict`; validate against Scenario 2 (cold start) | ✅ Done |
 | D.4 | GitHub Extractor | `agents/github_extractor.py` — pure Python extractor; zero Claude API calls; fetches commits and PR metadata for a given release SHA; `run(guardrails: dict) -> dict`; validate against Scenario 3 (allergens issue) and Scenario 4 (wrong total) | ⏳ Pending |
-| D.5 | Codebase Agent | `agents/codebase_agent.py` — Claude-assisted navigator; read-only filesystem access scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`; zero GitHub access; uses Claude to navigate multi-hop code traces (crash line → symbol → source → root cause location); returns structured findings ~50 tokens — crash location, root cause file/line, missing field, fix type, runbook match; never passes raw code snippets to Recommendation Agent; `run(guardrails: dict) -> dict` | ✅ Done |
-| D.6 | Recommendation Agent | `agents/recommendation_agent.py` — cross-source synthesiser + PR author; receives combined structured payload from Orchestrator (Sentry + Render + GitHub + Codebase structured findings); Claude call produces `interpretation` (root cause, affected layer, regression flag, confidence, recommended fix) and opens a **draft PR** with the proposed fix; returns interpretation + draft PR link to Orchestrator; GitHub write access for draft PRs only — no codebase read access | ⏳ Pending |
+| D.5 | Diagnostic Agent | `agents/diagnostic_agent.py` — Claude-assisted navigator; read-only filesystem access scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`; zero GitHub access; uses Claude to navigate multi-hop code traces (crash line → symbol → source → root cause location); returns structured findings ~50 tokens — crash location, root cause file/line, missing field, fix type, runbook match; never passes raw code snippets to Coding Agent; `run(guardrails: dict) -> dict` | ✅ Done |
+| D.6 | Coding Agent | `agents/coding_agent.py` — cross-source synthesiser + PR author; receives combined structured payload from Orchestrator (Sentry + Render + GitHub + Codebase structured findings); Claude call produces `interpretation` (root cause, affected layer, regression flag, confidence, recommended fix) and opens a **draft PR** with the proposed fix; returns interpretation + draft PR link to Orchestrator; GitHub write access for draft PRs only — no codebase read access | ⏳ Pending |
 
 ### Phase 2 — Agent Stub Tests (Manual, run after each agent above is implemented)
 
@@ -451,13 +451,13 @@ Files created:
 | D.ST.2 | Backend Sentry stub test | Real Sentry API | At least one unresolved backend error in Sentry (introduce Scenario 1 reservation bug) | ⏳ Pending |
 | D.ST.3 | Render Logs stub test | Real Render API | Any backend 500 or cold start 503 in Render logs | ⏳ Pending |
 | D.ST.4 | GitHub Extractor stub test | Real GitHub API | Any recent commit on `main`; use HEAD as `release_sha` | ⏳ Pending |
-| D.ST.5 | Codebase Agent live smoke test | Real Anthropic SDK | See steps below — introduces a known bug, captures Sentry crash_location, runs agent, verifies recommendation | ✅ Done |
-| D.ST.5a | Codebase Agent token budget analysis | Real Anthropic SDK | Instrument a clean run to capture `usage_by_turn` per-turn; understand exactly why the failed run hit 11k input tokens; calibrate `CODEBASE_MAX_FILE_CHARS` and guardrail defaults; update spec token budget target | ✅ Done |
+| D.ST.5 | Diagnostic Agent live smoke test | Real Anthropic SDK | See steps below — introduces a known bug, captures Sentry crash_location, runs agent, verifies recommendation | ✅ Done |
+| D.ST.5a | Diagnostic Agent token budget analysis | Real Anthropic SDK | Instrument a clean run to capture `usage_by_turn` per-turn; understand exactly why the failed run hit 11k input tokens; calibrate `DIAGNOSTIC_MAX_FILE_CHARS` and guardrail defaults; update spec token budget target | ✅ Done |
 
-> **Decision made (2026-05-18):** Option A (stub trim after each Claude response) chosen for D.ST.5a. Option B (line-range reads) deferred — revisit after Option A is stabilised. Option C (pre-read / single-turn) deferred. See Appendix in `agents/specs/d5_codebase_agent.md` for full rationale.
-| D.ST.6 | Recommendation Agent stub test | Real Anthropic SDK | Hand-assembled findings dict from D.ST.1–D.ST.5 real outputs | ⏳ Pending |
+> **Decision made (2026-05-18):** Option A (stub trim after each Claude response) chosen for D.ST.5a. Option B (line-range reads) deferred — revisit after Option A is stabilised. Option C (pre-read / single-turn) deferred. See Appendix in `agents/specs/d5_diagnostic_agent.md` for full rationale.
+| D.ST.6 | Coding Agent stub test | Real Anthropic SDK | Hand-assembled findings dict from D.ST.1–D.ST.5 real outputs | ⏳ Pending |
 
-### D.ST.5 — Detailed Steps (Codebase Agent Live Smoke Test)
+### D.ST.5 — Detailed Steps (Diagnostic Agent Live Smoke Test)
 
 **Bug to introduce:** Remove `allergens` from the GraphQL query in `src/hooks/useMenu.ts`.
 This is Scenario 3 — safest choice, frontend-only change, no database or backend touched, easy to revert.
@@ -474,10 +474,10 @@ The existing Sentry exercise (task 3.16.15) already used this bug, so the patter
 - Note the exact `crash_location`: file path + line number (e.g. `src/hooks/useMenu.ts:42`)
 - Note the Sentry issue ID
 
-**Step 3 — Run the Codebase Agent**
+**Step 3 — Run the Diagnostic Agent**
 ```python
 # run from repo root — real Anthropic SDK call, costs tokens
-import agents.codebase_agent as agent
+import agents.diagnostic_agent as agent
 
 guardrails = {
     "crash_location": "src/hooks/useMenu.ts:42",  # replace with real line from Sentry
@@ -510,10 +510,10 @@ print(result)
 | # | Task | Description | Status |
 |---|---|---|---|
 | E.1 | Orchestrator design | Document routing logic for each of the three trigger types (monitoring workflow label event, manual GitHub issue, `/troubleshoot` skill) — which agents are invoked, in what order, under what conditions; confirm no direct Sentry webhook triggers (not used — paid feature) | ⏳ Pending |
-| E.2 | Orchestrator implementation | `agents/orchestrator.py --issue <number>` — reads issue body and labels; routes to the correct Sentry agent based on `source:*` label; invokes Render Logs, Codebase, GitHub agents; validates each finding via `agents/validator.py` before routing (malformed finding → flag on issue, stop); passes validated findings to Recommendation Agent | ⏳ Pending |
+| E.2 | Orchestrator implementation | `agents/orchestrator.py --issue <number>` — reads issue body and labels; routes to the correct Sentry agent based on `source:*` label; invokes Render Logs, Codebase, GitHub agents; validates each finding via `agents/validator.py` before routing (malformed finding → flag on issue, stop); passes validated findings to Coding Agent | ⏳ Pending |
 | E.3 | `/troubleshoot` skill | Claude Code skill in `.claude/skills/`; accepts symptom description or GitHub issue number; shell wrapper that calls `python agents/orchestrator.py --issue <number>`; same entry point as automated path | ⏳ Pending |
-| E.4 | GitHub write authorization | Recommendation Agent always has `open_draft_pr` in its tool list — no `/approve` gate before PR creation (draft PRs cannot be merged without human action on GitHub). Orchestrator always has `post_github_comment` and `send_email`. No agent ever has `merge_pr` — merging happens through the normal GitHub UI by a human. Compliance flag (`pii_flag: true` in any finding) adds a compliance notice to the GitHub Issue and PR description — human must acknowledge before merging | ⏳ Pending |
-| E.5 | Confidence-gated notifications | Orchestrator reads `confidence` from Recommendation Agent finding; high → post GitHub comment + send Resend email; medium → post GitHub comment only; low → post GitHub comment only with "investigation inconclusive" framing | ⏳ Pending |
+| E.4 | GitHub write authorization | Coding Agent always has `open_draft_pr` in its tool list — no `/approve` gate before PR creation (draft PRs cannot be merged without human action on GitHub). Orchestrator always has `post_github_comment` and `send_email`. No agent ever has `merge_pr` — merging happens through the normal GitHub UI by a human. Compliance flag (`pii_flag: true` in any finding) adds a compliance notice to the GitHub Issue and PR description — human must acknowledge before merging | ⏳ Pending |
+| E.5 | Confidence-gated notifications | Orchestrator reads `confidence` from Coding Agent finding; high → post GitHub comment + send Resend email; medium → post GitHub comment only; low → post GitHub comment only with "investigation inconclusive" framing | ⏳ Pending |
 | E.6 | Timeout and escalation | Orchestrator checks for human response after 24 hours on high-confidence findings → send reminder email; after 48 hours → add `escalation-needed` label; never act autonomously on timeout — only re-notify | ⏳ Pending |
 
 ---
@@ -529,8 +529,8 @@ print(result)
 | EV.2 | Orchestrator → Backend Sentry | Guardrails shape + status routing | Same as EV.1 for backend project slug | ⏳ Pending |
 | EV.3 | Orchestrator → Render Logs | Guardrails shape + status routing | Same as EV.1 for Render API | ⏳ Pending |
 | EV.4 | Orchestrator → GitHub Extractor | Guardrails shape + status routing | Orchestrator passes `release_sha` correctly; agent returns `completed` with commits list | ⏳ Pending |
-| EV.5 | Orchestrator → Codebase Agent | Guardrails assembled from prior findings | Orchestrator correctly maps `crash_location` from Sentry finding into Codebase guardrails; agent returns `completed` | ⏳ Pending |
-| EV.6 | Orchestrator → Recommendation Agent | Combined findings payload | Orchestrator correctly assembles all agent findings into one payload; Recommendation Agent returns `completed` with interpretation | ⏳ Pending |
+| EV.5 | Orchestrator → Diagnostic Agent | Guardrails assembled from prior findings | Orchestrator correctly maps `crash_location` from Sentry finding into Codebase guardrails; agent returns `completed` | ⏳ Pending |
+| EV.6 | Orchestrator → Coding Agent | Combined findings payload | Orchestrator correctly assembles all agent findings into one payload; Coding Agent returns `completed` with interpretation | ⏳ Pending |
 
 **Test data preparation before running EV.1–EV.6:**
 1. Introduce the Scenario 3 allergens bug (`docs/agent-test-scenarios.md`) and deploy
@@ -564,7 +564,7 @@ A.1 (backend Sentry) ───────────────────�
 A.2 (release tagging) ─────────────────────────────→ D.2 (errors map to deployments)
 A.3 (frontend Sentry) ─────────────────────────────→ D.1 (Frontend Sentry Agent)
 A.4 (test scenarios) ──────────────────────────────→ D.1–D.6 (acceptance criteria)
-A.5 (runbook) ─────────────────────────────────────→ D.5 (Codebase Agent reads runbook)
+A.5 (runbook) ─────────────────────────────────────→ D.5 (Diagnostic Agent reads runbook)
 A.6 (Render API) ──────────────────────────────────→ D.3 (Render Logs Agent)
 
 B.1 (agents/ package) ─────────────────────────────→ B.2, B.3, B.4, B.5, all of D and E

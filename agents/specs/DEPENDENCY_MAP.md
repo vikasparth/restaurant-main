@@ -11,8 +11,8 @@ For each new agent or tooling task, check which signatures already exist and reu
 | D.2 Backend Sentry Extractor | `sentry_api`: `query_sentry_errors`, `get_stack_trace`, `get_affected_releases`, `_pick_issue`, `_looks_like_injection`, `_contains_pii`; D.1 `run` pattern |
 | D.3 Render Logs Extractor | D.1 `run` pattern; `sentry_utils.record_agent_run` |
 | D.4 GitHub Extractor | D.1 `run` pattern; `sentry_utils.record_agent_run` | ✅ Done — see GitHub Extractor section below |
-| D.5 Codebase Agent | D.1 `run` pattern; `prompt_utils.build_system_prompt`; `sentry_utils.record_agent_run` |
-| D.6 Recommendation Agent | `prompt_utils.build_system_prompt`; `sentry_utils.record_agent_run`; all extractor `run` return shapes |
+| D.5 Diagnostic Agent | D.1 `run` pattern; `prompt_utils.build_system_prompt`; `sentry_utils.record_agent_run` |
+| D.6 Coding Agent | `prompt_utils.build_system_prompt`; `sentry_utils.record_agent_run`; all extractor `run` return shapes |
 | E Orchestrator | All extractor `run` signatures; `validator.validate_finding`; `prompt_utils.build_system_prompt`; `sentry_utils.record_agent_run` |
 
 ---
@@ -100,14 +100,14 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
 
 ---
 
-## Codebase Agent (`agents/codebase_agent.py`)
+## Diagnostic Agent (`agents/diagnostic_agent.py`)
 
 | Function | Signature | Notes |
 |---|---|---|
 | `run` | `run(guardrails: dict, issue_number: str = "") -> dict` | Entry point — makes real Anthropic SDK calls; accumulates `usage_by_turn` across turns |
 | `_validate_guardrails` | `_validate_guardrails(guardrails: dict) -> str \| None` | Checks `max_files_to_read` is a positive int (not bool); returns error string or `None` |
 | `_is_path_allowed` | `_is_path_allowed(path: str) -> bool` | Returns `True` if path starts with `src/`, `graphql-gateway/`, `backend/`, or `docs/` |
-| `_read_file` | `_read_file(path: str) -> tuple[str, bool]` | Scope check → read (capped at `CODEBASE_MAX_FILE_CHARS`) → injection check; returns `(content, injection_flag)` |
+| `_read_file` | `_read_file(path: str) -> tuple[str, bool]` | Scope check → read (capped at `DIAGNOSTIC_MAX_FILE_CHARS`) → injection check; returns `(content, injection_flag)` |
 | `_list_directory` | `_list_directory(path: str) -> list[str] \| str` | Scope check → `os.listdir`; returns sorted filenames or error string |
 | `_build_tool_definitions` | `_build_tool_definitions() -> list[dict]` | Anthropic tool schemas for `read_file`, `list_directory`, `return_findings` |
 | `_process_tool_call` | `_process_tool_call(tool_name: str, tool_input: dict, files_read: list[str], max_files: int) -> tuple[str, bool]` | Dispatches Claude tool calls; enforces `max_files` cap; returns `(result_string, injection_detected)` |
@@ -116,7 +116,7 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
 
 **Navigation priority:** `crash_location` first (Sentry file + line); `endpoint` fallback (Render route, used until task 3.14 wires backend Sentry)
 
-**Return shape:** `status`, `source="codebase"`, `crash_location`, `root_cause_file`, `missing_field`, `fix_location`, `fix_type`, `fix_detail`, `runbook_match`, `injection_flag`, `pii_flag`
+**Return shape:** `status`, `source="diagnostic"`, `crash_location`, `root_cause_file`, `missing_field`, `fix_location`, `fix_type`, `fix_detail`, `runbook_match`, `injection_flag`, `pii_flag`
 
 ---
 
@@ -130,8 +130,8 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
 | `SENTRY_QUERY_LIMIT` | `int` | `3` | Max issues fetched per window |
 | `SENTRY_STACK_FRAME_LIMIT` | `int` | `3` | Max app frames kept per stack trace |
 | `ORCHESTRATOR_MODEL` | `str` | `claude-sonnet-4-6` | Model for Orchestrator Claude calls |
-| `RECOMMENDATION_MODEL` | `str` | `claude-sonnet-4-6` | Model for Recommendation Agent |
-| `CODEBASE_MODEL` | `str` | `claude-sonnet-4-6` | Model for Codebase Agent |
+| `CODING_MODEL` | `str` | `claude-sonnet-4-6` | Model for Coding Agent |
+| `DIAGNOSTIC_MODEL` | `str` | `claude-sonnet-4-6` | Model for Diagnostic Agent |
 | `AGENT_MAX_TURNS` | `int` | `5` | Default turn budget for Claude-calling agents |
 | `AGENT_MAX_TOKENS_PER_TURN` | `int` | `1024` | Default token budget per turn |
 | `GITHUB_API_BASE` | `str` | `"https://api.github.com"` | Base URL for all GitHub API calls |

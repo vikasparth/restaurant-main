@@ -1,6 +1,6 @@
-# D.6 — Recommendation Agent Spec
+# D.6 — Coding Agent Spec
 
-**Architecture doc sections:** `Recommendation Agent`, `Agent Catalog`, `Principles`,
+**Architecture doc sections:** `Coding Agent`, `Agent Catalog`, `Principles`,
 `Confidence-Gated Actions`, `Human in the Loop`, `Runbook Integration`,
 `Compliance Awareness`, `Token Budget Targets`
 
@@ -8,7 +8,7 @@
 
 ## 1. What This Slice Builds
 
-The Recommendation Agent is the only agent in the pipeline that produces interpretation.
+The Coding Agent is the only agent in the pipeline that produces interpretation.
 It receives the combined structured payload assembled by the Orchestrator (all extractor
 findings clubbed into one dict) and makes a **single Claude API call** to produce a
 cross-source root cause analysis. After Claude responds, Python code opens a draft GitHub
@@ -48,9 +48,9 @@ Empty string when called outside a GitHub issue context.
 
 | Guardrail | Source | Type | Notes |
 |---|---|---|---|
-| `RECOMMENDATION_MAX_TURNS` | `agents/config.py` | `int` (= 1) | Bounds the single Claude call; not a loop limit |
-| `RECOMMENDATION_MAX_TOKENS` | `agents/config.py` | `int` | Max output tokens per Claude response |
-| `RECOMMENDATION_MODEL` | `agents/config.py` | `str` | Sonnet 4.6 — strongest reasoning needed for cross-source synthesis |
+| `CODING_MAX_TURNS` | `agents/config.py` | `int` (= 1) | Bounds the single Claude call; not a loop limit |
+| `CODING_MAX_TOKENS` | `agents/config.py` | `int` | Max output tokens per Claude response |
+| `CODING_MODEL` | `agents/config.py` | `str` | Sonnet 4.6 — strongest reasoning needed for cross-source synthesis |
 | `GITHUB_API_BASE` | `agents/config.py` | `str` | Base URL for all GitHub API calls |
 | `GITHUB_REPO` | `agents/config.py` | `str` | `owner/repo` slug |
 | `GITHUB_TOKEN` | `agents/config.py` | `str` | Personal access token — write scope required |
@@ -92,7 +92,7 @@ failed (branch or PR API error). Interpretation is still returned; `pr_url` is `
 
 ## 5. Implementation Rules
 
-1. **Single Claude call only.** `RECOMMENDATION_MAX_TURNS` is 1. There is no loop.
+1. **Single Claude call only.** `CODING_MAX_TURNS` is 1. There is no loop.
    Call `client.messages.create()` exactly once per `run()` invocation.
 
 2. **Use `build_system_prompt()`** from `agents/prompt_utils.py` to wrap the system
@@ -108,7 +108,7 @@ failed (branch or PR API error). Interpretation is still returned; `pr_url` is `
    1. Regression check — compare `first_seen` vs `pr_merged_at` across GitHub and Sentry findings
    2. File overlap check — compare `top_frames` file paths vs `files_changed` in GitHub commits
    3. Severity check — weight `user_count` and `error_count` from Sentry
-   4. Fix derivation — use `fix_location`, `fix_type`, `fix_detail` from Codebase Agent only
+   4. Fix derivation — use `fix_location`, `fix_type`, `fix_detail` from Diagnostic Agent only
    5. Confidence scoring — combine regression flag + file overlap + severity + fix clarity
 
 5. **Confidence-gated PR:**
@@ -133,7 +133,7 @@ failed (branch or PR API error). Interpretation is still returned; `pr_url` is `
    immediately without calling Claude.
 
 10. **All constants from `agents/config.py`** — no model names, URLs, branch prefixes,
-    or token limits hardcoded in `recommendation_agent.py`.
+    or token limits hardcoded in `coding_agent.py`.
 
 11. **No cross-feature imports.** Import only from `agents/prompt_utils.py`,
     `agents/sentry_utils.py`, and `agents/config.py`.
@@ -245,7 +245,7 @@ def _open_draft_pr(interpretation: dict, payload: dict, issue_number: str) -> st
 | 27 | `test_return_interpretation_invalid_confidence_value_returns_schema_error` | 8 — Schema Validation | `confidence="very_high"` (not in enum `high\|medium\|low`) → `schema_error` |
 | 28 | `test_return_interpretation_wrong_type_for_regression_returns_schema_error` | 8 — Schema Validation | `regression` is string `"true"` instead of bool → `schema_error` |
 | 29 | `test_usage_by_turn_has_exactly_one_entry_after_single_claude_call` | Observability | `usage_by_turn` list has exactly 1 entry — confirms single-call design, no loop |
-| 30 | `test_record_agent_run_called_with_correct_args_on_completed_path` | Observability | Mock `record_agent_run`; assert called with `"recommendation_agent"`, result dict, `usage_by_turn`, `issue_number` |
+| 30 | `test_record_agent_run_called_with_correct_args_on_completed_path` | Observability | Mock `record_agent_run`; assert called with `"coding_agent"`, result dict, `usage_by_turn`, `issue_number` |
 | 31 | `test_record_agent_run_called_on_invalid_input_path` | Observability | `record_agent_run` called even when `_validate_payload` returns an error — observability never skipped |
 | 32 | `test_github_timeout_during_pr_flow_returns_partial` | 7 — Server Failures | `requests.Timeout` raised inside `_open_draft_pr` → `partial`; interpretation preserved, `pr_url=None` |
 | 33 | `test_github_network_error_during_pr_flow_returns_partial` | 7 — Network Failures | `requests.ConnectionError` raised inside `_open_draft_pr` → `partial`; distinct from timeout — server unreachable |
@@ -257,17 +257,17 @@ def _open_draft_pr(interpretation: dict, payload: dict, issue_number: str) -> st
 
 | File | Action | Notes |
 |---|---|---|
-| `agents/recommendation_agent.py` | Create | New agent module |
+| `agents/coding_agent.py` | Create | New agent module |
 | `agents/config.py` | Modify | Add `GITHUB_PR_BRANCH_PREFIX` constant |
-| `agents/tests/test_recommendation_agent.py` | Create | TDD test file — all tests written red first |
-| `agents/specs/d6_recommendation_agent.md` | Create | This spec |
+| `agents/tests/test_coding_agent.py` | Create | TDD test file — all tests written red first |
+| `agents/specs/d6_coding_agent.md` | Create | This spec |
 | `agents/specs/DEPENDENCY_MAP.md` | Modify | Add D.6 signatures after slice completes |
 
 ---
 
 ## 11. Acceptance Criteria
 
-- [ ] All 34 new `test_recommendation_agent.py` tests pass
+- [ ] All 34 new `test_coding_agent.py` tests pass
 - [ ] Full suite passes with no regressions (107 + 34 = 141 tests)
 - [ ] `status: completed` returned for a valid combined payload
 - [ ] `interpretation.root_cause` is a non-empty string

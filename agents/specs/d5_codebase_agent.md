@@ -1,20 +1,20 @@
-# D.5 — Codebase Agent Spec
+# D.5 — Diagnostic Agent Spec
 
 **Status: DRAFT — awaiting sign-off**
-**Architecture doc sections:** `Codebase Agent Query Contract`, `Agent Catalog`, `Principles`, `Codebase Agent Findings Schema`
+**Architecture doc sections:** `Diagnostic Agent Query Contract`, `Agent Catalog`, `Principles`, `Diagnostic Agent Findings Schema`
 **Dependency map:** `agents/specs/DEPENDENCY_MAP.md`
 
 ---
 
 ## What this slice builds
 
-A Claude-assisted codebase navigator (`agents/codebase_agent.py`) that receives a crash location and list of changed files from the Orchestrator, then iteratively reads the filesystem to trace the root cause. Claude drives navigation — deciding what to read next — until the root cause is found or the turn budget is exhausted. Returns a structured findings dict (~50 tokens) to the Orchestrator. Zero interpretation, zero raw code snippets.
+A Claude-assisted codebase navigator (`agents/diagnostic_agent.py`) that receives a crash location and list of changed files from the Orchestrator, then iteratively reads the filesystem to trace the root cause. Claude drives navigation — deciding what to read next — until the root cause is found or the turn budget is exhausted. Returns a structured findings dict (~50 tokens) to the Orchestrator. Zero interpretation, zero raw code snippets.
 
 This is the first agent in the pipeline to make real Anthropic SDK calls. `usage_by_turn` is accumulated from every `client.messages.create()` call and passed to `record_agent_run`.
 
 ### Where This Agent Runs
 
-Unlike D.1–D.4 (which call external HTTP APIs and can run anywhere), the Codebase Agent reads the local filesystem. It **must run on a GitHub Actions runner where the repository has been checked out**. File paths like `src/hooks/useMenu.ts` resolve relative to the repository root on the runner's local storage — they are physically present because of the `actions/checkout` step.
+Unlike D.1–D.4 (which call external HTTP APIs and can run anywhere), the Diagnostic Agent reads the local filesystem. It **must run on a GitHub Actions runner where the repository has been checked out**. File paths like `src/hooks/useMenu.ts` resolve relative to the repository root on the runner's local storage — they are physically present because of the `actions/checkout` step.
 
 The only secret this agent requires is `ANTHROPIC_API_KEY`.
 
@@ -24,7 +24,7 @@ The only secret this agent requires is `ANTHROPIC_API_KEY`.
 sequenceDiagram
     participant GHA as GitHub Actions Runner
     participant Orch as Orchestrator
-    participant Agent as Codebase Agent
+    participant Agent as Diagnostic Agent
     participant FS as Local Filesystem<br/>(checked-out repo)
     participant Claude as Claude API<br/>(Anthropic SDK)
 
@@ -34,7 +34,7 @@ sequenceDiagram
     Agent->>Agent: _validate_guardrails()
     Agent->>Claude: messages.create() — system prompt + crash context
 
-    loop Navigation (max CODEBASE_MAX_TURNS turns)
+    loop Navigation (max DIAGNOSTIC_MAX_TURNS turns)
         Claude-->>Agent: tool_use: read_file(path)
         Agent->>FS: open(path) — injection check
         FS-->>Agent: file content
@@ -56,7 +56,7 @@ sequenceDiagram
 ## Signature
 
 ```python
-# agents/codebase_agent.py
+# agents/diagnostic_agent.py
 def run(guardrails: dict, issue_number: str = "") -> dict:
     ...
 ```
@@ -76,12 +76,12 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
 
 ## Return Shape
 
-Matches `Codebase Agent Findings Schema` in `agent-architecture.md`.
+Matches `Diagnostic Agent Findings Schema` in `agent-architecture.md`.
 
 ```python
 {
     "status": "completed",          # see Exit Conditions for full status set
-    "source": "codebase",
+    "source": "diagnostic",
     "crash_location":  "src/components/MenuItemCard.tsx:42",
     "root_cause_file": "src/hooks/useMenuItems.ts:23",
     "missing_field":   "price",                         # None if not a missing-field error
@@ -108,21 +108,21 @@ Matches `Codebase Agent Findings Schema` in `agent-architecture.md`.
 Error statuses return a minimal dict:
 
 ```python
-{"status": "<status>", "source": "codebase"}
+{"status": "<status>", "source": "diagnostic"}
 ```
 
 ---
 
 ## Implementation Rules
 
-1. Import `CODEBASE_MODEL`, `CODEBASE_MAX_TURNS`, `CODEBASE_MAX_TOKENS`, `CODEBASE_MAX_FILE_CHARS` from `agents/config.py` — never hardcode.
+1. Import `DIAGNOSTIC_MODEL`, `DIAGNOSTIC_MAX_TURNS`, `DIAGNOSTIC_MAX_TOKENS`, `DIAGNOSTIC_MAX_FILE_CHARS` from `agents/config.py` — never hardcode.
 2. Import `STATUS_COMPLETED`, `STATUS_NO_DATA`, `STATUS_INJECTION_DETECTED`, `STATUS_INVALID_INPUT`, `STATUS_PARTIAL` from `agents/config.py`. Add `STATUS_PARTIAL = "partial"` to `config.py` — it does not exist yet.
 3. Import `_INJECTION_RE` from `agents/patterns.py` — used in `_read_file` to guard file content before returning it to Claude.
 4. Import `record_agent_run` from `agents/sentry_utils.py` — call before every `return` in `run()`.
 5. Import `build_system_prompt` from `agents/prompt_utils.py` — wrap the system prompt for prompt caching.
 6. Use `anthropic.Anthropic()` client — do not instantiate inside the loop; create once before the loop.
 7. Accumulate `usage_by_turn` after every `client.messages.create()` call — this agent makes real Claude API calls, unlike D.1–D.4.
-8. The agentic loop is bounded by `CODEBASE_MAX_TURNS` — never use `while True`.
+8. The agentic loop is bounded by `DIAGNOSTIC_MAX_TURNS` — never use `while True`.
 9. Claude returns findings via a `return_findings` tool call — do not parse free text. Capture the tool args dict as the result.
 10. `_read_file` and `_list_directory` are the only filesystem access points — scope enforcement lives in these functions, not in the prompt.
 11. No cross-feature imports — shared helpers come only from `patterns.py`, `sentry_utils.py`, `config.py`, `prompt_utils.py`.
@@ -145,8 +145,8 @@ Error statuses return a minimal dict:
 
 | Status | Trigger | Orchestrator action |
 |---|---|---|
-| `completed` | Claude called `return_findings` with all required fields within turn budget | Pass to Recommendation Agent |
-| `partial` | Turn budget (`CODEBASE_MAX_TURNS`) exhausted before `return_findings` called | Pass partial findings to Recommendation Agent with confidence penalty |
+| `completed` | Claude called `return_findings` with all required fields within turn budget | Pass to Coding Agent |
+| `partial` | Turn budget (`DIAGNOSTIC_MAX_TURNS`) exhausted before `return_findings` called | Pass partial findings to Coding Agent with confidence penalty |
 | `no_data` | `crash_location` not found in filesystem scope | Skip codebase findings in payload |
 | `injection_detected` | `_INJECTION_RE` matched in file content during navigation | Flag on GitHub Issue; stop processing |
 | `invalid_input` | Guardrails dict has wrong types or missing required fields | Log misconfiguration; skip codebase findings |
@@ -163,7 +163,7 @@ def _is_path_allowed(path: str) -> bool:
     # returns True if path starts with src/, graphql-gateway/, backend/, or docs/
 
 def _read_file(path: str) -> str:
-    # scope check via _is_path_allowed; injection check via _INJECTION_RE; content capped at CODEBASE_MAX_FILE_CHARS before returning to Claude
+    # scope check via _is_path_allowed; injection check via _INJECTION_RE; content capped at DIAGNOSTIC_MAX_FILE_CHARS before returning to Claude
 
 def _list_directory(path: str) -> list[str]:
     # scope check via _is_path_allowed; returns sorted filenames or error string
@@ -180,13 +180,13 @@ def _process_tool_call(tool_name: str, tool_input: dict, files_read: list[str], 
 
 ## TDD Test Plan
 
-File: `agents/tests/test_codebase_agent.py`
+File: `agents/tests/test_diagnostic_agent.py`
 
 | # | Test name | Category | What it verifies |
 |---|---|---|---|
 | 1 | `test_returns_completed_when_claude_calls_return_findings` | Happy path | Claude calls `return_findings` → `status="completed"`, `source="codebase"`, all findings fields present |
 | 2 | `test_returns_no_data_when_both_locations_absent` | Happy path | Both `crash_location` and `endpoint` absent → `status="no_data"`, no Claude call |
-| 3 | `test_returns_partial_when_turn_budget_exhausted` | Happy path | SDK returns `tool_use` for all `CODEBASE_MAX_TURNS` turns without `return_findings` → `status="partial"` |
+| 3 | `test_returns_partial_when_turn_budget_exhausted` | Happy path | SDK returns `tool_use` for all `DIAGNOSTIC_MAX_TURNS` turns without `return_findings` → `status="partial"` |
 | 4 | `test_endpoint_fallback_used_when_crash_location_none` | Happy path | `crash_location=None`, `endpoint="/api/menu"` → Claude call made, `endpoint` passed as navigation start |
 | 5 | `test_returns_invalid_input_when_both_locations_missing` | Input validation | `guardrails={}` → `status="invalid_input"`, no Claude call |
 | 6 | `test_returns_invalid_input_when_max_files_not_int` | Input validation | `max_files_to_read="ten"` → `status="invalid_input"`, no Claude call |
@@ -223,10 +223,10 @@ All Claude SDK calls mocked with `unittest.mock.patch`. No real Anthropic API ca
 
 | File | Change |
 |---|---|
-| `agents/codebase_agent.py` | New — implementation |
-| `agents/tests/test_codebase_agent.py` | New — 13 TDD tests |
+| `agents/diagnostic_agent.py` | New — implementation |
+| `agents/tests/test_diagnostic_agent.py` | New — 13 TDD tests |
 | `agents/config.py` | Add `STATUS_PARTIAL = "partial"` |
-| `agents/specs/DEPENDENCY_MAP.md` | Update — add `codebase_agent` row and tool definitions |
+| `agents/specs/DEPENDENCY_MAP.md` | Update — add `diagnostic_agent` row and tool definitions |
 
 ---
 
@@ -261,7 +261,7 @@ Turn 4 input:  everything above + [assistant_3] + [file3_content]               
 Turn 5 input:  everything above + [assistant_4] + [file4_content]                             ~11,135 tokens
 ```
 
-Each file read adds **~2,500 tokens** (`CODEBASE_MAX_FILE_CHARS = 10,000 chars ÷ 4`) to **every subsequent turn**, not just the turn it was read.
+Each file read adds **~2,500 tokens** (`DIAGNOSTIC_MAX_FILE_CHARS = 10,000 chars ÷ 4`) to **every subsequent turn**, not just the turn it was read.
 
 ### Fixed overhead per turn (always re-sent)
 
@@ -639,7 +639,7 @@ In the D.ST.5 failed run (5 turns with the multi-tool bug adding extra turns and
 
 **Effect:** Input tokens stay roughly constant regardless of how many files are read — ~535 fixed overhead + ~10 tokens per already-processed file, instead of ~2,500 per file compounding every turn.
 
-**Tradeoff:** Slightly more complex loop. The shrink loop scans all messages on every turn — acceptable cost since the list is small (max `CODEBASE_MAX_TURNS` entries).
+**Tradeoff:** Slightly more complex loop. The shrink loop scans all messages on every turn — acceptable cost since the list is small (max `DIAGNOSTIC_MAX_TURNS` entries).
 
 ---
 
@@ -692,4 +692,4 @@ Option A (stub trim after each Claude response) is the chosen approach. Rational
 1. Instrument a clean run to get exact `usage_by_turn` numbers per turn (baseline)
 2. Implement Option A: after `client.messages.create()` returns, shrink each prior `tool_result` content in `messages` to a one-liner stub
 3. Run the same scenario again and compare per-turn token counts
-4. Update `CODEBASE_MAX_FILE_CHARS` and the token budget target in this spec once the approach is validated
+4. Update `DIAGNOSTIC_MAX_FILE_CHARS` and the token budget target in this spec once the approach is validated

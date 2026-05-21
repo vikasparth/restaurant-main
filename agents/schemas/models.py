@@ -6,7 +6,7 @@ class TimeWindow(BaseModel):
     from_: str
     to: str
 
-AgentName = Literal["frontend-sentry", "backend-sentry", "render-logs", "github", "codebase", "recommendation"]
+AgentName = Literal["frontend-sentry", "backend-sentry", "render-logs", "github", "diagnostic", "coding"]
 AgentStatus = Literal["completed", "partial", "failed", "injection_detected"]
 ConfidenceLevel = Literal["high", "medium", "low"]
 
