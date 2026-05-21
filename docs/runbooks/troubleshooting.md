@@ -1,6 +1,6 @@
 # Troubleshooting Runbook — Aap ki Rasoi
 
-**Audience:** On-call engineers and the Codebase Agent. Each entry covers one named error pattern: what it looks like, why it happens, how to investigate, and when to escalate.
+**Audience:** On-call engineers and the Diagnostic Agent. Each entry covers one named error pattern: what it looks like, why it happens, how to investigate, and when to escalate.
 
 **This is not a test spec.** For expected agent output, see `docs/agent-test-scenarios.md`.
 

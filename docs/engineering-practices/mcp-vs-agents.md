@@ -54,8 +54,8 @@ graph TD
     ORC -->|invokes| BSA[backend_sentry_extractor.py]
     ORC -->|invokes| RLA[render_logs_extractor.py]
     ORC -->|invokes| GHA_A[github_extractor.py]
-    ORC -->|invokes| CA[codebase_extractor.py]
-    ORC -->|invokes| REC[recommendation_agent.py]
+    ORC -->|invokes| CA[diagnostic_agent.py]
+    ORC -->|invokes| REC[coding_agent.py]
 
     FSA -->|Anthropic SDK| CLAUDE[Claude API]
     BSA -->|Anthropic SDK| CLAUDE
@@ -71,7 +71,7 @@ graph TD
     CA -->|tool execution — filesystem| CODE[Codebase / Git]
 ```
 
-Key point: every agent calls the Claude API for reasoning, then executes tool calls itself. `recommendation_agent.py` has no external tools — it receives findings as input text and produces output in one turn.
+Key point: every agent calls the Claude API for reasoning, then executes tool calls itself. `coding_agent.py` has no external tools — it receives findings as input text and produces output in one turn.
 
 ### Sequence Diagram — Frontend Sentry Agent
 
@@ -259,13 +259,13 @@ Same reasoning as frontend. Different Sentry project (`restaurant-backend`), sam
 
 **Decision:** SDK Agent. Automated pipeline, single client. Note: if developers ever wanted to query git history interactively via Claude Code, this would be a candidate for MCP.
 
-### Codebase Agent (`agents/codebase_extractor.py`)
+### Diagnostic Agent (`agents/diagnostic_agent.py`)
 
 **Tools:** `read_file`, `grep_symbol`, `git_diff` — filesystem reads scoped to `src/`, `backend/`, `graphql-gateway/`, `docs/`.
 
 **Decision:** SDK Agent. Even though Claude Code itself can read files, the codebase agent applies project-specific scoping rules (allowed directories, symbol tracing logic) that are not worth packaging as an MCP server at this scale.
 
-### Recommendation Agent (`agents/recommendation_agent.py`)
+### Coding Agent (`agents/coding_agent.py`)
 
 **Tools:** None. Receives structured findings from the orchestrator as input text and produces a recommendation. One turn, no tool calls.
 

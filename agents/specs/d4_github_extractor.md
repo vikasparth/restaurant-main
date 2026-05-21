@@ -99,7 +99,7 @@ Error statuses (`unauthenticated`, `unauthorized`, `rate_limited`, `server_error
 
 | Status | Trigger | Orchestrator action |
 |---|---|---|
-| `completed` | At least one commit found in the window | Pass to Recommendation Agent |
+| `completed` | At least one commit found in the window | Pass to Coding Agent |
 | `no_data` | Zero commits after filtering | Skip GitHub findings in payload |
 | `injection_detected` | Injection pattern matched in any commit message | Flag on GitHub Issue; stop processing |
 | `invalid_input` | Guardrails dict has wrong types or malformed values (e.g. `max_commits="three"`, `max_commits=150`, `release_sha="not-a-sha!!"`, negative int) | Log misconfiguration; skip GitHub findings |

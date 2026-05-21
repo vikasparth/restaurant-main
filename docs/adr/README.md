@@ -15,4 +15,4 @@ Each ADR records what changed, why, and what the consequences are.
 | [0008](0008-monitor-skill-architecture.md) | Monitor skill architecture — layered sub-skills + structured runbook | 2026-04-16 | Accepted |
 | [0009](0009-graphql-inspector-ci-approach.md) | GraphQL Inspector CI — double checkout instead of official GitHub Action | 2026-04-25 | Accepted |
 | [0010](0010-specialized-agent-architecture.md) | Specialized agent architecture — least privilege + orchestration layer | 2026-04-28 | Accepted |
-| [0011](0011-recommendation-agent-input-contract.md) | Recommendation Agent input contract — Codebase findings drive fix, extractors enrich context | 2026-05-13 | Accepted |
+| [0011](0011-recommendation-agent-input-contract.md) | Coding Agent input contract — Diagnostic findings drive fix, extractors enrich context | 2026-05-13 | Accepted |

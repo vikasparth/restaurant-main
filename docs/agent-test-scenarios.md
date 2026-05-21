@@ -14,7 +14,7 @@
 4. Compare the agent's YAML finding against the expected output here.
 5. **Pass criteria:** all required fields present with correct values. Runtime values (timestamps, user counts, git SHAs) may vary — what must match is the structural shape and the `root_cause`, `affected_layer`, `confidence`, and `regression` conclusions.
 
-**Note on agent-specific `findings` fields:** `BaseFinding` in `models.py` defines `metadata` and `interpretation`. The `findings` block for each agent (e.g. `BackendSentryFinding`, `CodebaseFinding`) is defined when that agent is built in Phase D. The YAML examples below show the expected fields for those blocks — treat them as the spec the Phase D agent must satisfy.
+**Note on agent-specific `findings` fields:** `BaseFinding` in `models.py` defines `metadata` and `interpretation`. The `findings` block for each agent (e.g. `BackendSentryFinding`, `DiagnosticFinding`) is defined when that agent is built in Phase D. The YAML examples below show the expected fields for those blocks — treat them as the spec the Phase D agent must satisfy.
 
 ---
 
@@ -22,11 +22,11 @@
 
 | # | Name | Pattern Name | Trigger | Agents Invoked |
 |---|---|---|---|---|
-| 1 | Reservation failures | `reservation-validation-spike` | Automated (backend Sentry) | Backend Sentry → Codebase → Recommendation |
-| 2 | Render cold start | `render-cold-start-503` | Automated (frontend Sentry) | Frontend Sentry → Render Logs → Codebase → Recommendation |
-| 3 | Missing allergens | `missing-field-frontend-query` | Manual GitHub issue | Codebase → Recommendation |
-| 4 | Wrong order total | `seed-data-price-error` | Manual GitHub issue | GitHub → Codebase → Recommendation |
-| 5 | Schema drift | `graphql-schema-resolver-drift` | Automated (frontend Sentry) | Frontend Sentry → Codebase → Recommendation |
+| 1 | Reservation failures | `reservation-validation-spike` | Automated (backend Sentry) | Backend Sentry → Diagnostic → Coding |
+| 2 | Render cold start | `render-cold-start-503` | Automated (frontend Sentry) | Frontend Sentry → Render Logs → Diagnostic → Coding |
+| 3 | Missing allergens | `missing-field-frontend-query` | Manual GitHub issue | Diagnostic → Coding |
+| 4 | Wrong order total | `seed-data-price-error` | Manual GitHub issue | GitHub → Diagnostic → Coding |
+| 5 | Schema drift | `graphql-schema-resolver-drift` | Automated (frontend Sentry) | Frontend Sentry → Diagnostic → Coding |
 
 ---
 
@@ -68,8 +68,8 @@ Automated: `sentry-monitor-backend.yml` (C.1) detects error count above threshol
 ```
 Orchestrator
   └─ Backend Sentry Agent   (reads Sentry backend project)
-  └─ Codebase Agent         (traces error code to source)
-  └─ Recommendation Agent   (synthesises findings)
+  └─ Diagnostic Agent         (traces error code to source)
+  └─ Coding Agent   (synthesises findings)
 ```
 
 Render Logs Agent and GitHub Agent are **not** invoked — the signal is a Sentry
@@ -112,7 +112,7 @@ interpretation:
 *`error_code`, `endpoint`, and `status_code` are backend-specific fields added to
 `BackendSentryFinding` in D.2.*
 
-#### Codebase Agent
+#### Diagnostic Agent
 
 ```yaml
 metadata:
@@ -143,7 +143,7 @@ interpretation:
   regression: true
 ```
 
-### Expected Recommendation
+### Expected Coding
 
 ```yaml
 root_cause: "Inverted operator (>) in validate_reservation_time Check 4 rejects all reservations more than 2 hours in advance"
@@ -186,8 +186,8 @@ Orchestrator fires.
 Orchestrator
   └─ Frontend Sentry Agent   (identifies 503 pattern)
   └─ Render Logs Agent       (correlates with cold-start log)
-  └─ Codebase Agent          (rules out a code regression)
-  └─ Recommendation Agent
+  └─ Diagnostic Agent          (rules out a code regression)
+  └─ Coding Agent
 ```
 
 ### Expected Findings per Agent
@@ -257,7 +257,7 @@ interpretation:
   regression: false
 ```
 
-#### Codebase Agent
+#### Diagnostic Agent
 
 ```yaml
 metadata:
@@ -285,7 +285,7 @@ interpretation:
   regression: false
 ```
 
-### Expected Recommendation
+### Expected Coding
 
 ```yaml
 root_cause: "Render free tier cold start — service suspended after inactivity; startup delay produces 503s on first request"
@@ -332,8 +332,8 @@ Orchestrator is invoked via the `/troubleshoot` skill or by manually adding the
 
 ```
 Orchestrator
-  └─ Codebase Agent         (traces field through all layers)
-  └─ Recommendation Agent
+  └─ Diagnostic Agent         (traces field through all layers)
+  └─ Coding Agent
 ```
 
 No Sentry agent — this is a silent data gap, not an exception. No Render Logs agent —
@@ -341,7 +341,7 @@ infrastructure is fine.
 
 ### Expected Findings per Agent
 
-#### Codebase Agent
+#### Diagnostic Agent
 
 ```yaml
 metadata:
@@ -384,7 +384,7 @@ interpretation:
   regression: true
 ```
 
-### Expected Recommendation
+### Expected Coding
 
 ```yaml
 root_cause: "allergens missing from MENU_QUERY in useMenu.ts; field is available in the schema and returned by the resolver"
@@ -427,12 +427,12 @@ Orchestrator is invoked via the `/troubleshoot` skill.
 ```
 Orchestrator
   └─ GitHub Agent     (looks for a recent commit touching price data)
-  └─ Codebase Agent   (traces the price value from display to seed file)
-  └─ Recommendation Agent
+  └─ Diagnostic Agent   (traces the price value from display to seed file)
+  └─ Coding Agent
 ```
 
 GitHub Agent runs first — if a recent commit touched the seed data, that commit is the
-primary signal. Codebase Agent then confirms the exact wrong value and its location.
+primary signal. Diagnostic Agent then confirms the exact wrong value and its location.
 
 ### Expected Findings per Agent
 
@@ -466,7 +466,7 @@ interpretation:
   regression: true
 ```
 
-#### Codebase Agent
+#### Diagnostic Agent
 
 ```yaml
 metadata:
@@ -506,7 +506,7 @@ interpretation:
   regression: true
 ```
 
-### Expected Recommendation
+### Expected Coding
 
 ```yaml
 root_cause: "Seed data price for <item name> set to 1299.00 (should be 12.99) introduced in commit <sha>"
@@ -555,8 +555,8 @@ Orchestrator fires.
 ```
 Orchestrator
   └─ Frontend Sentry Agent   (identifies the unknown field error)
-  └─ Codebase Agent          (traces the field through all layers)
-  └─ Recommendation Agent
+  └─ Diagnostic Agent          (traces the field through all layers)
+  └─ Coding Agent
 ```
 
 ### Expected Findings per Agent
@@ -595,7 +595,7 @@ interpretation:
   regression: true
 ```
 
-#### Codebase Agent
+#### Diagnostic Agent
 
 ```yaml
 metadata:
@@ -633,7 +633,7 @@ interpretation:
   regression: true
 ```
 
-### Expected Recommendation
+### Expected Coding
 
 ```yaml
 root_cause: "preparation_time in MENU_QUERY has no corresponding definition in the gateway schema (MenuItem type)"

@@ -183,7 +183,7 @@ fully queryable in dashboards via tags and extras.
 
 14. ⬜ **Update `agents/specs/DEPENDENCY_MAP.md`** — reflect the new `record_agent_run` signature (4 params)
 
-15. ⬜ **Deferred — Claude-calling agents** (Orchestrator, Codebase Agent, Recommendation Agent):
+15. ⬜ **Deferred — Claude-calling agents** (Orchestrator, Diagnostic Agent, Coding Agent):
     - When each is built, accept `issue_number: str = ""` in `run()` and forward to `record_agent_run`
     - Append all 4 token fields per turn: `input_tokens`, `output_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`
     - Build Sentry dashboard — filter by `issue_number` to see all agents per investigation; `usage_by_turn` visible in event detail

@@ -17,9 +17,9 @@ Replace the single outer-loop agent with a fleet of specialized agents under an 
 - **Sentry Agent** — Sentry API read-only; no access to codebase or GitHub
 - **Render Logs Agent** — Render API read-only; no access to Sentry or GitHub
 - **GitHub Agent** — GitHub API read-only by default; write access (issue comment) granted explicitly by the orchestrator only when confidence is high
-- **Codebase Agent** — filesystem read-only, scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`; no external API access
-- **Recommendation Agent** — no external access; synthesizes structured findings passed in from the orchestrator
-- **Orchestrator** — invokes specialized agents, collects structured findings, routes to Recommendation Agent, delivers output
+- **Diagnostic Agent** — filesystem read-only, scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`; no external API access
+- **Coding Agent** — no external access; synthesizes structured findings passed in from the orchestrator
+- **Orchestrator** — invokes specialized agents, collects structured findings, routes to Coding Agent, delivers output
 
 Each agent loads context incrementally within its own scope. The orchestrator decides which agents are needed based on the trigger type — not all agents run on every investigation.
 
@@ -34,7 +34,7 @@ Full design in `docs/engineering-practices/agent-architecture.md`.
 ## Consequences
 
 - **Security:** each agent's access grant is bounded to its role; no single agent has the full picture
-- **Least privilege enforced by design:** a Sentry Agent cannot accidentally (or adversarially) read source files; a Codebase Agent cannot post to GitHub
+- **Least privilege enforced by design:** a Sentry Agent cannot accidentally (or adversarially) read source files; a Diagnostic Agent cannot post to GitHub
 - **Coordination overhead:** the orchestrator adds a layer; handoffs between agents must be structured (not free-form prose) for the orchestrator to parse reliably
 - **Testability:** each agent can be validated in isolation against its relevant test scenarios before wiring to the orchestrator
 - **Cost:** more agent invocations per investigation; mitigated by the orchestrator only invoking agents whose signal is needed for the trigger type
