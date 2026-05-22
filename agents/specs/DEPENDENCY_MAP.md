@@ -12,7 +12,7 @@ For each new agent or tooling task, check which signatures already exist and reu
 | D.3 Render Logs Extractor | D.1 `run` pattern; `sentry_utils.record_agent_run` |
 | D.4 GitHub Extractor | D.1 `run` pattern; `sentry_utils.record_agent_run` | ✅ Done — see GitHub Extractor section below |
 | D.5 Diagnostic Agent | D.1 `run` pattern; `prompt_utils.build_system_prompt`; `sentry_utils.record_agent_run` |
-| D.6 Coding Agent | `prompt_utils.build_system_prompt`; `sentry_utils.record_agent_run`; all extractor `run` return shapes |
+| D.6 Coding Agent | `prompt_utils.build_system_prompt`; `sentry_utils.record_agent_run`; `sentry_utils.confidence_to_numeric`; D.5 return shape fields: `fix_files` (list), `fix_type`, `fix_detail`, `fix_location`; `subprocess` (git operations); `shutil.which` (environment check) |
 | E Orchestrator | All extractor `run` signatures; `validator.validate_finding`; `prompt_utils.build_system_prompt`; `sentry_utils.record_agent_run` |
 
 ---

@@ -9,17 +9,28 @@
 
 ## Current Focus
 
-**Next: D.6 — Coding Agent**
+**Next: D.6 — Coding Agent (spec complete, TDD tests next)**
 **D.ST.5a — Diagnostic Agent token budget analysis: ✅ DONE**
 **D.ST.5 — Diagnostic Agent live smoke test: ✅ PASSED**
+
+Session 10 complete (2026-05-20):
+- **D.5 spec updated:** `fix_location` split into `fix_files: list[str]` (machine-readable, primary fix file first — supports multi-file fixes) and `fix_location: str` (human-readable location within `fix_files[0]` — passed to Claude as context)
+- **D.6 spec fully rewritten:** true Coding Agent generating real code changes, not a placeholder PR
+- **D.6 is now an optional pipeline stage:** Orchestrator config flag `enable_coding_agent: bool` — teams that only need diagnosis stop at D.5; teams wanting automated fixes enable D.6
+- **D.6 commit flow:** local `git commit` + `git push` (not GitHub Contents API) — pre-commit hooks fire automatically on `git commit`, same as any engineer; single GitHub API call (POST /pulls) to open draft PR
+- **D.6 environment requirement:** must run in a git-enabled environment where repo is checked out, `pre-commit` is installed, and `GITHUB_TOKEN` is available — does not have to be the same runner as D.5
+- **D.6 multi-file fixes:** auto-commits `fix_files[0]` only; `fix_files[1:]` listed in PR description as requiring manual attention
+- **D.6 hallucination guard:** `original_snippet` must exist verbatim in the file before any commit — prevents Claude hallucinating a location that doesn't exist
+- **D.6 41 TDD tests planned** — covers happy path, hallucination guard, pre-commit hook failure, working tree cleanup, environment check, Anthropic errors, GitHub PR API errors
+- **Architecture doc updated:** Coding Agent access, responsibility, and separation-of-concerns rationale reflect new design
+- **Dependency map updated:** D.6 dependencies include `fix_files`, `subprocess`, `shutil.which`
+- **Learning log:** new entry — agent-generated code must follow same engineering guardrails as human-written code (pre-commit hooks, branch conventions, CI gates)
+- **Correction:** D.5 does NOT post to GitHub issues — the Orchestrator does (architecture doc line 667 is authoritative)
 
 Session 9 complete (2026-05-20):
 - **Agent rename:** Codebase Agent → Diagnostic Agent; Recommendation Agent → Coding Agent — reflects actual responsibilities
 - **Coding Agent redesign:** no longer a cross-source synthesiser; follows Sentry Seer's pattern — Diagnostic Agent does analysis + fix plan, Coding Agent implements it; rationale: analysis and implementation are distinct concerns with different access requirements
-- **Coding Agent new responsibility:** receives Diagnostic Agent's structured fix plan (`fix_location`, `fix_type`, `fix_detail`) + enrichment from other extractors; fetches target file via GitHub read API; makes one Claude call to generate the actual code patch; commits to a branch and opens a draft PR with a real diff (not a description-only PR)
-- **Diagnostic Agent new responsibility:** posts investigation summary to GitHub issue after completing root cause analysis (new addition to D.5 scope)
-- **Why file-fetch in Coding Agent (not Diagnostic Agent):** Claude picks the file after reasoning about the root cause — not before; Diagnostic Agent already knows `fix_location`; Coding Agent fetches that exact file and generates the patch in one call
-- **Why Coding Agent is pluggable:** standardised handoff payload (`fix_location`, `fix_type`, `fix_detail`) means the coding step can be swapped to a different model or agent without touching the analysis layer
+- **Why Coding Agent is pluggable:** standardised handoff payload (`fix_files`, `fix_type`, `fix_detail`) means the coding step can be swapped to a different model or agent without touching the analysis layer
 - All agent renames applied across docs, specs, ADRs, config constants, source strings, and Python files; 31 tests passing ✅
 - Code renamed: `codebase_agent.py` → `diagnostic_agent.py`, `test_codebase_agent.py` → `test_diagnostic_agent.py`
 - Config renamed: `CODEBASE_*` → `DIAGNOSTIC_*`, `RECOMMENDATION_*` → `CODING_*`
@@ -391,7 +402,7 @@ Files created:
 - Test scenarios (`docs/agent-test-scenarios.md`) are the acceptance criteria — an agent is not done until it passes its relevant scenarios.
 - Runbook must be updated before each agent is built — agents read the runbook, not the other way around.
 - No agent writes to external systems until the orchestration layer is complete and authorization logic is in place.
-- D.1–D.4 extractors (Sentry, Render, GitHub) are pure Python — zero Claude API calls. D.5 (Diagnostic Agent) uses Claude for navigation only — read-only filesystem, no write access anywhere. D.6 (Coding Agent) uses Claude for cross-source synthesis and opens draft PRs — GitHub write access, no codebase read access. No Claude Code sub-agents anywhere.
+- D.1–D.4 extractors (Sentry, Render, GitHub) are pure Python — zero Claude API calls. D.5 (Diagnostic Agent) uses Claude for navigation only — read-only filesystem, no write access anywhere. D.6 (Coding Agent) uses Claude to generate a targeted code patch — writes to local filesystem (fix_files[0] only), commits via local git (pre-commit hooks fire), pushes branch, opens draft PR via GitHub API; optional pipeline stage. No Claude Code sub-agents anywhere.
 
 ---
 
@@ -450,7 +461,7 @@ Files created:
 | D.3 | Render Logs Extractor | `agents/render_logs_extractor.py` — pure Python extractor; zero Claude API calls; fetches Render log lines, filters to error/warn, deduplicates by message, caps at 10 distinct errors; `run(guardrails: dict) -> dict`; validate against Scenario 2 (cold start) | ✅ Done |
 | D.4 | GitHub Extractor | `agents/github_extractor.py` — pure Python extractor; zero Claude API calls; fetches commits and PR metadata for a given release SHA; `run(guardrails: dict) -> dict`; validate against Scenario 3 (allergens issue) and Scenario 4 (wrong total) | ⏳ Pending |
 | D.5 | Diagnostic Agent | `agents/diagnostic_agent.py` — Claude-assisted navigator; read-only filesystem access scoped to `src/`, `graphql-gateway/`, `backend/`, `docs/`; zero GitHub access; uses Claude to navigate multi-hop code traces (crash line → symbol → source → root cause location); returns structured findings ~50 tokens — crash location, root cause file/line, missing field, fix type, runbook match; never passes raw code snippets to Coding Agent; `run(guardrails: dict) -> dict` | ✅ Done |
-| D.6 | Coding Agent | `agents/coding_agent.py` — fix implementation agent; receives Diagnostic Agent's fix plan (`fix_location`, `fix_type`, `fix_detail`) plus extractor enrichment (severity, regression flag, affected endpoint) from the combined Orchestrator payload; fetches the target file via GitHub Contents API (read); makes one Claude call to generate the actual code patch; commits patch to a new branch and opens a **draft PR with a real diff**; returns `pr_url` to Orchestrator; GitHub read + write access, no filesystem access | ⏳ Pending |
+| D.6 | Coding Agent | `agents/coding_agent.py` — optional pipeline stage (Orchestrator `enable_coding_agent` flag); receives combined payload including D.5 diagnostic findings (`fix_files`, `fix_type`, `fix_detail`, `fix_location`); reads local file content, makes one Claude call to generate `original_snippet` + `replacement_snippet`; verifies snippet exists verbatim (hallucination guard); commits via local `git commit` (pre-commit hooks fire) + `git push`; opens draft PR via single GitHub API call; auto-commits `fix_files[0]` only — `fix_files[1:]` listed in PR description; requires git-enabled environment (repo checked out, pre-commit installed, GITHUB_TOKEN set); 41 TDD tests planned; spec: `agents/specs/d6_recommendation_agent.md` | ⏳ Pending |
 
 ### Phase 2 — Agent Stub Tests (Manual, run after each agent above is implemented)
 

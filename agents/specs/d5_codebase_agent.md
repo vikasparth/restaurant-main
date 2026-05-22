@@ -85,7 +85,8 @@ Matches `Diagnostic Agent Findings Schema` in `agent-architecture.md`.
     "crash_location":  "src/components/MenuItemCard.tsx:42",
     "root_cause_file": "src/hooks/useMenuItems.ts:23",
     "missing_field":   "price",                         # None if not a missing-field error
-    "fix_location":    "graphql/menu.graphql — MenuItem type",
+    "fix_files":       ["graphql/menu.graphql", "src/hooks/useMenuItems.ts"],  # ordered: primary fix file first; may be multi-file for add_field/remove_field fixes
+    "fix_location":    "MenuItem type definition",      # human-readable location within fix_files[0] — passed to Claude as context
     "fix_type":        "add_field",                     # see Fix Types table below
     "fix_detail":      "Add price: Float! to MenuItem type and populate in useMenuItems hook",
     "runbook_match":   "missing-field-frontend-query",  # None if no match
@@ -170,6 +171,9 @@ def _list_directory(path: str) -> list[str]:
 
 def _build_tool_definitions() -> list[dict]:
     # returns Anthropic-format tool schemas for read_file, list_directory, and return_findings
+    # return_findings schema must include: crash_location, root_cause_file, missing_field,
+    # fix_files (array of strings, min 1), fix_location (string), fix_type (enum),
+    # fix_detail (string), runbook_match (string|null), injection_flag (bool), pii_flag (bool)
 
 def _process_tool_call(tool_name: str, tool_input: dict, files_read: list[str], max_files: int) -> tuple[str, bool]:
     # dispatches tool_name to the correct Python function; enforces max_files cap;
