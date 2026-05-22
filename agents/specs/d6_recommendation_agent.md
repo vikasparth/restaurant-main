@@ -8,271 +8,385 @@
 
 ## 1. What This Slice Builds
 
-The Coding Agent is the only agent in the pipeline that produces interpretation.
-It receives the combined structured payload assembled by the Orchestrator (all extractor
-findings clubbed into one dict) and makes a **single Claude API call** to produce a
-cross-source root cause analysis. After Claude responds, Python code opens a draft GitHub
-PR on a new feature branch if confidence is `high` or `medium`. Low-confidence findings
-skip the PR and return a comment-only result.
+The Coding Agent is an **optional pipeline stage**. Teams that only need diagnosis can
+stop at D.5 (Diagnostic Agent). Teams that want automated code fixes enable D.6 via
+the Orchestrator config flag `enable_coding_agent: bool`.
 
-The agent returns a dict containing `interpretation` (root cause, affected layer,
-regression flag, confidence, recommended fix, runbook reference) plus `pr_url` (the
-draft PR link, or `None` if skipped or failed). Both are returned to the Orchestrator so
-it can notify the human in a single message.
+When enabled, the Coding Agent receives D.5's structured diagnostic findings plus the
+combined extractor payload, makes a **single Claude API call** to generate a targeted
+code fix, commits that fix to a new feature branch via the GitHub Contents API, and
+opens a **draft PR**. The draft PR contains real file changes — not a placeholder.
 
-**This agent makes zero filesystem reads and has no access to Sentry, Render, or the
-local codebase.** Its only external calls are one Anthropic SDK call and, conditionally,
-two GitHub API calls (create branch + open draft PR).
+Claude's job is narrow: given the file content and D.5's diagnosis (`fix_type`,
+`fix_detail`, `fix_location`), generate an `original_snippet` (exact lines to replace)
+and a `replacement_snippet` (the fixed code). The agent verifies the original snippet
+exists verbatim in the file before committing — this guards against Claude hallucinating
+a location that doesn't exist.
+
+**Multi-file fixes:** D.5 may identify more than one file needing changes (`fix_files`
+is a list). The Coding Agent auto-commits only `fix_files[0]` (the primary fix). Any
+remaining files in `fix_files[1:]` are listed in the PR description as requiring manual
+attention — keeping the agent's blast radius small.
+
+**This agent has no access to Sentry or Render.** Its external calls are one Anthropic
+SDK call and, conditionally, one GitHub API call (open draft PR). The file patch and
+commit are performed via local git operations — `git commit` fires pre-commit hooks
+exactly as they would for a human engineer, then `git push` sends the branch to origin.
 
 ---
 
-## 2. Signature
+## 2. Where This Agent Runs
+
+Unlike D.1–D.4 (which call external HTTP APIs and can run anywhere), the Coding Agent
+writes to the local filesystem and runs git commands. It must run in a **git-enabled
+environment** where:
+
+- The repository is checked out and the working tree is clean
+- `pre-commit` is installed and configured
+- Git is configured with push credentials (via `GITHUB_TOKEN` as a credential helper)
+
+This does **not** have to be the same runner or job as the Diagnostic Agent. Any
+environment satisfying the three requirements above is valid — a GitHub Actions job
+with `actions/checkout`, a self-hosted runner, or a local developer machine. What
+matters is the capability, not co-location with D.5.
+
+If the environment does not satisfy these requirements, the agent returns
+`STATUS_INVALID_INPUT` without making any Claude or GitHub API call.
+
+---
+
+## 3. Signature
 
 ```python
 def run(payload: dict, issue_number: str = "") -> dict:
     ...
 ```
 
-**`payload`** — the combined findings dict assembled by the Orchestrator. Contains one
-or more source blocks (keys: `sentry_frontend`, `sentry_backend`, `render_logs`,
-`github`, `codebase`) plus a top-level `pii_flag` and `injection_flag` merged across
-sources.
+**`payload`** — the combined findings dict assembled by the Orchestrator. Must contain
+a `"diagnostic"` key with D.5's findings (including `fix_files`, `fix_location`,
+`fix_type`, `fix_detail`). Also contains one or more source blocks (`sentry_frontend`,
+`sentry_backend`, `render_logs`, `github`) plus merged `pii_flag` and `injection_flag`.
 
 **`issue_number`** — GitHub issue number as a string (e.g. `"42"`); used as the suffix
-in the PR branch name `fix/sentry-{issue_number}` and passed to `record_agent_run`.
-Empty string when called outside a GitHub issue context.
+in the PR branch name and passed to `record_agent_run`. Empty string when called outside
+a GitHub issue context.
 
 ---
 
-## 3. Guardrails Consumed
+## 4. Guardrails Consumed
 
 | Guardrail | Source | Type | Notes |
 |---|---|---|---|
-| `CODING_MAX_TURNS` | `agents/config.py` | `int` (= 1) | Bounds the single Claude call; not a loop limit |
+| `CODING_MAX_TURNS` | `agents/config.py` | `int` (= 1) | Bounds the single Claude call — not a loop limit |
 | `CODING_MAX_TOKENS` | `agents/config.py` | `int` | Max output tokens per Claude response |
-| `CODING_MODEL` | `agents/config.py` | `str` | Sonnet 4.6 — strongest reasoning needed for cross-source synthesis |
+| `CODING_MODEL` | `agents/config.py` | `str` | Sonnet 4.6 — strongest reasoning for code generation |
 | `GITHUB_API_BASE` | `agents/config.py` | `str` | Base URL for all GitHub API calls |
 | `GITHUB_REPO` | `agents/config.py` | `str` | `owner/repo` slug |
 | `GITHUB_TOKEN` | `agents/config.py` | `str` | Personal access token — write scope required |
 | `GITHUB_BRANCH` | `agents/config.py` | `str` | Base branch for PR (default `"main"`) |
-| `GITHUB_PR_BRANCH_PREFIX` | `agents/config.py` | `str` | New constant — branch name prefix (default `"fix/sentry-"`) |
+| `GITHUB_PR_BRANCH_PREFIX` | `agents/config.py` | `str` | Branch name prefix (default `"fix/sentry-"`) |
 
 > **New constant required:** `GITHUB_PR_BRANCH_PREFIX = os.getenv("GITHUB_PR_BRANCH_PREFIX", "fix/sentry-")` in `agents/config.py`.
 
 ---
 
-## 4. Return Shape
+## 5. Return Shape
 
 ```python
 {
-    "status":         str,   # STATUS_COMPLETED | STATUS_NO_DATA | STATUS_PARTIAL
-                             # | STATUS_INVALID_INPUT | STATUS_INJECTION_DETECTED
-                             # | STATUS_UNAUTHENTICATED | STATUS_UNAUTHORIZED
-                             # | STATUS_RATE_LIMITED | STATUS_SERVER_ERROR
-                             # | STATUS_NETWORK_ERROR | STATUS_SCHEMA_ERROR
-    "source":         "recommendation",
-    "interpretation": {      # present only when status == STATUS_COMPLETED
+    "status":          str,    # STATUS_COMPLETED | STATUS_NO_DATA | STATUS_PARTIAL
+                               # | STATUS_INVALID_INPUT | STATUS_INJECTION_DETECTED
+                               # | STATUS_UNAUTHENTICATED | STATUS_UNAUTHORIZED
+                               # | STATUS_RATE_LIMITED | STATUS_SERVER_ERROR
+                               # | STATUS_NETWORK_ERROR | STATUS_SCHEMA_ERROR
+    "source":          "coding",
+    "interpretation":  {       # present only when status == STATUS_COMPLETED or STATUS_PARTIAL
         "root_cause":       str,   # cross-source narrative, ~50-100 words
         "affected_layer":   str,   # "frontend" | "backend" | "graphql" | "database" | "unknown"
         "regression":       bool,  # True if first_seen is after pr_merged_at
         "confidence":       str,   # "high" | "medium" | "low"
         "recommended_fix":  str,   # actionable one-sentence fix directive
-        "runbook_match":    str | None,  # matched pattern name or None
+        "runbook_match":    str | None,
     },
-    "pr_url":         str | None,  # draft PR HTML URL; None if low confidence or PR failed
-    "pii_flag":       bool,        # inherited from payload's merged pii_flag
-    "injection_flag": bool,        # inherited from payload's merged injection_flag
+    "file_changed":    str | None,   # fix_files[0] path if committed; None otherwise
+    "remaining_files": list[str],    # fix_files[1:] — listed in PR but not auto-committed
+    "commit_sha":      str | None,   # SHA of committed fix; None if no commit made
+    "pr_url":          str | None,   # draft PR html_url; None if low confidence or PR failed
+    "pii_flag":        bool,         # inherited from payload's merged pii_flag
+    "injection_flag":  bool,         # inherited from payload's merged injection_flag
 }
 ```
 
-**`STATUS_PARTIAL`** — Claude returned a valid interpretation but the GitHub PR creation
-failed (branch or PR API error). Interpretation is still returned; `pr_url` is `None`.
+**`STATUS_COMPLETED`** — Claude returned a valid fix, snippet verified in file, commit
+made, draft PR opened (or skipped for low confidence).
+
+**`STATUS_PARTIAL`** — Claude returned a valid interpretation but one of the following
+failed: snippet not found in file (hallucination guard triggered), GitHub file read
+failed, GitHub commit failed, or GitHub PR creation failed. `interpretation` is still
+returned; `pr_url` and `commit_sha` are `None`.
 
 ---
 
-## 5. Implementation Rules
+## 6. Implementation Rules
 
-1. **Single Claude call only.** `CODING_MAX_TURNS` is 1. There is no loop.
-   Call `client.messages.create()` exactly once per `run()` invocation.
+1. **Single Claude call only.** `CODING_MAX_TURNS` is 1. Call
+   `client.messages.create()` exactly once per `run()` invocation.
 
 2. **Use `build_system_prompt()`** from `agents/prompt_utils.py` to wrap the system
    prompt with `cache_control: ephemeral`. The system prompt does not change between
-   runs — every cache hit costs ~90% less on input tokens.
+   runs — every cache hit saves ~90% on input tokens.
 
-3. **Force structured output via `return_interpretation` tool.** Register a single tool
+3. **System prompt instructs Claude:** given D.5's diagnosis (`fix_type`, `fix_detail`,
+   `fix_location`) and the file content, generate `original_snippet` (exact lines to
+   replace, must exist verbatim) and `replacement_snippet` (the fixed code). Do not
+   refactor surrounding code. Do not touch lines outside the identified location.
+
+4. **Pass file content in the user message.** Before calling Claude, read `fix_files[0]`
+   via `_read_file_from_github()`. Include the full file content in the user message
+   alongside D.5's diagnosis. Claude never needs to request files — it receives what it
+   needs upfront. No agentic loop.
+
+5. **Force structured output via `return_code_fix` tool.** Register a single tool
    definition (see `_build_tool_definitions()`). Pass `tool_choice={"type": "any"}` so
-   Claude must call the tool. Parse the `tool_use` block to get the interpretation dict.
-   If no `tool_use` block is present in the response, return `STATUS_SCHEMA_ERROR`.
+   Claude must call the tool. Parse the `tool_use` block to get the fix dict. If no
+   `tool_use` block is present, return `STATUS_SCHEMA_ERROR`.
 
-4. **Troubleshooting sequence — prompt must instruct Claude in this order:**
-   1. Regression check — compare `first_seen` vs `pr_merged_at` across GitHub and Sentry findings
-   2. File overlap check — compare `top_frames` file paths vs `files_changed` in GitHub commits
-   3. Severity check — weight `user_count` and `error_count` from Sentry
-   4. Fix derivation — use `fix_location`, `fix_type`, `fix_detail` from Diagnostic Agent only
-   5. Confidence scoring — combine regression flag + file overlap + severity + fix clarity
+6. **Hallucination guard — verify before committing.** Call `_apply_patch()` with
+   `original_snippet` against the file content. If `original_snippet` is not found
+   verbatim, return `STATUS_PARTIAL` with `interpretation` preserved — do not commit.
 
-5. **Confidence-gated PR:**
-   - `high` or `medium` → call `_open_draft_pr()` after Claude responds
-   - `low` → set `pr_url = None`, do not call GitHub API at all
+7. **Confidence-gated GitHub flow:**
+   - `high` or `medium` → execute all five GitHub API calls (get SHA → create branch →
+     read file → commit file → open draft PR)
+   - `low` → return `interpretation` only; `pr_url=None`, `commit_sha=None`; no GitHub
+     API calls
 
-6. **PR branch pattern:** `{GITHUB_PR_BRANCH_PREFIX}{issue_number}-{YYYYMMDDHHMMSS}` (e.g.
-   `fix/sentry-42-20260519143022`). The timestamp suffix is generated at call time using
-   `datetime.utcnow().strftime("%Y%m%d%H%M%S")`. This guarantees uniqueness across
-   re-runs and eliminates the 422 "ref already exists" collision. The branch is created
-   from the HEAD SHA of `GITHUB_BRANCH`.
+8. **Auto-fix primary file only.** Commit only `fix_files[0]`. List `fix_files[1:]`
+   in the PR description under "Also requires manual changes".
 
-7. **`record_agent_run()` before every `return`.** Pass `usage_by_turn` (one entry from
-   the single Claude call), the result dict, and `issue_number`.
+9. **PR branch pattern:** `{GITHUB_PR_BRANCH_PREFIX}{issue_number}-{YYYYMMDDHHMMSS}`
+   (e.g. `fix/sentry-42-20260519143022`). Timestamp suffix guarantees uniqueness across
+   re-runs — no 422 "ref already exists" collision.
 
-8. **`confidence_to_numeric()`** — call before `record_agent_run()` to log confidence
-   numerically; do not compute it locally.
+10. **`record_agent_run()` before every `return`.** Pass `usage_by_turn` (one entry
+    from the single Claude call), the result dict, and `issue_number`.
 
-9. **PII and injection flags** — inherit the merged flags from the incoming `payload`.
-   Do not re-scan the payload — the Orchestrator has already checked each extractor's
-   flags. If `payload.injection_flag` is `True`, return `STATUS_INJECTION_DETECTED`
-   immediately without calling Claude.
+11. **`confidence_to_numeric()`** — call before `record_agent_run()` to log confidence
+    numerically.
 
-10. **All constants from `agents/config.py`** — no model names, URLs, branch prefixes,
+12. **PII and injection flags** — inherit merged flags from `payload`. If
+    `payload.get("injection_flag")` is `True`, return `STATUS_INJECTION_DETECTED`
+    immediately without calling Claude or reading any file.
+
+13. **All constants from `agents/config.py`** — no model names, URLs, branch prefixes,
     or token limits hardcoded in `coding_agent.py`.
 
-11. **No cross-feature imports.** Import only from `agents/prompt_utils.py`,
+14. **No cross-feature imports.** Import only from `agents/prompt_utils.py`,
     `agents/sentry_utils.py`, and `agents/config.py`.
 
 ---
 
-## 6. Filtering Pipeline
+## 7. Commit Flow (local git + one GitHub API call)
 
-Not applicable — this agent receives an already-trimmed combined payload from the
-Orchestrator. No additional trimming is performed here.
+```
+1. git checkout -b {branch_name}
+        → creates and switches to new feature branch locally
+        → branch_name: {GITHUB_PR_BRANCH_PREFIX}{issue_number}-{YYYYMMDDHHMMSS}
+
+2. Write patched file content to local disk at fix_files[0]
+        → replaces original_snippet with replacement_snippet in place
+
+3. git add {fix_files[0]}
+        → stages only the target file — never git add -A
+
+4. git commit -m "{commit_message}"
+        → pre-commit hooks fire here automatically
+        → if hooks fail: agent returns STATUS_PARTIAL, no push made
+
+5. git push origin {branch_name}
+        → pushes branch to remote; uses GITHUB_TOKEN as credential
+
+6. POST /repos/{owner}/{repo}/pulls  (single GitHub API call)
+        body: { title, body, head: {branch_name}, base: {GITHUB_BRANCH}, draft: true }
+        → opens draft PR; returns html_url
+```
+
+Any failure in steps 1–6 → `_commit_and_push()` or `_open_draft_pr()` returns `None`
+→ caller sets `status=STATUS_PARTIAL`, `interpretation` preserved.
+
+Pre-commit hook failure in step 4 is treated as `STATUS_PARTIAL` — the interpretation
+is valid but the code change did not meet the team's quality bar. The PR is not opened.
+The branch is cleaned up locally (checkout back to base, delete failed branch).
 
 ---
 
-## 7. Exit Conditions
+## 8. Exit Conditions
 
 | Status | Trigger | What is returned |
 |---|---|---|
-| `STATUS_COMPLETED` | Claude returns valid `return_interpretation` tool call; PR created (or skipped for low confidence) | Full dict with `interpretation` and `pr_url` |
-| `STATUS_PARTIAL` | Claude returned valid interpretation but GitHub PR creation failed | `interpretation` present; `pr_url` is `None` |
-| `STATUS_NO_DATA` | `payload` is empty or all source statuses are `no_data` | `{"status": "no_data", "source": "recommendation"}` |
-| `STATUS_INVALID_INPUT` | `_validate_payload()` returns an error string | `{"status": "invalid_input", "source": "recommendation", "error": <msg>}` |
-| `STATUS_INJECTION_DETECTED` | `payload.get("injection_flag")` is `True` | `{"status": "injection_detected", "source": "recommendation"}` |
-| `STATUS_UNAUTHENTICATED` | `APIStatusError` 401 from Anthropic, or `GITHUB_TOKEN` empty on PR path | Status dict with source |
-| `STATUS_UNAUTHORIZED` | `APIStatusError` 403 from Anthropic or GitHub | Status dict with source |
-| `STATUS_RATE_LIMITED` | `APIStatusError` 429 from Anthropic | Status dict with source |
-| `STATUS_SERVER_ERROR` | `APIStatusError` 5xx from Anthropic or GitHub | Status dict with source |
-| `STATUS_NETWORK_ERROR` | `APIConnectionError` or `requests.exceptions.ConnectionError` | Status dict with source |
-| `STATUS_SCHEMA_ERROR` | Claude response contains no `tool_use` block, or `return_interpretation` input fails schema check | Status dict with source |
+| `STATUS_COMPLETED` | Claude returns valid `return_code_fix` tool call; snippet verified; commit made; PR opened (or low confidence — skipped) | Full dict with `interpretation`, `file_changed`, `commit_sha`, `pr_url` |
+| `STATUS_PARTIAL` | Valid interpretation returned but snippet not found in file, or any GitHub API step failed | `interpretation` present; `file_changed`, `commit_sha`, `pr_url` all `None` |
+| `STATUS_NO_DATA` | `payload` is empty, `"diagnostic"` key absent, or diagnostic status is `no_data` | Minimal dict with source |
+| `STATUS_INVALID_INPUT` | `_validate_payload()` returns an error string | Minimal dict with error |
+| `STATUS_INJECTION_DETECTED` | `payload.get("injection_flag")` is `True` | Minimal dict with source |
+| `STATUS_UNAUTHENTICATED` | `APIStatusError` 401 from Anthropic, or `GITHUB_TOKEN` empty on confidence-gated path | Minimal dict with source |
+| `STATUS_UNAUTHORIZED` | `APIStatusError` 403 from Anthropic or GitHub | Minimal dict with source |
+| `STATUS_RATE_LIMITED` | `APIStatusError` 429 from Anthropic | Minimal dict with source |
+| `STATUS_SERVER_ERROR` | `APIStatusError` 5xx from Anthropic or GitHub | Minimal dict with source |
+| `STATUS_NETWORK_ERROR` | `APIConnectionError` or `requests.exceptions.ConnectionError` | Minimal dict with source |
+| `STATUS_SCHEMA_ERROR` | No `tool_use` block in Claude response, or `return_code_fix` input fails schema check | Minimal dict with source |
 
 ---
 
-## 8. Private Helper Functions
+## 9. Private Helper Functions
 
 ```python
 def _validate_payload(payload: dict) -> str | None:
-    # Returns an error string if payload is empty, missing required top-level keys,
-    # or if every source has status "no_data" or "failed".
-    # Returns None if the payload is usable.
+    # Returns an error string if:
+    #   - payload is None, not a dict, or empty
+    #   - "diagnostic" key is absent or its status is not "completed" or "partial"
+    #   - diagnostic findings missing fix_files, fix_type, or fix_detail
+    # Returns None if payload is usable.
 
 def _build_tool_definitions() -> list[dict]:
-    # Returns the Anthropic tool schema list containing one tool: "return_interpretation".
-    # The tool's input_schema enforces all interpretation fields:
-    #   root_cause (string), affected_layer (enum), regression (bool),
-    #   confidence (enum: high|medium|low), recommended_fix (string),
-    #   runbook_match (string or null).
+    # Returns the Anthropic tool schema list with one tool: "return_code_fix".
+    # Input schema fields:
+    #   root_cause (string), affected_layer (enum: frontend|backend|graphql|database|unknown),
+    #   regression (bool), confidence (enum: high|medium|low),
+    #   recommended_fix (string), runbook_match (string or null),
+    #   original_snippet (string — exact lines to replace, must exist verbatim in file),
+    #   replacement_snippet (string — the corrected code replacing original_snippet).
 
-def _parse_interpretation(response) -> dict | None:
-    # Finds the first tool_use block in response.content where name=="return_interpretation".
+def _parse_code_fix(response) -> dict | None:
+    # Finds the first tool_use block in response.content where name=="return_code_fix".
     # Returns the block's "input" dict, or None if not found.
 
 def _should_open_pr(confidence: str) -> bool:
     # Returns True only for "high" or "medium" confidence.
-    # Low confidence finding does not warrant a draft PR.
 
-def _format_pr_body(interpretation: dict, payload: dict) -> str:
-    # Builds the markdown PR description from interpretation + key payload fields.
+def _check_environment() -> str | None:
+    # Verifies the agent is running in a git-enabled environment.
+    # Checks: (1) current directory is inside a git repo (git rev-parse --git-dir);
+    #         (2) working tree is clean (git status --porcelain returns empty);
+    #         (3) pre-commit is installed (shutil.which("pre-commit") is not None);
+    #         (4) GITHUB_TOKEN is non-empty.
+    # Returns an error string describing the first failed check, or None if all pass.
+
+def _apply_patch(file_content: str, original_snippet: str, replacement_snippet: str) -> str | None:
+    # Checks that original_snippet exists verbatim in file_content.
+    # Returns patched file content string on success.
+    # Returns None if original_snippet is not found — hallucination guard.
+
+def _commit_and_push(
+    file_path: str, patched_content: str, branch_name: str, commit_message: str
+) -> str | None:
+    # Orchestrates local git steps 1–5:
+    #   git checkout -b {branch_name}
+    #   write patched_content to file_path on disk
+    #   git add {file_path}
+    #   git commit -m {commit_message}  ← pre-commit hooks fire here
+    #   git push origin {branch_name}
+    # Returns commit SHA on success (from git rev-parse HEAD after commit).
+    # Returns None on any failure (hook failure, push error, etc.).
+    # On failure: checks out base branch and deletes the failed branch to leave
+    # the working tree clean.
+
+def _format_pr_body(
+    interpretation: dict, payload: dict, file_changed: str, remaining_files: list[str], issue_number: str
+) -> str:
+    # Builds the markdown PR description.
     # Includes: root cause summary, affected layer, confidence, recommended fix,
-    # evidence summary (which sources contributed), and link to GitHub issue.
+    #   file committed, remaining files requiring manual changes, evidence sources,
+    #   link to GitHub issue (if issue_number non-empty).
     # Never includes raw code snippets, PII, or injection-flagged content.
 
-def _open_draft_pr(interpretation: dict, payload: dict, issue_number: str) -> str | None:
-    # Orchestrates: get base SHA → create branch → open draft PR.
-    # Branch name: f"{GITHUB_PR_BRANCH_PREFIX}{issue_number}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}".
-    # Timestamp suffix guarantees uniqueness — no 422 "ref already exists" collision on re-runs.
-    # Uses GITHUB_API_BASE, GITHUB_REPO, GITHUB_TOKEN from config.
-    # Returns the draft PR's html_url on success, None on any HTTP or network error.
-    # Logs the failure reason but does not raise — caller downgrades to STATUS_PARTIAL.
+def _open_draft_pr(
+    branch_name: str, interpretation: dict, payload: dict,
+    file_changed: str, remaining_files: list[str], issue_number: str
+) -> str | None:
+    # Single GitHub API call: POST /repos/{owner}/{repo}/pulls
+    # Returns pr_html_url on success, None on any HTTP or network error.
+    # Branch name already exists on remote (pushed in _commit_and_push).
 ```
 
 ---
 
-## 9. TDD Test Plan
+## 10. TDD Test Plan
 
 **Integrations under test:**
-- Anthropic Claude API (SDK) — single `client.messages.create()` call, `return_interpretation` tool
-- GitHub API (requests + Bearer token) — `GET /branches/{branch}`, `POST /git/refs`, `POST /pulls`
-
-**Category 7c (multi-turn loop invariants):** Not applicable — single-call agent, no loop.
-**Category 9 (pagination):** Not applicable — no paginated responses.
+- Anthropic Claude API (SDK) — single `client.messages.create()` call, `return_code_fix` tool
+- Local git (subprocess) — `git checkout -b`, `git add`, `git commit`, `git push`
+- GitHub API (requests + Bearer token) — one call: POST /pulls
 
 | # | Test name | Category | What it verifies |
 |---|---|---|---|
-| 1 | `test_high_confidence_payload_returns_completed_and_pr_url` | 1 — Happy Path | Valid payload, Claude returns high confidence, GitHub creates PR → `status=completed`, `pr_url` populated, all interpretation fields present |
-| 2 | `test_medium_confidence_payload_returns_completed_and_pr_url` | 1 — Happy Path | Medium confidence → `status=completed`, `pr_url` populated, `_open_draft_pr` called |
-| 3 | `test_low_confidence_payload_returns_completed_without_pr` | 1 — Happy Path | Low confidence → `status=completed`, `pr_url=None`, `_open_draft_pr` never called |
-| 4 | `test_pr_branch_name_includes_unique_timestamp_suffix` | 1 — Happy Path | Branch name passed to GitHub matches `{GITHUB_PR_BRANCH_PREFIX}{issue_number}-{14-digit-timestamp}` — assert starts with prefix and ends with timestamp pattern |
-| 5 | `test_none_payload_returns_invalid_input_without_api_call` | 2 — Input Validation | `None` passed as payload → `invalid_input`, no HTTP call made |
-| 6 | `test_empty_dict_payload_returns_invalid_input_without_api_call` | 2 — Input Validation | `{}` passed → `invalid_input`, no HTTP call made |
-| 7 | `test_all_sources_no_data_returns_no_data_without_api_call` | 2 — Input Validation | Every source in payload has `status=no_data` → `no_data`, no HTTP call made |
-| 8 | `test_injection_flag_true_returns_injection_detected_without_claude_call` | 2 — Input Validation | `payload["injection_flag"]=True` → `injection_detected`, no Claude call made |
-| 9 | `test_non_dict_payload_type_returns_invalid_input` | 2 — Input Validation | String passed as payload → `invalid_input`, no HTTP call made |
-| 10 | `test_anthropic_authentication_error_returns_unauthenticated` | 3 — Authentication | SDK raises `AuthenticationError` (401) → `unauthenticated` |
-| 11 | `test_github_token_empty_on_high_confidence_path_returns_partial` | 3 — Authentication | Claude returns high confidence, `GITHUB_TOKEN` is empty → `partial` with interpretation preserved, `pr_url=None` |
-| 12 | `test_github_401_on_branch_creation_returns_partial` | 3 — Authentication | GitHub 401 on branch creation → `_open_draft_pr` returns `None` → `partial` |
-| 13 | `test_anthropic_permission_denied_error_returns_unauthorized` | 4 — Authorization | `PermissionDeniedError` (403) from Anthropic → `unauthorized` |
-| 14 | `test_github_403_on_pr_creation_returns_partial` | 4 — Authorization | GitHub 403 on PR creation → `partial` (interpretation still returned) |
-| 15 | `test_anthropic_model_not_found_returns_invalid_input` | 5 — Not Found | `NotFoundError` (404) → `invalid_input` (model name in config doesn't exist — config error, not transient) |
-| 16 | `test_github_repo_not_found_on_branch_fetch_returns_partial` | 5 — Not Found | `GET /branches` returns 404 → `_open_draft_pr` returns `None` → `partial` |
-| 17 | `test_anthropic_rate_limit_returns_rate_limited_without_retry` | 6 — Rate Limiting | `RateLimitError` (429) → `rate_limited`; assert `client.messages.create` called exactly once (no retry inside agent) |
-| 18 | `test_anthropic_server_error_returns_server_error` | 7 — Server Failures | `APIStatusError` 500 → `server_error` |
-| 19 | `test_anthropic_timeout_returns_timeout` | 7 — Server Failures | `APITimeoutError` → `timeout` (distinct from network error) |
-| 20 | `test_anthropic_connection_error_returns_network_error` | 7 — Network Failures | `APIConnectionError` → `network_error` (server unreachable) |
-| 21 | `test_github_server_error_on_pr_creation_returns_partial` | 7 — Server Failures | GitHub 500 during PR creation → `_open_draft_pr` returns `None` → `partial` |
-| 22 | `test_anthropic_bad_request_error_returns_invalid_input` | 7b — Anthropic 4xx | `BadRequestError` (400) — malformed tool definition or payload → `invalid_input` |
-| 23 | `test_anthropic_conflict_error_returns_server_error` | 7b — Anthropic 4xx | `ConflictError` (409) — transient → `server_error` |
-| 24 | `test_anthropic_unprocessable_entity_returns_invalid_input` | 7b — Anthropic 4xx | `UnprocessableEntityError` (422) — semantically invalid payload → `invalid_input` |
-| 25 | `test_claude_response_with_no_tool_use_block_returns_schema_error` | 8 — Schema Validation | Claude responds with text-only (no `tool_use` block) → `schema_error` |
-| 26 | `test_return_interpretation_missing_required_field_returns_schema_error` | 8 — Schema Validation | `tool_use` block present but `root_cause` field absent → `schema_error` |
-| 27 | `test_return_interpretation_invalid_confidence_value_returns_schema_error` | 8 — Schema Validation | `confidence="very_high"` (not in enum `high\|medium\|low`) → `schema_error` |
-| 28 | `test_return_interpretation_wrong_type_for_regression_returns_schema_error` | 8 — Schema Validation | `regression` is string `"true"` instead of bool → `schema_error` |
-| 29 | `test_usage_by_turn_has_exactly_one_entry_after_single_claude_call` | Observability | `usage_by_turn` list has exactly 1 entry — confirms single-call design, no loop |
-| 30 | `test_record_agent_run_called_with_correct_args_on_completed_path` | Observability | Mock `record_agent_run`; assert called with `"coding_agent"`, result dict, `usage_by_turn`, `issue_number` |
-| 31 | `test_record_agent_run_called_on_invalid_input_path` | Observability | `record_agent_run` called even when `_validate_payload` returns an error — observability never skipped |
-| 32 | `test_github_timeout_during_pr_flow_returns_partial` | 7 — Server Failures | `requests.Timeout` raised inside `_open_draft_pr` → `partial`; interpretation preserved, `pr_url=None` |
-| 33 | `test_github_network_error_during_pr_flow_returns_partial` | 7 — Network Failures | `requests.ConnectionError` raised inside `_open_draft_pr` → `partial`; distinct from timeout — server unreachable |
-| 34 | `test_github_server_error_on_branch_fetch_returns_partial` | 7 — Server Failures | GitHub 500 on `GET /branches` (step 1 of `_open_draft_pr`) → `partial`; confirms all 3 GitHub steps are error-safe, not just step 3 |
+| 1 | `test_high_confidence_returns_completed_with_pr_and_commit` | 1 — Happy Path | Valid payload, Claude returns high confidence fix, snippet found, git commit succeeds, PR opened → `status=completed`, `pr_url` and `commit_sha` populated, `file_changed` = `fix_files[0]` |
+| 2 | `test_medium_confidence_returns_completed_with_pr_and_commit` | 1 — Happy Path | Medium confidence → same as test 1 |
+| 3 | `test_low_confidence_returns_completed_without_pr_or_commit` | 1 — Happy Path | Low confidence → `status=completed`, `pr_url=None`, `commit_sha=None`, no git or GitHub API calls |
+| 4 | `test_multi_file_fix_commits_only_primary_file` | 1 — Happy Path | `fix_files` has two entries → only `fix_files[0]` committed; `fix_files[1]` in `remaining_files`; PR body contains the remaining file name |
+| 5 | `test_pr_branch_name_includes_issue_number_and_timestamp` | 1 — Happy Path | Branch name used in `git checkout -b` matches `{GITHUB_PR_BRANCH_PREFIX}{issue_number}-{14-digit-timestamp}` |
+| 6 | `test_file_content_passed_to_claude_in_user_message` | 1 — Happy Path | Local file content appears in the user message sent to Claude — confirms no agentic loop |
+| 7 | `test_none_payload_returns_invalid_input_without_any_call` | 2 — Input Validation | `None` passed as payload → `invalid_input`, no Claude or git call made |
+| 8 | `test_empty_dict_payload_returns_invalid_input` | 2 — Input Validation | `{}` → `invalid_input` |
+| 9 | `test_missing_diagnostic_key_returns_invalid_input` | 2 — Input Validation | Payload with no `"diagnostic"` key → `invalid_input` |
+| 10 | `test_diagnostic_status_no_data_returns_no_data` | 2 — Input Validation | `payload["diagnostic"]["status"] = "no_data"` → `no_data`, no Claude call |
+| 11 | `test_injection_flag_true_returns_injection_detected` | 2 — Input Validation | `payload["injection_flag"]=True` → `injection_detected`, no Claude or git call |
+| 12 | `test_non_dict_payload_returns_invalid_input` | 2 — Input Validation | String passed as payload → `invalid_input` |
+| 13 | `test_invalid_environment_returns_invalid_input` | 2 — Input Validation | `_check_environment()` returns error (e.g. pre-commit not installed) → `invalid_input`, no Claude call |
+| 14 | `test_snippet_not_found_in_file_returns_partial_with_interpretation` | 3 — Hallucination Guard | `original_snippet` not present verbatim in file → `STATUS_PARTIAL`, `interpretation` present, no commit made |
+| 15 | `test_empty_original_snippet_returns_partial` | 3 — Hallucination Guard | `original_snippet=""` → `STATUS_PARTIAL` — empty snippet cannot be safely applied |
+| 16 | `test_pre_commit_hook_failure_returns_partial_with_interpretation` | 3 — Hallucination Guard | `git commit` exits non-zero (hook rejects change) → `STATUS_PARTIAL`, `interpretation` present, `pr_url=None`; working tree restored to clean state |
+| 17 | `test_anthropic_authentication_error_returns_unauthenticated` | 4 — Authentication | SDK raises `AuthenticationError` (401) → `unauthenticated` |
+| 18 | `test_github_token_empty_detected_by_environment_check` | 4 — Authentication | `GITHUB_TOKEN` is `""` → `_check_environment()` catches it → `invalid_input` before any Claude call |
+| 19 | `test_git_push_auth_failure_returns_partial` | 4 — Authentication | `git push` fails with auth error (exit code non-zero, stderr contains 403) → `partial`, `interpretation` preserved |
+| 20 | `test_anthropic_permission_denied_returns_unauthorized` | 5 — Authorization | `PermissionDeniedError` (403) from Anthropic → `unauthorized` |
+| 21 | `test_github_403_on_pr_creation_returns_partial` | 5 — Authorization | GitHub 403 on POST /pulls → `partial`, `commit_sha` present, `pr_url=None` |
+| 22 | `test_anthropic_model_not_found_returns_invalid_input` | 6 — Not Found | `NotFoundError` (404) from Anthropic → `invalid_input` |
+| 23 | `test_anthropic_rate_limit_returns_rate_limited_without_retry` | 7 — Rate Limiting | `RateLimitError` (429) → `rate_limited`; assert `client.messages.create` called exactly once |
+| 24 | `test_anthropic_server_error_returns_server_error` | 8 — Server Failures | `APIStatusError` 500 → `server_error` |
+| 25 | `test_anthropic_timeout_returns_timeout` | 8 — Server Failures | `APITimeoutError` → `timeout` |
+| 26 | `test_anthropic_connection_error_returns_network_error` | 8 — Network Failures | `APIConnectionError` → `network_error` |
+| 27 | `test_git_push_failure_returns_partial` | 8 — Server Failures | `git push` exits non-zero (remote error) → `partial`; working tree restored |
+| 28 | `test_github_500_on_pr_creation_returns_partial` | 8 — Server Failures | GitHub 500 on POST /pulls → `partial`; `commit_sha` present (push succeeded), `pr_url=None` |
+| 29 | `test_github_connection_error_on_pr_creation_returns_partial` | 8 — Network Failures | `requests.ConnectionError` on POST /pulls → `partial` |
+| 30 | `test_anthropic_bad_request_returns_invalid_input` | 9 — Anthropic 4xx | `BadRequestError` (400) → `invalid_input` |
+| 31 | `test_anthropic_conflict_returns_server_error` | 9 — Anthropic 4xx | `ConflictError` (409) → `server_error` |
+| 32 | `test_anthropic_unprocessable_entity_returns_invalid_input` | 9 — Anthropic 4xx | `UnprocessableEntityError` (422) → `invalid_input` |
+| 33 | `test_claude_response_with_no_tool_use_returns_schema_error` | 10 — Schema Validation | Text-only Claude response → `schema_error` |
+| 34 | `test_missing_original_snippet_field_returns_schema_error` | 10 — Schema Validation | `tool_use` block present but `original_snippet` field absent → `schema_error` |
+| 35 | `test_invalid_confidence_value_returns_schema_error` | 10 — Schema Validation | `confidence="very_high"` → `schema_error` |
+| 36 | `test_regression_wrong_type_returns_schema_error` | 10 — Schema Validation | `regression="true"` (string not bool) → `schema_error` |
+| 37 | `test_usage_by_turn_has_exactly_one_entry` | 11 — Observability | `usage_by_turn` list has exactly 1 entry — confirms single-call design |
+| 38 | `test_record_agent_run_called_on_completed_path` | 11 — Observability | Mock `record_agent_run`; assert called with `"coding_agent"`, result dict, `usage_by_turn`, `issue_number` |
+| 39 | `test_record_agent_run_called_on_invalid_input_path` | 11 — Observability | `record_agent_run` called even when `_validate_payload` fails — observability never skipped |
+| 40 | `test_git_commit_called_before_pr_opened` | 11 — Observability | Assert `git commit` subprocess call precedes POST /pulls — order enforced |
+| 41 | `test_working_tree_clean_after_hook_failure` | 11 — Observability | After pre-commit hook failure, assert no uncommitted changes remain and failed branch is deleted |
 
 ---
 
-## 10. Files Touched
+## 11. Files Touched
 
 | File | Action | Notes |
 |---|---|---|
 | `agents/coding_agent.py` | Create | New agent module |
 | `agents/config.py` | Modify | Add `GITHUB_PR_BRANCH_PREFIX` constant |
 | `agents/tests/test_coding_agent.py` | Create | TDD test file — all tests written red first |
-| `agents/specs/d6_coding_agent.md` | Create | This spec |
+| `agents/specs/d6_recommendation_agent.md` | Modify | This spec — replaces the placeholder version |
 | `agents/specs/DEPENDENCY_MAP.md` | Modify | Add D.6 signatures after slice completes |
 
 ---
 
-## 11. Acceptance Criteria
+## 12. Acceptance Criteria
 
-- [ ] All 34 new `test_coding_agent.py` tests pass
-- [ ] Full suite passes with no regressions (107 + 34 = 141 tests)
-- [ ] `status: completed` returned for a valid combined payload
-- [ ] `interpretation.root_cause` is a non-empty string
-- [ ] `pr_url` is non-null for high/medium confidence; `None` for low confidence
+- [ ] All 41 new `test_coding_agent.py` tests pass
+- [ ] Full suite passes with no regressions (107 + 41 = 148 tests)
+- [ ] `status: completed` returned for a valid payload with a verifiable snippet
+- [ ] `file_changed` is `fix_files[0]`; `remaining_files` contains `fix_files[1:]`
+- [ ] `pr_url` and `commit_sha` are non-null for high/medium confidence; `None` for low
+- [ ] `original_snippet` not found in file → `STATUS_PARTIAL`, no commit made
+- [ ] Pre-commit hook failure → `STATUS_PARTIAL`, working tree restored to clean state
 - [ ] `usage_by_turn` has exactly one entry (single Claude call confirmed)
 - [ ] `record_agent_run` called before every return path (verified by mock in tests)
-- [ ] `GITHUB_PR_BRANCH_PREFIX` used for branch name — no hardcoded `"fix/sentry-"` in code
-- [ ] Smoke test: hand-assembled findings dict from real extractor outputs → `status: completed`, `pr_url` non-null
+- [ ] `GITHUB_PR_BRANCH_PREFIX` used in branch name — no hardcoded `"fix/sentry-"` in code
+- [ ] PR draft flag is `true` — never opens a ready-to-merge PR automatically
+- [ ] Smoke test: hand-assembled findings dict from real D.5 output → `status: completed`, `pr_url` non-null, actual code change visible in GitHub PR diff, pre-commit hooks confirmed to have run

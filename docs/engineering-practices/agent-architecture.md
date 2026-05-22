@@ -93,7 +93,7 @@
 Pure Python can only read files it is told to read. Tracing a crash from `MenuItemCard.tsx:42` back through `useMenuItems.ts` to a missing GraphQL field requires reasoning about what to read next — Python cannot do that. Claude navigates the codebase iteratively (read crash line → identify symbol → follow to source → stop when root cause is clear) and returns the minimal structured result.
 
 **Why this agent does not produce the fix recommendation:**
-The Diagnostic Agent has full read access to the codebase. Giving it write access to GitHub as well (to open PRs) would violate least privilege — a compromised agent could read sensitive source files and embed that data into a PR. The fix narrative and PR are produced by the Coding Agent, which has GitHub write access but no codebase read access. Neither agent alone can do both.
+The Diagnostic Agent has full read access to the codebase but no write access anywhere — it only returns a structured findings dict. The Coding Agent writes to the local filesystem (applying the patch) and pushes to GitHub, but its filesystem scope is narrow: it writes only to `fix_files[0]` as identified by D.5, never navigates or reads arbitrary files. Neither agent alone has both unrestricted read and write access to the codebase — D.5 reads broadly but writes nothing; D.6 writes narrowly but does not navigate freely. This separation limits blast radius if either agent is compromised.
 
 **Handoff to Coding Agent — structured findings only (~50 tokens):**
 ```python
@@ -110,9 +110,10 @@ The Diagnostic Agent has full read access to the codebase. Giving it write acces
 Raw code snippets are never passed to the Coding Agent — only structured conclusions. Token budget target: under 100 tokens per codebase finding.
 
 ### Coding Agent
-**Type:** Claude-powered synthesiser — GitHub write access only, no codebase read access.
-**Responsibility:** Receive the combined structured payload from all extractors, produce a cross-source root cause analysis, and open a draft PR with the proposed fix.
-**Access:** GitHub — write access for opening draft PRs only. No access to Sentry, Render, filesystem, or any other external system.
+**Type:** Claude-powered code-fix agent — local filesystem write access + git push + GitHub PR write access.
+**Responsibility:** Receive the combined structured payload (including D.5 diagnostic findings), generate a targeted code fix using Claude, apply it to the local filesystem, commit via `git commit` (pre-commit hooks fire here), push the branch, and open a draft PR.
+**Access:** Local filesystem (write — applies patch to `fix_files[0]` only); git push (via `GITHUB_TOKEN`); GitHub API (POST /pulls — draft PR creation only). No access to Sentry, Render, or any read-only codebase navigation — that is D.5's responsibility.
+**Environment requirement:** Must run in a git-enabled environment where the repository is checked out, `pre-commit` is installed, and `GITHUB_TOKEN` is available. Does not have to be the same runner or job as the Diagnostic Agent — any environment satisfying these three requirements is valid.
 **Inputs:** combined payload from Orchestrator containing structured findings from all relevant extractors, guardrails metadata (time window used, sources queried)
 
 **Input roles — each source has a distinct purpose (see ADR-0011):**
