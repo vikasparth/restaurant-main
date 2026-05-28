@@ -109,7 +109,7 @@
 ## Phase 3 — Agentic Workflows
 
 > **Architecture:** `docs/engineering-practices/agent-architecture.md`
-> **Implementation plan:** `docs/engineering-practices/agent-execution-plan.md`
+> **Implementation plan:** `agents/docs/agent-execution-plan.md`
 > **Workflow context:** `docs/engineering-practices/ai-agent-workflow.md`
 
 | Task | Detail | Status |

@@ -13,7 +13,7 @@ is signed off.
 
 Ask the user **one question at a time** in this order. Stop after each and wait for the answer.
 
-1. **Which execution plan file should I read?** (e.g. `execution-plan.md`, `docs/engineering-practices/agent-execution-plan.md`)
+1. **Which execution plan file should I read?** (e.g. `execution-plan.md`, `agents/docs/agent-execution-plan.md`)
 2. **Which architecture document should I reference?** (e.g. `docs/architecture.md`, `docs/engineering-practices/agent-architecture.md`)
 3. **Which layer is this spec for?** — agents / backend / frontend / other
 

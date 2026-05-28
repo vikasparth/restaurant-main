@@ -3,7 +3,7 @@
 **Status: DRAFT**
 **Last updated: 2026-05-04**
 **Workflow context:** See `docs/engineering-practices/ai-agent-workflow.md` — two-loop model (inner/outer), signal sources, and recommended agent behaviour.
-**Implementation plan:** See `docs/engineering-practices/agent-execution-plan.md` — phases, tasks, and validation scenarios.
+**Implementation plan:** See `agents/docs/agent-execution-plan.md` — phases, tasks, and validation scenarios.
 
 ---
 

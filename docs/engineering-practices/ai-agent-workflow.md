@@ -3,7 +3,7 @@
 **Scope:** All engineers and AI agents working in this repository.
 **Last updated:** 2026-04-28
 **Agent architecture:** See `docs/engineering-practices/agent-architecture.md` — specialized agents, access matrix, orchestration layer, and least privilege design.
-**Agent implementation plan:** See `docs/engineering-practices/agent-execution-plan.md` — phases, tasks, and validation scenarios.
+**Agent implementation plan:** See `agents/docs/agent-execution-plan.md` — phases, tasks, and validation scenarios.
 
 > **Note on CI tooling:** The inner loop diagram shows frontend tools (Husky, ESLint, TypeScript, Vitest). Backend uses pre-commit framework, Black, Flake8, and pytest. The phases and principles are identical — only the tool names differ. When the repo splits, each team copies this file and updates the tool names for their stack.
 
