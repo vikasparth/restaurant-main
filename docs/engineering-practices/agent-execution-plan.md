@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-25 (session 11)**
+**Last updated: 2026-05-26 (session 12)**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,26 +9,23 @@
 
 ## Current Focus
 
-**Next: D.6 — Coding Agent `run()` Claude call block + commit/PR flow (implementation in progress)**
+**Next: D.6 — Smoke test with real D.5 output (environment ready, test script not yet written)**
 
-Session 11 complete (2026-05-25):
-- **D.6 spec further updated:** `partial_code` + `partial_reason` added to return shape — machine-readable code for Orchestrator routing, human-readable reason for logs/PR; `STATUS_PARTIAL` now has a table of all 5 codes and retryability
-- **D.6 spec: `pytest -q` step added to commit flow** (step 4, between `git add` and `git commit`) — agent runs unit tests before committing, same habit as any engineer on the team
-- **D.6 spec: `_commit_and_push` return type changed to `tuple[str | None, str | None]`** — (commit_sha, partial_code); allows `run()` to know exactly why the commit flow failed
-- **D.6 spec: `_apply_patch` updated** — snippet must appear exactly once in file (`count() == 1`); multiple occurrences also trigger `hallucination_guard` since target location is ambiguous
-- **D.6 test files split across subfolder** — `agents/tests/coding_agent/` contains `helpers.py`, `test_coding_agent.py` (tests 1–16, 42), `test_coding_agent_errors.py` (tests 17–36), `test_coding_agent_observability.py` (tests 37–41); 500-line limit enforced
-- **42 TDD tests written and confirmed red** — `ModuleNotFoundError` on collection (expected); 107 existing tests still green
-- **`agents/config.py` updated** — `GITHUB_PR_BRANCH_PREFIX` constant added
-- **`agents/coding_agent.py` partially implemented** — all helper functions complete: `_validate_payload`, `_should_open_pr`, `_apply_patch`, `_parse_code_fix`, `_validate_fix`, `_check_environment`, `_read_local_file`, `_build_tool_definitions`, `_commit_and_push`, `_format_pr_body`, `_open_draft_pr`
-- **`run()` skeleton in place** — injection guard, payload validation, environment check done; Claude call block and commit/PR flow are TODO
+Session 12 complete (2026-05-26):
+- **`run()` fully implemented** — Claude call block, hallucination guard, commit/PR flow all complete
+- **42/42 tests green** — all coding agent tests passing; 107 + 42 = 149 total tests passing, no regressions
+- **`DEPENDENCY_MAP.md` updated** — Coding Agent section added with all helper signatures, payload shape, return shape, branch naming pattern; `GITHUB_PR_BRANCH_PREFIX` and `CODING_MAX_TOKENS` constants added to config table
+- **`_check_environment()` bug fixed** — changed `git status --porcelain` to `--untracked-files=no` so untracked files don't incorrectly block the agent
+- **`confidence_numeric` added to interpretation dict** — `confidence_to_numeric()` now called before `record_agent_run()` as required by observability rules
+- **`agents/` added to pre-commit config** — black and flake8 hooks now cover `^agents/` files; same rev as backend hooks
+- **black + flake8 clean** — `coding_agent.py` passes both checks; unused imports removed (`os`, `STATUS_NOT_FOUND`)
+- **D.6 changes committed and pushed** — implementation on `feat/d6-coding-agent` (merged); formatting fixes on same branch (pending commit + push)
 
 **Remaining for D.6:**
-1. Write Claude call block in `run()` (Anthropic SDK call, `usage_by_turn`, parse + validate fix)
-2. Write commit/PR flow in `run()` (hallucination guard, `_commit_and_push`, `_open_draft_pr`, build result dict)
-3. Run 42 tests green
-4. Confirm 107 + 42 = 149 tests passing
-5. Update `DEPENDENCY_MAP.md`
-6. Smoke test with real D.5 output
+1. Commit formatting fixes (`coding_agent.py` black/flake8 + `.pre-commit-config.yaml` agents hooks) — branch: `feat/d6-coding-agent`
+2. Write smoke test script — construct real D.5-style payload, call `coding_agent.run()`, print result
+3. Run smoke test — verify real Claude API call, `return_code_fix` tool use block parsed correctly, PR generated on GitHub
+4. Close/delete smoke test PR and branch after verifying result
 
 Session 10 complete (2026-05-20):
 - **D.5 spec updated:** `fix_location` split into `fix_files: list[str]` (machine-readable, primary fix file first — supports multi-file fixes) and `fix_location: str` (human-readable location within `fix_files[0]` — passed to Claude as context)
