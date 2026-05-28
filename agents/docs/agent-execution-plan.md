@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-26 (session 12)**
+**Last updated: 2026-05-26 (session 13)**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,23 +9,18 @@
 
 ## Current Focus
 
-**Next: D.6 — Smoke test with real D.5 output (environment ready, test script not yet written)**
+**Next: D.6 — Smoke test with real D.5 output**
 
-Session 12 complete (2026-05-26):
-- **`run()` fully implemented** — Claude call block, hallucination guard, commit/PR flow all complete
-- **42/42 tests green** — all coding agent tests passing; 107 + 42 = 149 total tests passing, no regressions
-- **`DEPENDENCY_MAP.md` updated** — Coding Agent section added with all helper signatures, payload shape, return shape, branch naming pattern; `GITHUB_PR_BRANCH_PREFIX` and `CODING_MAX_TOKENS` constants added to config table
-- **`_check_environment()` bug fixed** — changed `git status --porcelain` to `--untracked-files=no` so untracked files don't incorrectly block the agent
-- **`confidence_numeric` added to interpretation dict** — `confidence_to_numeric()` now called before `record_agent_run()` as required by observability rules
-- **`agents/` added to pre-commit config** — black and flake8 hooks now cover `^agents/` files; same rev as backend hooks
-- **black + flake8 clean** — `coding_agent.py` passes both checks; unused imports removed (`os`, `STATUS_NOT_FOUND`)
-- **D.6 changes committed and pushed** — implementation on `feat/d6-coding-agent` (merged); formatting fixes on same branch (pending commit + push)
+Session 13 complete (2026-05-26):
+- **Execution plan moved** — from `docs/engineering-practices/agent-execution-plan.md` to `agents/docs/agent-execution-plan.md`; all references updated across `execution-plan.md`, `agent-architecture.md`, `ai-agent-workflow.md`, `skill.md`
+- **Formatting fixes merged** — `coding_agent.py` black/flake8 clean; `agents/` pre-commit hooks added to `.pre-commit-config.yaml`; all on `fix/d6-formatting-and-precommit` (merged)
+- **D.6 fully complete** — implementation, tests (149 passing), dependency map, formatting, pre-commit hooks all done
 
-**Remaining for D.6:**
-1. Commit formatting fixes (`coding_agent.py` black/flake8 + `.pre-commit-config.yaml` agents hooks) — branch: `feat/d6-coding-agent`
-2. Write smoke test script — construct real D.5-style payload, call `coding_agent.run()`, print result
-3. Run smoke test — verify real Claude API call, `return_code_fix` tool use block parsed correctly, PR generated on GitHub
-4. Close/delete smoke test PR and branch after verifying result
+**Remaining for D.6 smoke test:**
+1. Write smoke test script under `agents/smoke_tests/` — construct real D.5-style payload pointing to a real agents file, load `.env`, call `coding_agent.run()`, print result
+2. Run smoke test — verify real Claude API call, `return_code_fix` tool use block parsed correctly, commit made, PR generated on GitHub
+3. Close/delete smoke test PR and branch after verifying result
+4. Mark D.6 ✅ Done in this plan
 
 Session 10 complete (2026-05-20):
 - **D.5 spec updated:** `fix_location` split into `fix_files: list[str]` (machine-readable, primary fix file first — supports multi-file fixes) and `fix_location: str` (human-readable location within `fix_files[0]` — passed to Claude as context)
