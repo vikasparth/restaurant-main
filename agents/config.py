@@ -73,6 +73,9 @@ GITHUB_REPO = os.getenv("GITHUB_REPO", "")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
 
+# why: prefix for branches opened by the Coding Agent — never hardcoded in agent code
+GITHUB_PR_BRANCH_PREFIX = os.getenv("GITHUB_PR_BRANCH_PREFIX", "fix/sentry-")
+
 # why: guardrails for GitHub commit extraction — Orchestrator overrides per run
 GITHUB_MAX_COMMITS = int(os.getenv("GITHUB_MAX_COMMITS", "20"))
 GITHUB_MSG_MAX_LEN = int(os.getenv("GITHUB_MSG_MAX_LEN", "100"))
