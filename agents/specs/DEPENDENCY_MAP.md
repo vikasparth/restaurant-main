@@ -141,3 +141,30 @@ def run(guardrails: dict, issue_number: str = "") -> dict:
 | `GITHUB_MAX_COMMITS` | `int` | `20` | Default commit fetch limit (≤ 100 GitHub platform cap) |
 | `GITHUB_MSG_MAX_LEN` | `int` | `100` | Max chars kept from commit message first line |
 | `GITHUB_MAX_FILES_PER_COMMIT` | `int` | `20` | Max filenames returned per commit |
+| `GITHUB_PR_BRANCH_PREFIX` | `str` | `"fix/sentry-"` | Branch name prefix for Coding Agent PRs |
+| `CODING_MAX_TOKENS` | `int` | `1024` | Max output tokens for Coding Agent Claude call |
+
+---
+
+## Coding Agent (`agents/coding_agent.py`)
+
+| Function | Signature | Notes |
+|---|---|---|
+| `run` | `run(payload: dict, issue_number: str = "") -> dict` | Entry point — single Anthropic SDK call; payload is Orchestrator-assembled dict with `"diagnostic"` key |
+| `_validate_payload` | `_validate_payload(payload: dict) -> str \| None` | Checks payload shape, diagnostic status, and required findings fields; returns error string or `None` |
+| `_check_environment` | `_check_environment() -> str \| None` | Verifies git repo, clean working tree, `pre-commit` in PATH, `GITHUB_TOKEN` set; returns error string or `None` |
+| `_read_local_file` | `_read_local_file(file_path: str) -> str` | Reads file from local filesystem; UTF-8 |
+| `_build_tool_definitions` | `_build_tool_definitions() -> list[dict]` | Anthropic tool schema for `return_code_fix` — forces structured output |
+| `_parse_code_fix` | `_parse_code_fix(response) -> dict \| None` | Finds `tool_use` block named `return_code_fix` in response; returns `.input` dict or `None` |
+| `_validate_fix` | `_validate_fix(fix: dict) -> str \| None` | Checks `original_snippet` present, confidence valid, regression is bool; returns error string or `None` |
+| `_apply_patch` | `_apply_patch(file_content: str, original_snippet: str, replacement_snippet: str) -> str \| None` | Hallucination guard — verifies snippet exists exactly once; returns patched content or `None` |
+| `_should_open_pr` | `_should_open_pr(confidence: str) -> bool` | Returns `True` for `"high"` or `"medium"` only |
+| `_commit_and_push` | `_commit_and_push(file_path: str, patched_content: str, branch_name: str, commit_message: str) -> tuple[str \| None, str \| None]` | git checkout -b → write file → git add → pytest -q → git commit → git push; returns `(sha, None)` on success or `(None, partial_code)` on failure |
+| `_format_pr_body` | `_format_pr_body(interpretation: dict, payload: dict, file_changed: str, remaining_files: list[str], issue_number: str) -> str` | Builds markdown PR body from interpretation + evidence sources |
+| `_open_draft_pr` | `_open_draft_pr(branch_name: str, interpretation: dict, payload: dict, file_changed: str, remaining_files: list[str], issue_number: str) -> str \| None` | POST /repos/{owner}/{repo}/pulls; returns `html_url` or `None` on failure |
+
+**Payload consumed:** `payload["diagnostic"]["findings"]` — `fix_files` (list[str], primary file first), `fix_type`, `fix_detail`, `fix_location`; inherits `pii_flag`, `injection_flag` from merged payload
+
+**Return shape:** `status`, `source="coding"`, `interpretation` (when completed/partial), `file_changed`, `remaining_files`, `commit_sha`, `pr_url`, `partial_code`, `partial_reason`, `pii_flag`, `injection_flag`
+
+**Branch naming:** `{GITHUB_PR_BRANCH_PREFIX}{issue_number}-{YYYYMMDDHHMMSS}` — timestamp suffix prevents 422 "ref already exists" on re-runs

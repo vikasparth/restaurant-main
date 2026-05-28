@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-20 (session 9)**
+**Last updated: 2026-05-25 (session 11)**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,9 +9,26 @@
 
 ## Current Focus
 
-**Next: D.6 — Coding Agent (spec complete, TDD tests next)**
-**D.ST.5a — Diagnostic Agent token budget analysis: ✅ DONE**
-**D.ST.5 — Diagnostic Agent live smoke test: ✅ PASSED**
+**Next: D.6 — Coding Agent `run()` Claude call block + commit/PR flow (implementation in progress)**
+
+Session 11 complete (2026-05-25):
+- **D.6 spec further updated:** `partial_code` + `partial_reason` added to return shape — machine-readable code for Orchestrator routing, human-readable reason for logs/PR; `STATUS_PARTIAL` now has a table of all 5 codes and retryability
+- **D.6 spec: `pytest -q` step added to commit flow** (step 4, between `git add` and `git commit`) — agent runs unit tests before committing, same habit as any engineer on the team
+- **D.6 spec: `_commit_and_push` return type changed to `tuple[str | None, str | None]`** — (commit_sha, partial_code); allows `run()` to know exactly why the commit flow failed
+- **D.6 spec: `_apply_patch` updated** — snippet must appear exactly once in file (`count() == 1`); multiple occurrences also trigger `hallucination_guard` since target location is ambiguous
+- **D.6 test files split across subfolder** — `agents/tests/coding_agent/` contains `helpers.py`, `test_coding_agent.py` (tests 1–16, 42), `test_coding_agent_errors.py` (tests 17–36), `test_coding_agent_observability.py` (tests 37–41); 500-line limit enforced
+- **42 TDD tests written and confirmed red** — `ModuleNotFoundError` on collection (expected); 107 existing tests still green
+- **`agents/config.py` updated** — `GITHUB_PR_BRANCH_PREFIX` constant added
+- **`agents/coding_agent.py` partially implemented** — all helper functions complete: `_validate_payload`, `_should_open_pr`, `_apply_patch`, `_parse_code_fix`, `_validate_fix`, `_check_environment`, `_read_local_file`, `_build_tool_definitions`, `_commit_and_push`, `_format_pr_body`, `_open_draft_pr`
+- **`run()` skeleton in place** — injection guard, payload validation, environment check done; Claude call block and commit/PR flow are TODO
+
+**Remaining for D.6:**
+1. Write Claude call block in `run()` (Anthropic SDK call, `usage_by_turn`, parse + validate fix)
+2. Write commit/PR flow in `run()` (hallucination guard, `_commit_and_push`, `_open_draft_pr`, build result dict)
+3. Run 42 tests green
+4. Confirm 107 + 42 = 149 tests passing
+5. Update `DEPENDENCY_MAP.md`
+6. Smoke test with real D.5 output
 
 Session 10 complete (2026-05-20):
 - **D.5 spec updated:** `fix_location` split into `fix_files: list[str]` (machine-readable, primary fix file first — supports multi-file fixes) and `fix_location: str` (human-readable location within `fix_files[0]` — passed to Claude as context)
@@ -21,7 +38,7 @@ Session 10 complete (2026-05-20):
 - **D.6 environment requirement:** must run in a git-enabled environment where repo is checked out, `pre-commit` is installed, and `GITHUB_TOKEN` is available — does not have to be the same runner as D.5
 - **D.6 multi-file fixes:** auto-commits `fix_files[0]` only; `fix_files[1:]` listed in PR description as requiring manual attention
 - **D.6 hallucination guard:** `original_snippet` must exist verbatim in the file before any commit — prevents Claude hallucinating a location that doesn't exist
-- **D.6 41 TDD tests planned** — covers happy path, hallucination guard, pre-commit hook failure, working tree cleanup, environment check, Anthropic errors, GitHub PR API errors
+- **D.6 42 TDD tests planned** — covers happy path, hallucination guard, pytest failure, pre-commit hook failure, working tree cleanup, environment check, Anthropic errors, GitHub PR API errors
 - **Architecture doc updated:** Coding Agent access, responsibility, and separation-of-concerns rationale reflect new design
 - **Dependency map updated:** D.6 dependencies include `fix_files`, `subprocess`, `shutil.which`
 - **Learning log:** new entry — agent-generated code must follow same engineering guardrails as human-written code (pre-commit hooks, branch conventions, CI gates)
