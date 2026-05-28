@@ -112,6 +112,10 @@ a GitHub issue context.
     "remaining_files": list[str],    # fix_files[1:] — listed in PR but not auto-committed
     "commit_sha":      str | None,   # SHA of committed fix; None if no commit made
     "pr_url":          str | None,   # draft PR html_url; None if low confidence or PR failed
+    "partial_code":    str | None,   # machine-readable reason — present only when status == STATUS_PARTIAL
+                                     # values: "hallucination_guard" | "test_regression" | "hook_failure"
+                                     #       | "push_failed" | "pr_failed"
+    "partial_reason":  str | None,   # human-readable explanation — present only when status == STATUS_PARTIAL
     "pii_flag":        bool,         # inherited from payload's merged pii_flag
     "injection_flag":  bool,         # inherited from payload's merged injection_flag
 }
@@ -120,10 +124,18 @@ a GitHub issue context.
 **`STATUS_COMPLETED`** — Claude returned a valid fix, snippet verified in file, commit
 made, draft PR opened (or skipped for low confidence).
 
-**`STATUS_PARTIAL`** — Claude returned a valid interpretation but one of the following
-failed: snippet not found in file (hallucination guard triggered), GitHub file read
-failed, GitHub commit failed, or GitHub PR creation failed. `interpretation` is still
-returned; `pr_url` and `commit_sha` are `None`.
+**`STATUS_PARTIAL`** — Claude returned a valid interpretation but the code change could
+not be committed or the PR could not be opened. `interpretation` is still returned;
+`pr_url` and `commit_sha` are `None`. `partial_code` and `partial_reason` identify the
+exact failure so the Orchestrator can decide whether to retry or escalate:
+
+| `partial_code` | Trigger | Retryable? |
+|---|---|---|
+| `"hallucination_guard"` | `original_snippet` not found verbatim in file | No — escalate |
+| `"test_regression"` | `pytest -q` exited non-zero | No — escalate |
+| `"hook_failure"` | Pre-commit hook rejected the change | No — escalate |
+| `"push_failed"` | `git push` exited non-zero | Maybe — check stderr |
+| `"pr_failed"` | GitHub POST /pulls returned non-2xx | Maybe — check status code |
 
 ---
 
@@ -199,22 +211,27 @@ returned; `pr_url` and `commit_sha` are `None`.
 3. git add {fix_files[0]}
         → stages only the target file — never git add -A
 
-4. git commit -m "{commit_message}"
+4. pytest -q
+        → runs unit tests before committing — same habit as any engineer on the team
+        → if tests fail: agent returns STATUS_PARTIAL, no commit or push made
+        → working tree restored (checkout base branch, delete failed branch)
+
+5. git commit -m "{commit_message}"
         → pre-commit hooks fire here automatically
         → if hooks fail: agent returns STATUS_PARTIAL, no push made
 
-5. git push origin {branch_name}
+6. git push origin {branch_name}
         → pushes branch to remote; uses GITHUB_TOKEN as credential
 
-6. POST /repos/{owner}/{repo}/pulls  (single GitHub API call)
+7. POST /repos/{owner}/{repo}/pulls  (single GitHub API call)
         body: { title, body, head: {branch_name}, base: {GITHUB_BRANCH}, draft: true }
         → opens draft PR; returns html_url
 ```
 
-Any failure in steps 1–6 → `_commit_and_push()` or `_open_draft_pr()` returns `None`
+Any failure in steps 1–7 → `_commit_and_push()` or `_open_draft_pr()` returns `None`
 → caller sets `status=STATUS_PARTIAL`, `interpretation` preserved.
 
-Pre-commit hook failure in step 4 is treated as `STATUS_PARTIAL` — the interpretation
+Pytest failure in step 4 or pre-commit hook failure in step 5 is treated as `STATUS_PARTIAL` — the interpretation
 is valid but the code change did not meet the team's quality bar. The PR is not opened.
 The branch is cleaned up locally (checkout back to base, delete failed branch).
 
@@ -225,7 +242,7 @@ The branch is cleaned up locally (checkout back to base, delete failed branch).
 | Status | Trigger | What is returned |
 |---|---|---|
 | `STATUS_COMPLETED` | Claude returns valid `return_code_fix` tool call; snippet verified; commit made; PR opened (or low confidence — skipped) | Full dict with `interpretation`, `file_changed`, `commit_sha`, `pr_url` |
-| `STATUS_PARTIAL` | Valid interpretation returned but snippet not found in file, or any GitHub API step failed | `interpretation` present; `file_changed`, `commit_sha`, `pr_url` all `None` |
+| `STATUS_PARTIAL` | Valid interpretation returned but commit flow failed (see `partial_code`) | `interpretation` present; `partial_code` and `partial_reason` set; `file_changed`, `commit_sha`, `pr_url` all `None` |
 | `STATUS_NO_DATA` | `payload` is empty, `"diagnostic"` key absent, or diagnostic status is `no_data` | Minimal dict with source |
 | `STATUS_INVALID_INPUT` | `_validate_payload()` returns an error string | Minimal dict with error |
 | `STATUS_INJECTION_DETECTED` | `payload.get("injection_flag")` is `True` | Minimal dict with source |
@@ -279,15 +296,17 @@ def _apply_patch(file_content: str, original_snippet: str, replacement_snippet: 
 
 def _commit_and_push(
     file_path: str, patched_content: str, branch_name: str, commit_message: str
-) -> str | None:
+) -> tuple[str | None, str | None]:
     # Orchestrates local git steps 1–5:
     #   git checkout -b {branch_name}
     #   write patched_content to file_path on disk
     #   git add {file_path}
-    #   git commit -m {commit_message}  ← pre-commit hooks fire here
+    #   pytest -q  ← runs unit tests; failure → (None, "test_regression")
+    #   git commit -m {commit_message}  ← pre-commit hooks fire here; failure → (None, "hook_failure")
     #   git push origin {branch_name}
-    # Returns commit SHA on success (from git rev-parse HEAD after commit).
-    # Returns None on any failure (hook failure, push error, etc.).
+    # Returns (commit_sha, None) on success.
+    # Returns (None, partial_code) on failure — partial_code is one of:
+    #   "test_regression" | "hook_failure" | "push_failed"
     # On failure: checks out base branch and deletes the failed branch to leave
     # the working tree clean.
 
@@ -333,22 +352,22 @@ def _open_draft_pr(
 | 11 | `test_injection_flag_true_returns_injection_detected` | 2 — Input Validation | `payload["injection_flag"]=True` → `injection_detected`, no Claude or git call |
 | 12 | `test_non_dict_payload_returns_invalid_input` | 2 — Input Validation | String passed as payload → `invalid_input` |
 | 13 | `test_invalid_environment_returns_invalid_input` | 2 — Input Validation | `_check_environment()` returns error (e.g. pre-commit not installed) → `invalid_input`, no Claude call |
-| 14 | `test_snippet_not_found_in_file_returns_partial_with_interpretation` | 3 — Hallucination Guard | `original_snippet` not present verbatim in file → `STATUS_PARTIAL`, `interpretation` present, no commit made |
-| 15 | `test_empty_original_snippet_returns_partial` | 3 — Hallucination Guard | `original_snippet=""` → `STATUS_PARTIAL` — empty snippet cannot be safely applied |
-| 16 | `test_pre_commit_hook_failure_returns_partial_with_interpretation` | 3 — Hallucination Guard | `git commit` exits non-zero (hook rejects change) → `STATUS_PARTIAL`, `interpretation` present, `pr_url=None`; working tree restored to clean state |
+| 14 | `test_snippet_not_found_in_file_returns_partial_with_interpretation` | 3 — Hallucination Guard | `original_snippet` not present verbatim in file → `STATUS_PARTIAL`, `partial_code="hallucination_guard"`, `interpretation` present, no commit made |
+| 15 | `test_empty_original_snippet_returns_partial` | 3 — Hallucination Guard | `original_snippet=""` → `STATUS_PARTIAL`, `partial_code="hallucination_guard"` — empty snippet cannot be safely applied |
+| 16 | `test_pre_commit_hook_failure_returns_partial_with_interpretation` | 3 — Hallucination Guard | `git commit` exits non-zero (hook rejects change) → `STATUS_PARTIAL`, `partial_code="hook_failure"`, `interpretation` present, `pr_url=None`; working tree restored to clean state |
 | 17 | `test_anthropic_authentication_error_returns_unauthenticated` | 4 — Authentication | SDK raises `AuthenticationError` (401) → `unauthenticated` |
 | 18 | `test_github_token_empty_detected_by_environment_check` | 4 — Authentication | `GITHUB_TOKEN` is `""` → `_check_environment()` catches it → `invalid_input` before any Claude call |
-| 19 | `test_git_push_auth_failure_returns_partial` | 4 — Authentication | `git push` fails with auth error (exit code non-zero, stderr contains 403) → `partial`, `interpretation` preserved |
+| 19 | `test_git_push_auth_failure_returns_partial` | 4 — Authentication | `git push` fails with auth error (exit code non-zero, stderr contains 403) → `partial`, `partial_code="push_failed"`, `interpretation` preserved |
 | 20 | `test_anthropic_permission_denied_returns_unauthorized` | 5 — Authorization | `PermissionDeniedError` (403) from Anthropic → `unauthorized` |
-| 21 | `test_github_403_on_pr_creation_returns_partial` | 5 — Authorization | GitHub 403 on POST /pulls → `partial`, `commit_sha` present, `pr_url=None` |
+| 21 | `test_github_403_on_pr_creation_returns_partial` | 5 — Authorization | GitHub 403 on POST /pulls → `partial`, `partial_code="pr_failed"`, `commit_sha` present, `pr_url=None` |
 | 22 | `test_anthropic_model_not_found_returns_invalid_input` | 6 — Not Found | `NotFoundError` (404) from Anthropic → `invalid_input` |
 | 23 | `test_anthropic_rate_limit_returns_rate_limited_without_retry` | 7 — Rate Limiting | `RateLimitError` (429) → `rate_limited`; assert `client.messages.create` called exactly once |
 | 24 | `test_anthropic_server_error_returns_server_error` | 8 — Server Failures | `APIStatusError` 500 → `server_error` |
 | 25 | `test_anthropic_timeout_returns_timeout` | 8 — Server Failures | `APITimeoutError` → `timeout` |
 | 26 | `test_anthropic_connection_error_returns_network_error` | 8 — Network Failures | `APIConnectionError` → `network_error` |
-| 27 | `test_git_push_failure_returns_partial` | 8 — Server Failures | `git push` exits non-zero (remote error) → `partial`; working tree restored |
-| 28 | `test_github_500_on_pr_creation_returns_partial` | 8 — Server Failures | GitHub 500 on POST /pulls → `partial`; `commit_sha` present (push succeeded), `pr_url=None` |
-| 29 | `test_github_connection_error_on_pr_creation_returns_partial` | 8 — Network Failures | `requests.ConnectionError` on POST /pulls → `partial` |
+| 27 | `test_git_push_failure_returns_partial` | 8 — Server Failures | `git push` exits non-zero (remote error) → `partial`, `partial_code="push_failed"`; working tree restored |
+| 28 | `test_github_500_on_pr_creation_returns_partial` | 8 — Server Failures | GitHub 500 on POST /pulls → `partial`, `partial_code="pr_failed"`; `commit_sha` present (push succeeded), `pr_url=None` |
+| 29 | `test_github_connection_error_on_pr_creation_returns_partial` | 8 — Network Failures | `requests.ConnectionError` on POST /pulls → `partial`, `partial_code="pr_failed"` |
 | 30 | `test_anthropic_bad_request_returns_invalid_input` | 9 — Anthropic 4xx | `BadRequestError` (400) → `invalid_input` |
 | 31 | `test_anthropic_conflict_returns_server_error` | 9 — Anthropic 4xx | `ConflictError` (409) → `server_error` |
 | 32 | `test_anthropic_unprocessable_entity_returns_invalid_input` | 9 — Anthropic 4xx | `UnprocessableEntityError` (422) → `invalid_input` |
@@ -361,6 +380,7 @@ def _open_draft_pr(
 | 39 | `test_record_agent_run_called_on_invalid_input_path` | 11 — Observability | `record_agent_run` called even when `_validate_payload` fails — observability never skipped |
 | 40 | `test_git_commit_called_before_pr_opened` | 11 — Observability | Assert `git commit` subprocess call precedes POST /pulls — order enforced |
 | 41 | `test_working_tree_clean_after_hook_failure` | 11 — Observability | After pre-commit hook failure, assert no uncommitted changes remain and failed branch is deleted |
+| 42 | `test_pytest_failure_returns_partial_with_interpretation` | 3 — Hallucination Guard | `pytest -q` exits non-zero before commit → `STATUS_PARTIAL`, `partial_code="test_regression"`, `interpretation` present, no commit or push made, working tree restored to clean state |
 
 ---
 
@@ -378,13 +398,15 @@ def _open_draft_pr(
 
 ## 12. Acceptance Criteria
 
-- [ ] All 41 new `test_coding_agent.py` tests pass
-- [ ] Full suite passes with no regressions (107 + 41 = 148 tests)
+- [ ] All 42 new `test_coding_agent.py` tests pass
+- [ ] Full suite passes with no regressions (107 + 42 = 149 tests)
 - [ ] `status: completed` returned for a valid payload with a verifiable snippet
 - [ ] `file_changed` is `fix_files[0]`; `remaining_files` contains `fix_files[1:]`
 - [ ] `pr_url` and `commit_sha` are non-null for high/medium confidence; `None` for low
 - [ ] `original_snippet` not found in file → `STATUS_PARTIAL`, no commit made
-- [ ] Pre-commit hook failure → `STATUS_PARTIAL`, working tree restored to clean state
+- [ ] `pytest -q` failure before commit → `STATUS_PARTIAL`, `partial_code="test_regression"`, working tree restored, no commit or push made
+- [ ] Pre-commit hook failure → `STATUS_PARTIAL`, `partial_code="hook_failure"`, working tree restored to clean state
+- [ ] Every `STATUS_PARTIAL` return has a non-null `partial_code` and `partial_reason`
 - [ ] `usage_by_turn` has exactly one entry (single Claude call confirmed)
 - [ ] `record_agent_run` called before every return path (verified by mock in tests)
 - [ ] `GITHUB_PR_BRANCH_PREFIX` used in branch name — no hardcoded `"fix/sentry-"` in code
