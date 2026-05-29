@@ -94,15 +94,11 @@ def _validate_fix(fix: dict) -> str | None:
 
 
 def _check_environment() -> str | None:
-    result = subprocess.run(
-        ["git", "rev-parse", "--git-dir"], capture_output=True, text=True
-    )
+    result = subprocess.run(["git", "rev-parse", "--git-dir"], capture_output=True)
     if result.returncode != 0:
         return "Current directory is not a Git repository."
     result = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=no"],
-        capture_output=True,
-        text=True,
+        ["git", "status", "--porcelain", "--untracked-files=no"], capture_output=True
     )
     if result.stdout.strip() != "":
         return "Git repository has uncommitted changes. Please commit or stash them before running the Coding Agent."

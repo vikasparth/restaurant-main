@@ -104,7 +104,7 @@ async def create_catering_order(db, payload, config: dict) -> JSONResponse:
         f"{payload.event_date} {payload.event_time}", "%Y-%m-%d %H:%M"
     ).replace(tzinfo=now.tzinfo)
     advance_hours = config["catering_advance_hours"]
-    if event_dt > now + timedelta(hours=advance_hours):
+    if event_dt < now + timedelta(hours=advance_hours):
         return error_response(
             f"Catering orders must be placed at least {advance_hours} hours in advance",
             "LESS_THAN_48_HOURS",
@@ -181,8 +181,7 @@ async def create_catering_order(db, payload, config: dict) -> JSONResponse:
 
     # --- Fire notifications (failures are logged, never block the response) ---
     logger.info(
-        "[catering] catering order created — reference: %s",
-        reference_number,
+        "[catering] catering order created — reference: %s", reference_number,
         extra={"event": "catering_order_created", "reference": reference_number},
     )
     await notify_catering(
