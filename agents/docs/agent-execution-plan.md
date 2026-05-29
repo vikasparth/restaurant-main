@@ -1,7 +1,7 @@
 # Agent Implementation Execution Plan — Aap ki Rasoi
 
 **Status: IN PROGRESS**
-**Last updated: 2026-05-26 (session 12)**
+**Last updated: 2026-05-28 (session 14)**
 **Reference:** See `docs/engineering-practices/agent-architecture.md` for design decisions, access matrix, and finding schema.
 **Master plan reference:** See `execution-plan.md` — Phase 3, Agentic Workflows.
 
@@ -9,9 +9,16 @@
 
 ## Current Focus
 
-**Next: D.6 — Smoke test with real D.5 output (environment ready, test script not yet written)**
+**Next: E.1 — Orchestrator design**
 
-Session 12 complete (2026-05-26):
+Session 14 complete (2026-05-28):
+- **D.6 smoke test passed** — `status: completed`, `confidence: high`, PR #118 opened on GitHub, Sentry received 2 events ✅
+- **`text=True` bug found and fixed** — `_check_environment()` was comparing `bytes` stdout to `str ""` (always True in Python 3); added `text=True` to both `subprocess.run` calls; bug was hidden by mocks in all 149 unit tests — only caught by the smoke test
+- **pytest scoped to `agents/tests/`** — `_commit_and_push` was running `pytest -q` from repo root, collecting backend tests that need a separate venv; scoped to `agents/tests/` to unblock smoke test; full unified test runner is the production target when venvs are consolidated
+- **smoke test PR #118 closed** — branch deleted, catering bug reverted; `smoke/bug` branch left for session cleanup
+- **`agents/smoke_tests/smoke_d6.py` written** — targets a real logical bug (inverted operator in `catering_service.py`); demonstrates full pipeline: Claude API → hallucination guard → commit → PR
+
+Session 13 complete (2026-05-26):
 - **`run()` fully implemented** — Claude call block, hallucination guard, commit/PR flow all complete
 - **42/42 tests green** — all coding agent tests passing; 107 + 42 = 149 total tests passing, no regressions
 - **`DEPENDENCY_MAP.md` updated** — Coding Agent section added with all helper signatures, payload shape, return shape, branch naming pattern; `GITHUB_PR_BRANCH_PREFIX` and `CODING_MAX_TOKENS` constants added to config table
@@ -21,11 +28,7 @@ Session 12 complete (2026-05-26):
 - **black + flake8 clean** — `coding_agent.py` passes both checks; unused imports removed (`os`, `STATUS_NOT_FOUND`)
 - **D.6 changes committed and pushed** — implementation on `feat/d6-coding-agent` (merged); formatting fixes on same branch (pending commit + push)
 
-**Remaining for D.6:**
-1. Commit formatting fixes (`coding_agent.py` black/flake8 + `.pre-commit-config.yaml` agents hooks) — branch: `feat/d6-coding-agent`
-2. Write smoke test script — construct real D.5-style payload, call `coding_agent.run()`, print result
-3. Run smoke test — verify real Claude API call, `return_code_fix` tool use block parsed correctly, PR generated on GitHub
-4. Close/delete smoke test PR and branch after verifying result
+**D.6 ✅ Done** — smoke test passed 2026-05-28; PR #118 verified and closed.
 
 Session 10 complete (2026-05-20):
 - **D.5 spec updated:** `fix_location` split into `fix_files: list[str]` (machine-readable, primary fix file first — supports multi-file fixes) and `fix_location: str` (human-readable location within `fix_files[0]` — passed to Claude as context)
