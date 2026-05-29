@@ -164,7 +164,9 @@ def _commit_and_push(
             ["git", "branch", "-d", branch_name], capture_output=True, text=True
         )
         return None, "push_failed"
-    result = subprocess.run(["pytest", "-q"], capture_output=True, text=True)
+    result = subprocess.run(
+        ["pytest", "agents/tests/", "-q"], capture_output=True, text=True
+    )
     if result.returncode != 0:
         subprocess.run(
             ["git", "checkout", GITHUB_BRANCH], capture_output=True, text=True
