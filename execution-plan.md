@@ -102,7 +102,8 @@
 | DT-10 | Unit + integration tests — menu slice (backend + frontend) | ⏳ Pending |
 | DT-11 | **⚠️ Must have — Claude Code token efficiency** | Context window exhaustion is a development blocker. Build a plugin/skill that surfaces live token usage per session, identifies patterns that inflate context (large file reads, over-broad globs, repeated context re-reads), and recommends lean context habits, `/compact` timing, session scoping. Goal: no session hits the token ceiling mid-task. | ⏳ Pending |
 | DT-12 | Per-project env setup | Each sub-project owns its own `.env.example` — separate teams, separate secrets. **(1)** Create `backend/.env.example` (FastAPI vars); **(2)** create `graphql-gateway/.env.example` (gateway vars); **(3)** create `agents/.env.example` (`ANTHROPIC_API_KEY`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG_SLUG`, `RENDER_API_KEY`, `GITHUB_TOKEN`); **(4)** trim root `.env.example` to frontend-only vars (`VITE_*`); **(5)** add `python-dotenv` to `agents/requirements.txt` and `load_dotenv()` to `agents/config.py`; **(6)** update README with a setup section per sub-project so a new engineer or GenAI agent can onboard from the README alone | ✅ Done |
-| DT-13 | Agent observability — token usage + confidence via Sentry | `record_agent_run` built and wired. Steps 13–15 remaining: update `frontend_sentry_extractor.run()` signature, update DEPENDENCY_MAP, wire into Claude-calling agents when built. See `agents/specs/dt13_agent_observability.md`. | 🔄 In Progress |
+| DT-13 | Agent observability — token usage + confidence via Sentry | `record_agent_run` built and wired into D.5 and D.6 ✅. Steps 13–14 still pending: update `frontend_sentry_extractor.run()` signature, update DEPENDENCY_MAP. Reasoning step logging (Sentry breadcrumbs per turn) — spec not yet written. See `agents/specs/dt13_agent_observability.md`. | 🔄 In Progress |
+| DT-14 | **⚠️ Next — Test `.claude/rules/` path-scoped setup** | Verify the new rules structure works end-to-end: (1) start fresh session, run `/context` — confirm `code-style.md` and `testing.md` appear under Memory Files; (2) ask Claude to read a backend `.py` file, run `/context` again — confirm `backend-code-style.md` and `backend-testing.md` appear; (3) ask Claude to read a frontend `.tsx` file — confirm `frontend-code-style.md` appears; (4) ask Claude to read an agents `.py` file — confirm `agents-code-style.md` appears; (5) smoke test each layer by asking Claude to write a code snippet and verify it follows the layer's rules without prompting. | ⏳ Pending |
 
 ---
 
@@ -115,7 +116,7 @@
 | Task | Detail | Status |
 |---|---|---|
 | Phase A — Prerequisites | A.1 ✅ A.2 ✅ A.3 ✅ A.4 ✅ A.5 ✅ — A.6 (Render API access) ⏳ A.7 ✅ | 🔄 In Progress |
-| Phase D — Individual Agents | D.1 Frontend Sentry ✅ D.2 Backend Sentry ✅ D.3 Render Logs ✅ D.4 GitHub ✅ D.5 Codebase ✅ — D.6 Coding ⏳ | 🔄 In Progress |
+| Phase D — Individual Agents | D.1 Frontend Sentry ✅ D.2 Backend Sentry ✅ D.3 Render Logs ✅ D.4 GitHub ✅ D.5 Codebase ✅ D.6 Coding ✅ | ✅ Done |
 | Phase C — Orchestration Layer | Orchestrator, `/troubleshoot` skill, `sentry-monitor-frontend.yml`, `sentry-monitor-backend.yml`, GitHub write authorization | ⏳ Pending |
 | Phase D — Validation | End-to-end validation against all 5 test scenarios + false positive check | ⏳ Pending |
 

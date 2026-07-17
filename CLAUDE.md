@@ -1,5 +1,13 @@
 # Project Rules — Restaurant Management System
 
+## Project Architecture
+
+Three-layer restaurant management system ("Aap ki Rasoi"):
+
+- **Frontend** (`src/`) — React 18 + TypeScript + Vite, Apollo Client (GraphQL). Feature-based structure under `src/features/`. Rules: `src/CLAUDE.md`.
+- **Backend** (`backend/`) — Python/FastAPI REST API. Routes → Services → DB. Rules: `backend/CLAUDE.md`.
+- **Agents** (`agents/`) — Anthropic-powered monitoring agents. Each agent is `agents/<name>_agent.py` with a single `run() -> str` entry point. Uses its own `.venv` — separate from the backend venv. Rules: `agents/CLAUDE.md`.
+
 ## Workspace Scope
 - You MUST operate ONLY inside the `main_project` directory.
 - Never modify files inside ../lovable_project.
@@ -111,13 +119,6 @@ The user is a new engineer learning Python by building this project. These rules
 - Work file-by-file.
 - **Large documents with a Table of Contents — read the index first (first ~30 lines), identify the relevant section's line number, then use `offset` + `limit` to read only that section.** Never read the whole file when an index exists.
 
-## Code Quality Rules
-
-### File Size — HARD LIMIT
-- **No single file may exceed 500 lines.** This is a hard limit, not a guideline.
-- If a file approaches 400 lines, proactively split it before it grows further.
-- **Never generate an entire feature or app in one file.** Every feature must be broken into multiple files with clear responsibilities.
-
 ## Migration Command Behavior
 When user says:
 "Migrate latest Lovable changes"
@@ -129,30 +130,6 @@ You MUST:
 4. Confirm migrated file list before proceeding.
 
 ## Coding Best Practices
-
-### General
-- No magic numbers or hardcoded strings — use constants or config files.
-- Keep functions small and single-purpose (max ~40 lines per function).
-- Use meaningful, descriptive names for variables, functions, and files.
-- Avoid deeply nested code — prefer early returns and guard clauses.
-- Delete dead code; do not comment it out.
-- **Never import from one feature module into another.** If two modules need the same code, extract it into a shared common file first. Cross-feature imports create hidden dependencies, hurt discoverability, and compound as more modules are added.
-
-### Comments
-- Comment the **WHY**, never the WHAT. Code already says what it does — a comment restating it is noise.
-- Add a comment only when a competent engineer reading cold would be confused or make a wrong assumption without it: a non-obvious value, a hidden constraint, a subtle invariant, or a workaround that looks like it could be simplified but can't.
-- Format: short inline comment on the relevant line — `# reason why, not what`.
-- **In pair programming sessions** — add a WHY comment to any non-obvious code snippet shared in chat. Keep it to one line, minimum words. If the code speaks for itself, no comment needed.
-
-#### Config and Infrastructure Files — ALWAYS COMMENT
-**GitHub Actions workflows, Docker files, CI configs, and any infrastructure-as-code MUST include WHY comments.** These files are especially opaque to new engineers — the intent behind each decision is rarely obvious from the syntax alone.
-
-For every non-trivial block in a config file, explain:
-- **Why this file exists** — what problem it solves and what would break without it.
-- **Why this trigger/condition** — e.g. why only `main` and not feature branches.
-- **Why this specific value or flag** — e.g. why `fetch-depth: 0` instead of the default shallow clone.
-
-Do not just describe what a step does — explain the reasoning a new engineer would need to make a safe change or diagnose a failure at 2am.
 
 ### API & Services
 - All API calls go through a dedicated service layer (not directly in components).
@@ -167,15 +144,6 @@ Do not just describe what a step does — explain the reasoning a new engineer w
 - Follow least-privilege principle for database queries.
 - **Never log or transmit PII or PHI data.** This includes customer names, emails, phone numbers, IP addresses, order history, and health-related dietary information. Applies to application logs, Sentry events, and any third-party service.
 - **Every `Sentry.init()` call must include a `beforeSend` hook** that scrubs known PII/PHI fields (e.g. `customer_name`, `customer_email`, `customer_phone`) from the event payload before it is sent. This applies to all layers: frontend, backend, and gateway.
-
-### Testing
-- Write tests for all service-layer functions.
-- Use descriptive test names: `it("should return 404 when item not found")`.
-- Mock only at system boundaries (HTTP, DB); never mock internal logic.
-- Never hardcode values in tests that can become invalid over time or drift from the source of truth:
-  - **Dates** — compute dynamically (e.g. `date.today() + timedelta(days=60)`)
-  - **Prices and config values** — read from seed data constants or query the DB; never assume a specific dollar amount
-  - **Reference data** (zip codes, item IDs) — define as named constants at the top of the test file with a comment pointing to the seed file, so drift is obvious
 
 ### Git & Build
 - Never commit with `--no-verify` to bypass hooks.
