@@ -181,7 +181,8 @@ async def create_catering_order(db, payload, config: dict) -> JSONResponse:
 
     # --- Fire notifications (failures are logged, never block the response) ---
     logger.info(
-        "[catering] catering order created — reference: %s", reference_number,
+        "[catering] catering order created — reference: %s",
+        reference_number,
         extra={"event": "catering_order_created", "reference": reference_number},
     )
     await notify_catering(
